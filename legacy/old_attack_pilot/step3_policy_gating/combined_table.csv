@@ -1,0 +1,4 @@
+policy,attacks_offload0,attacks_offload4,wasted_budget_off0,total_atk_requests,total_atk_tokens,delta_tpot_off4_ms,slowdown_per_req,slowdown_per_token
+naive_threshold,0,5,0,278,4445,3420.2,12.3029,0.769449
+random_gate,2,3,640,805,12876,3369.0,4.1851,0.26165
+state_aware,0,5,0,266,4256,3524.8,13.2511,0.828195

@@ -1,0 +1,7 @@
+{
+  "freeze_timestamp": "2026-06-18T11:44:30.575383+00:00",
+  "source_csv_sha256": "d0a20e9ab918d0247b2f753c5d5e6d5ab0c3fc85f68090f27231674479f94bec",
+  "model_artifact_sha256": "dc19128a204b87f7917ec75c40906aecbf58fd6f7845424557d136864f06b384",
+  "completion_marker": "llama_estimator_freeze.COMPLETE",
+  "status": "FROZEN_BEFORE_AVAILABILITY_PILOT"
+}

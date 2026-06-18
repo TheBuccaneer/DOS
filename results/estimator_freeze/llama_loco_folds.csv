@@ -1,0 +1,11 @@
+held_out_concurrency,policy,train_samples,test_samples,balanced_accuracy,accuracy,tn,fp,fn,tp,selected_feature,selected_threshold_ms
+2,naive_threshold,800,200,1.0,1.0,100,0,0,100,itl_mean_ms,685.8389564062577
+2,state_aware,800,200,1.0,1.0,100,0,0,100,,
+4,naive_threshold,800,200,1.0,1.0,100,0,0,100,itl_mean_ms,686.0277709687922
+4,state_aware,800,200,1.0,1.0,100,0,0,100,,
+8,naive_threshold,800,200,1.0,1.0,100,0,0,100,itl_mean_ms,685.8389564062577
+8,state_aware,800,200,1.0,1.0,100,0,0,100,,
+12,naive_threshold,800,200,1.0,1.0,100,0,0,100,itl_mean_ms,685.8389564062577
+12,state_aware,800,200,1.0,1.0,100,0,0,100,,
+16,naive_threshold,800,200,1.0,1.0,100,0,0,100,itl_mean_ms,685.6934378984363
+16,state_aware,800,200,1.0,1.0,100,0,0,100,,

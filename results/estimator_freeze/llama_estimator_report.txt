@@ -1,0 +1,54 @@
+========================================================================
+LLAMA STATE ESTIMATOR — FREEZE REPORT
+========================================================================
+Freeze Timestamp   : 2026-06-18T11:44:30.575383+00:00
+Source CSV         : C:\projects\DOS\legacy\estimator_inputs\llama_requests_summary.csv
+Low State          : offload_gb == 0
+High State         : offload_gb == 12
+Excluded Offload   : [2, 4, 8, 16]
+Min Concurrency    : 2
+Excluded Conc.     : [1]
+Included Conc.     : [2, 4, 8, 12, 16]
+Concurrency note   : Concurrency 1 was excluded a priori because it represents a distinct low-load regime and is outside the frozen pilot scope.
+Probe Requests     : 1
+Probe Input/Output : 256 / 64 tokens
+Probe Temperature  : 0.0
+SA Features        : ['ttft_ms', 'itl_median_ms', 'itl_mean_ms']
+Naive Feature      : itl_mean_ms  (vorab festgelegt)
+Rows (binary)      : 1000
+Class counts       : Low=500  High=500
+
+LEAVE-ONE-CONCURRENCY-OUT ERGEBNISSE
+------------------------------------------------------------------------
+ Conc  Policy                    BA     Acc    TN  FP  FN  TP    Thr (ms)
+------------------------------------------------------------------------
+    2  naive_threshold       1.0000  1.0000   100   0   0 100      685.84
+    2  state_aware           1.0000  1.0000   100   0   0 100            
+    4  naive_threshold       1.0000  1.0000   100   0   0 100      686.03
+    4  state_aware           1.0000  1.0000   100   0   0 100            
+    8  naive_threshold       1.0000  1.0000   100   0   0 100      685.84
+    8  state_aware           1.0000  1.0000   100   0   0 100            
+   12  naive_threshold       1.0000  1.0000   100   0   0 100      685.84
+   12  state_aware           1.0000  1.0000   100   0   0 100            
+   16  naive_threshold       1.0000  1.0000   100   0   0 100      685.69
+   16  state_aware           1.0000  1.0000   100   0   0 100            
+
+AGGREGIERTE CV-ERGEBNISSE  (Std: ddof=0, Populationsformel)
+------------------------------------------------------------------------
+Naive Threshold (itl_mean_ms) : BA = 1.0000 ± 0.0000
+State-Aware (LR)               : BA = 1.0000 ± 0.0000
+
+EINGEFRORENE POLICIES
+------------------------------------------------------------------------
+Naive  : itl_mean_ms >= 685.8390 ms → High State
+SA     : Logistic Regression, Entscheidungsschwelle 0.5
+Status : FROZEN_BEFORE_AVAILABILITY_PILOT
+
+PAKETVERSIONEN
+------------------------------------------------------------------------
+  python            : 3.14.0
+  scikit-learn      : 1.9.0
+  pandas            : 2.3.3
+  numpy             : 2.4.1
+  joblib            : 1.5.3
+========================================================================

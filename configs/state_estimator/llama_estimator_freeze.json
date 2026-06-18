@@ -1,0 +1,76 @@
+{
+  "freeze_timestamp": "2026-06-18T11:44:30.575383+00:00",
+  "freeze_script_sha256": "654783cb07456ea0fae323b62ba3a16d525a7d2d3a3ebfeca273a9942076574e",
+  "source_csv": "C:\\projects\\DOS\\legacy\\estimator_inputs\\llama_requests_summary.csv",
+  "source_csv_sha256": "d0a20e9ab918d0247b2f753c5d5e6d5ab0c3fc85f68090f27231674479f94bec",
+  "model_name": "meta-llama/Llama-3.1-8B-Instruct",
+  "low_offload_gb": 0,
+  "high_offload_gb": 12,
+  "features": [
+    "ttft_ms",
+    "itl_median_ms",
+    "itl_mean_ms"
+  ],
+  "naive_feature": "itl_mean_ms",
+  "excluded_offload_values": [
+    2,
+    4,
+    8,
+    16
+  ],
+  "minimum_run_concurrency": 2,
+  "excluded_concurrencies": [
+    1
+  ],
+  "included_concurrencies": [
+    2,
+    4,
+    8,
+    12,
+    16
+  ],
+  "probe_requests": 1,
+  "probe_input_len": 256,
+  "probe_output_len": 64,
+  "probe_temperature": 0.0,
+  "probe_profile_validation": "validated_from_csv_columns: input_len\u2248256, actual_output_len=64",
+  "number_of_rows": 1000,
+  "class_counts": {
+    "0": 500,
+    "1": 500
+  },
+  "naive_threshold_feature": "itl_mean_ms",
+  "naive_threshold_ms": 685.8389564062577,
+  "naive_threshold_cv_balanced_accuracy_mean": 1.0,
+  "naive_threshold_cv_balanced_accuracy_std": 0.0,
+  "state_aware_cv_balanced_accuracy_mean": 1.0,
+  "state_aware_cv_balanced_accuracy_std": 0.0,
+  "state_aware_decision_threshold": 0.5,
+  "logistic_regression_parameters": {
+    "C": 1.0,
+    "class_weight": "balanced",
+    "dual": false,
+    "fit_intercept": true,
+    "intercept_scaling": 1,
+    "l1_ratio": 0.0,
+    "max_iter": 1000,
+    "n_jobs": null,
+    "penalty": "deprecated",
+    "random_state": 42,
+    "solver": "lbfgs",
+    "tol": 0.0001,
+    "verbose": 0,
+    "warm_start": false
+  },
+  "random_state": 42,
+  "cv_std_ddof": 0,
+  "package_versions": {
+    "python": "3.14.0",
+    "scikit-learn": "1.9.0",
+    "pandas": "2.3.3",
+    "numpy": "2.4.1",
+    "joblib": "1.5.3"
+  },
+  "status": "FROZEN_BEFORE_AVAILABILITY_PILOT",
+  "model_artifact_sha256": "dc19128a204b87f7917ec75c40906aecbf58fd6f7845424557d136864f06b384"
+}
