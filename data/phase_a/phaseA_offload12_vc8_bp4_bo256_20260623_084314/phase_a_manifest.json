@@ -1,0 +1,65 @@
+{
+  "schema_version": "2.0",
+  "experiment_id": "phase_a_state_dependent_availability",
+  "phase": "A",
+  "created_utc": "2026-06-23T08:43:14.429774+00:00",
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "base_url": "http://127.0.0.1:8000",
+  "offload_gb": 12,
+  "victim_profile": {
+    "input_len": 256,
+    "output_len": 64,
+    "temperature": 0.0
+  },
+  "victim_concurrency": 8,
+  "burst_profile": {
+    "input_len": 256,
+    "output_len": 256,
+    "temperature": 0.0,
+    "parallelism": 4,
+    "request_count": 4
+  },
+  "repeats": 1,
+  "conditions": [
+    "no_burst",
+    "fixed_burst"
+  ],
+  "episode_order": [
+    {
+      "episode_index": 0,
+      "episode_id": "phaseA_o12_vc8_bp4_bo256_rep01_no_burst",
+      "condition": "no_burst",
+      "repeat_id": 1,
+      "victim_seed": 42001,
+      "burst_seed": 42002
+    },
+    {
+      "episode_index": 1,
+      "episode_id": "phaseA_o12_vc8_bp4_bo256_rep01_fixed_burst",
+      "condition": "fixed_burst",
+      "repeat_id": 1,
+      "victim_seed": 43001,
+      "burst_seed": 43002
+    }
+  ],
+  "base_random_seed": 42000,
+  "timing_parameters": {
+    "victim_warmup_s": 20.0,
+    "measurement_window_s": 240.0,
+    "burst_offset_s": 30.0,
+    "burst_completion_timeout_s": 600.0,
+    "request_timeout_s": 600.0,
+    "drain_timeout_s": 600.0
+  },
+  "primary_metric": "episode-level victim median TPOT",
+  "victim_request_filter": {
+    "role": "victim",
+    "fully_in_window": "measurement_window_start_unix_ns <= start_time_unix_ns AND end_time_unix_ns <= measurement_window_end_unix_ns",
+    "keep": "request_success == true AND cancelled == false AND timed_out == false AND error_text empty AND tpot_ms is not null",
+    "note": "role 'burst' == load action; warmup wird separat vor dem Fenster gemessen und ist NICHT in victim.json."
+  },
+  "request_worker_path": "/home/rock/projects/DOS/scripts/new/request_worker.py",
+  "request_worker_sha256": "9063032b29b38bb4b37f62cc0bb83ea832e17c3c802b93b2bb547f4cb88924a1",
+  "runner_sha256": "ec1ded82d39d3e4876ed23b0775c195d4cd30774149740a78509feddca832349",
+  "status": "COMPLETE"
+}
