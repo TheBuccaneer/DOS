@@ -1,0 +1,57 @@
+Phase A Schedule Audit
+============================================================
+seed: 20260711
+repeats per cell: 5
+models: llama, qwen
+
+--- llama: PASS ---
+total episodes: 40
+cell counts (offload_gb, concurrency, condition):
+  (0, 4, 'fixed_burst'): 5
+  (0, 4, 'no_burst'): 5
+  (0, 8, 'fixed_burst'): 5
+  (0, 8, 'no_burst'): 5
+  (12, 4, 'fixed_burst'): 5
+  (12, 4, 'no_burst'): 5
+  (12, 8, 'fixed_burst'): 5
+  (12, 8, 'no_burst'): 5
+block sequence (each entry implies a server restart before its first episode):
+  llama_block01_low (state=low)
+  llama_block02_high (state=high)
+  llama_block03_high (state=high)
+  llama_block04_low (state=low)
+  llama_block05_low (state=low)
+  llama_block06_high (state=high)
+  llama_block07_high (state=high)
+  llama_block08_low (state=low)
+  llama_block09_low (state=low)
+  llama_block10_high (state=high)
+
+--- qwen: PASS ---
+total episodes: 40
+cell counts (offload_gb, concurrency, condition):
+  (0, 4, 'fixed_burst'): 5
+  (0, 4, 'no_burst'): 5
+  (0, 8, 'fixed_burst'): 5
+  (0, 8, 'no_burst'): 5
+  (12, 4, 'fixed_burst'): 5
+  (12, 4, 'no_burst'): 5
+  (12, 8, 'fixed_burst'): 5
+  (12, 8, 'no_burst'): 5
+block sequence (each entry implies a server restart before its first episode):
+  qwen_block01_low (state=low)
+  qwen_block02_high (state=high)
+  qwen_block03_high (state=high)
+  qwen_block04_low (state=low)
+  qwen_block05_low (state=low)
+  qwen_block06_high (state=high)
+  qwen_block07_high (state=high)
+  qwen_block08_low (state=low)
+  qwen_block09_low (state=low)
+  qwen_block10_high (state=high)
+
+============================================================
+--- global checks ---
+  episode_id uniqueness across merged models: PASS
+
+OVERALL: PASS
