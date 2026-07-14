@@ -1,0 +1,67 @@
+{
+  "cooldown_s": null,
+  "end_utc": "2026-07-14T15:13:26.009368+00:00",
+  "episode_statuses": {
+    "llama_off0_conc4_fixed_burst_rep1": "missing",
+    "llama_off0_conc4_no_burst_rep1": "missing",
+    "llama_off0_conc8_fixed_burst_rep1": "missing",
+    "llama_off0_conc8_no_burst_rep1": "missing"
+  },
+  "overall_status": "stabilization_failed",
+  "readiness": {
+    "capability_summary": {
+      "available": true,
+      "has_completions_path": true,
+      "http_status": 200,
+      "note": "informational only -- the definitive capability check is the stabilization run",
+      "path_count": 21
+    },
+    "detected_model": "meta-llama/Llama-3.1-8B-Instruct",
+    "health_status": 200,
+    "last_health_status": 200,
+    "last_models_status": 200,
+    "last_transient_error_type": "ConnectError",
+    "models_response": {
+      "data": [
+        "meta-llama/Llama-3.1-8B-Instruct"
+      ]
+    },
+    "poll_count": 40,
+    "readiness_duration_s": 78.45615869599715,
+    "readiness_start_utc": "2026-07-14T15:11:58.445064+00:00",
+    "ready_utc": "2026-07-14T15:13:16.924549+00:00",
+    "server_start_utc": "2026-07-14T15:11:58.445050+00:00"
+  },
+  "result_schema_version": 2,
+  "run_mode": "smoke",
+  "runner_version": "run_phase_a-stage2",
+  "schedule_fingerprint": "sha256:1c0e58879c64bc399c772f5b5931f10d940fb2204129e869223622e3a3cf4fc7",
+  "server_start": {
+    "cmd": [
+      "bash",
+      "/home/rock/projects/DOS/new/scripts/phase_a/run_server.sh",
+      "llama",
+      "0",
+      "127.0.0.1",
+      "8000"
+    ],
+    "pgid": 160839,
+    "pid": 160839,
+    "start_utc": "2026-07-14T15:11:58.445050+00:00"
+  },
+  "server_stop": {
+    "alive_after_stop": false,
+    "forced_kill": false,
+    "pgid": 160839,
+    "pid": 160839,
+    "port_free_after_stop": true,
+    "stop_end_utc": "2026-07-14T15:13:26.009322+00:00",
+    "stop_error": null,
+    "stop_start_utc": "2026-07-14T15:13:25.607880+00:00",
+    "stop_success": true,
+    "term_sent": true
+  },
+  "smoke_block": "llama_block01_low",
+  "stabilization_status": "failed",
+  "start_utc": "2026-07-14T15:11:58.443724+00:00"
+}

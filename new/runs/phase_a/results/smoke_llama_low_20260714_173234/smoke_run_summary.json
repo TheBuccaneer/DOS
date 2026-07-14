@@ -1,0 +1,45 @@
+{
+  "cooldown_s": null,
+  "end_utc": "2026-07-14T15:33:41.335392+00:00",
+  "episode_statuses": {
+    "llama_off0_conc4_fixed_burst_rep1": "missing",
+    "llama_off0_conc4_no_burst_rep1": "missing",
+    "llama_off0_conc8_fixed_burst_rep1": "missing",
+    "llama_off0_conc8_no_burst_rep1": "missing"
+  },
+  "error": "server process exited before becoming ready (poll_count=22)",
+  "overall_status": "error",
+  "readiness": null,
+  "result_schema_version": 2,
+  "run_mode": "smoke",
+  "runner_version": "run_phase_a-stage2",
+  "schedule_fingerprint": "sha256:1c0e58879c64bc399c772f5b5931f10d940fb2204129e869223622e3a3cf4fc7",
+  "server_start": {
+    "cmd": [
+      "bash",
+      "/home/rock/projects/DOS/new/scripts/phase_a/run_server.sh",
+      "llama",
+      "0",
+      "127.0.0.1",
+      "8000"
+    ],
+    "pgid": 165335,
+    "pid": 165335,
+    "start_utc": "2026-07-14T15:32:57.071249+00:00"
+  },
+  "server_stop": {
+    "alive_after_stop": false,
+    "forced_kill": false,
+    "pgid": 165335,
+    "pid": 165335,
+    "port_free_after_stop": true,
+    "stop_end_utc": "2026-07-14T15:33:41.335364+00:00",
+    "stop_error": null,
+    "stop_start_utc": "2026-07-14T15:33:41.335201+00:00",
+    "stop_success": true,
+    "term_sent": false
+  },
+  "smoke_block": "llama_block01_low",
+  "stabilization_status": "not_run",
+  "start_utc": "2026-07-14T15:32:57.069956+00:00"
+}

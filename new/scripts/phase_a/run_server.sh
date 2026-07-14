@@ -83,6 +83,12 @@ GPU_MEM_UTIL="0.90"
 TP_SIZE="1"
 MAX_MODEL_LEN="8192"
 SERVER_SEED="20260711"
+# Not binding for the frozen experiment: the maximum concurrent load is
+# 8 victim requests + 4 burst requests = 12 active sequences. A limit of
+# 16 therefore leaves four sequences of headroom while replacing vLLM's
+# default sampler warmup with 256 dummy sequences, which caused a CUDA OOM
+# on a 23.54 GiB RTX 3090 at gpu_memory_utilization=0.90.
+MAX_NUM_SEQS="16"
 
 if ! mkdir -p "$LOGDIR"; then
   echo "Fehler: Logverzeichnis '${LOGDIR}' konnte nicht angelegt werden." >&2
@@ -109,6 +115,7 @@ CUDA_DISPLAY="${CUDA_VISIBLE_DEVICES:-<nicht gesetzt>}"
   echo "vLLM-Pfad: ${VLLM_PATH}"
   echo "vLLM-Version: ${VLLM_VERSION}"
   echo "Server-Seed: ${SERVER_SEED}"
+  echo "Max num seqs: ${MAX_NUM_SEQS}"
   echo "Prefix-Caching: disabled"
   echo "Logdatei: ${LOGFILE}"
   echo "UTC-Startzeit: ${TIMESTAMP}"
@@ -126,4 +133,5 @@ vllm serve "$MODEL" \
   --cpu-offload-gb "$OFFLOAD_GB" \
   --no-enable-prefix-caching \
   --seed "$SERVER_SEED" \
+  --max-num-seqs "$MAX_NUM_SEQS" \
   2>&1 | tee -a "$LOGFILE"
