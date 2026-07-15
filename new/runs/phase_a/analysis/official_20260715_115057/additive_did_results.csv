@@ -1,0 +1,13 @@
+model,concurrency,metric,direction_alignment,n_episodes_per_cell,low_no_burst_median,low_fixed_burst_median,low_aligned_degradation,low_aligned_degradation_ci_low,low_aligned_degradation_ci_high,high_no_burst_median,high_fixed_burst_median,high_aligned_degradation,high_aligned_degradation_ci_low,high_aligned_degradation_ci_high,additive_did_high_minus_low,additive_did_ci_low,additive_did_ci_high,ci_excludes_no_interaction,bootstrap_probability_high_more_sensitive,bootstrap_iterations
+llama,4,victim_success_rate,higher_is_better,5,1.0,1.0,-0.0,0.0,0.0,1.0,1.0,-0.0,0.0,0.0,0.0,0.0,0.0,False,0.0,100000
+llama,4,victim_timeout_rate,higher_is_worse,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,False,0.0,100000
+llama,4,victim_failure_rate,higher_is_worse,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,False,0.0,100000
+llama,8,victim_success_rate,higher_is_better,5,1.0,1.0,-0.0,0.0,0.0,1.0,1.0,-0.0,0.0,0.0,0.0,0.0,0.0,False,0.0,100000
+llama,8,victim_timeout_rate,higher_is_worse,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,False,0.0,100000
+llama,8,victim_failure_rate,higher_is_worse,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,False,0.0,100000
+qwen,4,victim_success_rate,higher_is_better,5,1.0,1.0,-0.0,0.0,0.0,1.0,1.0,-0.0,0.0,0.0,0.0,0.0,0.0,False,0.0,100000
+qwen,4,victim_timeout_rate,higher_is_worse,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,False,0.0,100000
+qwen,4,victim_failure_rate,higher_is_worse,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,False,0.0,100000
+qwen,8,victim_success_rate,higher_is_better,5,1.0,1.0,-0.0,0.0,0.0,1.0,1.0,-0.0,0.0,0.0,0.0,0.0,0.0,False,0.0,100000
+qwen,8,victim_timeout_rate,higher_is_worse,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,False,0.0,100000
+qwen,8,victim_failure_rate,higher_is_worse,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,False,0.0,100000

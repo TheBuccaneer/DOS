@@ -1,0 +1,178 @@
+{
+  "stats": {
+    "actual_file_count_including_integrity": 144,
+    "episodes_count": 80,
+    "stabilization_count": 20,
+    "block_summaries_count": 20,
+    "server_logs_count": 20,
+    "integrity_bad_entries": 0,
+    "max_shutdown_s": 7.218635,
+    "max_shutdown_block": "qwen_block03_high",
+    "forced_kill_blocks": 0,
+    "log_hits": {},
+    "errors": 0,
+    "warnings": 0,
+    "requests_by_status": {
+      "complete": 2160
+    },
+    "raw_event_statuses": {
+      "ok": 171120,
+      "done": 2160
+    },
+    "itl_unavailable_requests": 0,
+    "aggregate_failures": 0,
+    "max_stabilization_abs_tpot_drift": 0.07874386109364753,
+    "max_stabilization_drift_block": "llama_block01_low",
+    "max_trigger_wait_ms": 19393.884958,
+    "max_trigger_wait_episode": "llama_off12_conc8_fixed_burst_rep4",
+    "max_victim_overlap_ms": 116211.479092,
+    "campaign_duration_s": 24692.427417
+  },
+  "errors": [],
+  "warnings": [],
+  "top_stabilization_drifts": [
+    [
+      0.07874386109364753,
+      -0.07874386109364753,
+      "llama_block01_low",
+      {
+        "median_ttft_ms": 0.5511506907644923,
+        "median_tpot_ms": -0.07874386109364753,
+        "median_e2el_ms": -0.0032949920426871876
+      }
+    ],
+    [
+      0.0778648674305611,
+      -0.0778648674305611,
+      "llama_block08_low",
+      {
+        "median_ttft_ms": 0.57236715274961,
+        "median_tpot_ms": -0.0778648674305611,
+        "median_e2el_ms": -0.0025582267004395486
+      }
+    ],
+    [
+      0.07756320850776575,
+      -0.07756320850776575,
+      "qwen_block08_low",
+      {
+        "median_ttft_ms": 0.488421736926769,
+        "median_tpot_ms": -0.07756320850776575,
+        "median_e2el_ms": 8.052150846566055e-05
+      }
+    ],
+    [
+      0.06480343773589325,
+      0.06480343773589325,
+      "llama_block05_low",
+      {
+        "median_ttft_ms": -0.013119794369864475,
+        "median_tpot_ms": 0.06480343773589325,
+        "median_e2el_ms": 0.00410450859799109
+      }
+    ],
+    [
+      0.04358139933433149,
+      -0.04358139933433149,
+      "qwen_block10_high",
+      {
+        "median_ttft_ms": 0.6220058049608812,
+        "median_tpot_ms": -0.04358139933433149,
+        "median_e2el_ms": 0.013850407517646973
+      }
+    ],
+    [
+      0.0432600430383873,
+      -0.0432600430383873,
+      "qwen_block02_high",
+      {
+        "median_ttft_ms": 0.6203586053464482,
+        "median_tpot_ms": -0.0432600430383873,
+        "median_e2el_ms": 0.014164825643762164
+      }
+    ],
+    [
+      0.03741272264028055,
+      -0.03741272264028055,
+      "qwen_block01_low",
+      {
+        "median_ttft_ms": 0.05324774057165722,
+        "median_tpot_ms": -0.03741272264028055,
+        "median_e2el_ms": -0.009551020141804234
+      }
+    ],
+    [
+      0.020814138543713882,
+      -0.020814138543713882,
+      "qwen_block07_high",
+      {
+        "median_ttft_ms": 0.5597642188976666,
+        "median_tpot_ms": -0.020814138543713882,
+        "median_e2el_ms": 0.020190809039962627
+      }
+    ],
+    [
+      0.01577787431823673,
+      -0.01577787431823673,
+      "llama_block02_high",
+      {
+        "median_ttft_ms": 0.5022057319436842,
+        "median_tpot_ms": -0.01577787431823673,
+        "median_e2el_ms": 0.016514574497540867
+      }
+    ],
+    [
+      0.002287157231393625,
+      0.002287157231393625,
+      "qwen_block05_low",
+      {
+        "median_ttft_ms": -0.02913497847916397,
+        "median_tpot_ms": 0.002287157231393625,
+        "median_e2el_ms": -0.007300988520652143
+      }
+    ]
+  ],
+  "top_shutdown_durations": [
+    [
+      7.218635,
+      "qwen_block03_high"
+    ],
+    [
+      7.018328,
+      "qwen_block06_high"
+    ],
+    [
+      7.017445,
+      "qwen_block02_high"
+    ],
+    [
+      7.016874,
+      "qwen_block10_high"
+    ],
+    [
+      7.016663,
+      "qwen_block07_high"
+    ],
+    [
+      4.812871,
+      "llama_block07_high"
+    ],
+    [
+      4.812203,
+      "llama_block03_high"
+    ],
+    [
+      4.611663,
+      "llama_block10_high"
+    ],
+    [
+      4.610798,
+      "llama_block06_high"
+    ],
+    [
+      4.610512,
+      "llama_block02_high"
+    ]
+  ],
+  "generic_log_error_hits": []
+}
