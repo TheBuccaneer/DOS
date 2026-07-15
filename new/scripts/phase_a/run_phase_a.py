@@ -1,44 +1,51 @@
 #!/usr/bin/env python3
 """
-run_phase_a.py -- Phase A runner, Stage 2 of 3.
+run_phase_a.py -- Phase A runner, Stage 3 of 3.
 
 Stage 1 scope (retained, unchanged): schedule-bundle validation
 (structural + deterministic + canonical fingerprint), CLI, resume-depth
 validation of already-existing episode result files.
 
-Stage 2 scope (added on top of Stage 1): the full real execution path
-for exactly one selectable smoke-test block:
+Stage 2 scope (retained, unchanged): the full real execution path for
+exactly one selectable smoke-test block:
     start server (bash run_server.sh ...) -> API readiness -> request
     capability check -> one full stabilization run -> atomic
     stabilization output -> health check + fixed cooldown -> four
     regular episodes in schedule order -> atomic episode outputs ->
     targeted server-process-group stop with verified shutdown.
 
---official-run remains explicitly blocked in Stage 2:
-    "Official execution is disabled until Stage 3."
-No server is started and no result file is written for --official-run.
-
-Stage 2 does not implement a full 80-episode run.
-
-Realpath-hardening patch (applied on top of the initial Stage 2 cut):
-    - Readiness polls through transient connection errors instead of
-      raising on the first ConnectionRefusedError/timeout/OSError.
-    - An additional /health gate runs after stabilization is written and
-      before the cooldown; only HTTP 200 releases the block.
-    - stop_server() is host/port-aware, treats ProcessLookupError as
-      "already gone", and only declares success once the process is
-      confirmed dead AND the port is confirmed free.
-    - classify_result_file() now depth-validates every victim/burst
-      request record (seeds, prompt hash, usage, token counts, status,
-      timestamp ordering) instead of accepting a file on list length alone.
-    - execute_completion_request() devalues a request on any malformed
-      SSE/JSON structure (bad JSON, wrong types, contradicting
-      prompt_token_ids), never just on the token-count-based checks.
-    - A failed trigger now preserves full raw data for all N victim
-      requests (including minimal, clearly-identified records for tasks
-      that were cancelled before they could start).
-    - The first wave of victim requests is started explicitly, rather
-      than relying solely on implicit semaphore-acquisition fairness.
+Stage 3 scope (added on top of Stage 1+2): --official-run is enabled
+and runs the complete frozen 20-block / 80-episode campaign, in exact
+schedule-bundle order, via the same scientific block executor as
+--smoke-test (_run_block_protocol, run_mode="official" instead of
+"smoke"). Adds:
+    - a strict, isolated environment gate (validate_official_environment)
+      that hard-aborts a fresh run or a resume -- before any output
+      change and before any server start -- unless the tracked working
+      tree is clean, the GPU identity fully resolves, every
+      interpreter/library version is present, and all six frozen
+      runner/schedule files hash cleanly;
+    - official_run_manifest.json (environment/hardware/software
+      fingerprint, written once, never overwritten by --resume);
+    - official_run_summary.json (atomically updated after every block);
+    - block_summaries/<block_id>.json, deep-validated (Sections 6/7):
+      a bare status=="complete"/overall_status=="block_complete" is
+      never sufficient on its own to treat a block as finished;
+    - a genuinely empty-directory fresh-run contract (ANY existing
+      entry -- known or unknown -- aborts before any change);
+    - byte-exact, true no-op --resume when everything (including the
+      integrity manifest) is already complete and verifies -- no file
+      is touched, not even a timestamp;
+    - an existing-but-invalid integrity_manifest.json is NEVER silently
+      resealed with fresh hashes -- that is always a hard resume abort;
+    - controlled SIGINT/SIGTERM handling: no new block starts after a
+      signal, the in-flight block (and all its active request tasks) is
+      cancelled and cleaned up, the server is verifiably stopped, and
+      official_run_summary.json is atomically marked "interrupted" with
+      the signal name, before the CLI exits with 130 (SIGINT) or 143
+      (SIGTERM);
+    - a final, self-verifying integrity_manifest.json, written only
+      after a genuine 80/80 + 20/20 + 20/20 deep-verified completion.
 
 Architecture note -- no runtime dependency on the generator:
     This module does NOT import make_phase_a_schedule.py. The generator
@@ -58,19 +65,19 @@ Bundle interface:
         --schedule-json, or --schedule-csv flag.
 
 CLI modes (mutually exclusive, exactly one required):
-    --self-test     Exercises this runner's own validation logic (Stage 1)
-                     plus its request/trigger/stabilization/smoke-block
-                     logic against fakes (Stage 2). Does not require
-                     --schedule-dir, a GPU, or a real server.
+    --self-test     Exercises this runner's own validation logic (Stage 1),
+                     its request/trigger/stabilization/smoke-block logic
+                     (Stage 2), and the full official-campaign contract
+                     (Stage 3) against fakes -- no GPU, no real server,
+                     no sleeping, no network. Does not require
+                     --schedule-dir.
     --dry-run       Loads and fully validates the given --schedule-dir
                      bundle, prints the resulting execution plan, and
                      exits. Opens no network connection, starts no
                      server, loads no tokenizer, writes no result files.
-    --official-run  Same full bundle validation as --dry-run, plus
-                     output-dir preparation and (if --resume) a resume
-                     scan of already-existing result files, then aborts
-                     with "Official execution is disabled until Stage 3."
-                     No server is started; no result file is written.
+    --official-run  Runs the complete frozen campaign (20 blocks, 80
+                     episodes) in exact schedule order. Enabled as of
+                     Stage 3 -- no longer artificially disabled.
     --smoke-test    Really executes exactly one --smoke-block: starts
                      the server via run_server.sh, waits for readiness,
                      runs one full stabilization pass, cools down, runs
@@ -78,18 +85,24 @@ CLI modes (mutually exclusive, exactly one required):
                      order, and stops the server. Requires --smoke-block.
 
 --resume is only valid together with --official-run or --smoke-test.
---smoke-block/--host/--port are only valid together with --smoke-test.
+--smoke-block is only valid together with --smoke-test.
+--host/--port apply to both --smoke-test and --official-run (the server
+is bound to the same host:port for either mode; only one block's server
+is ever running at a time).
 
 The API key (VLLM_API_KEY) is read from the environment only inside
-read_api_key_from_env(), which is only ever called on the real
---smoke-test path -- never for --self-test, --dry-run, or
---official-run. It is never accepted as a CLI argument, never stored in
-any server command, manifest, or JSON result, and never logged.
+read_api_key_from_env(), which is only ever called on a real execution
+path -- --smoke-test or --official-run -- never for --self-test or
+--dry-run. It is never accepted as a CLI argument, never stored in any
+server command, manifest, or JSON result, and never logged. The
+official-run environment gate hashes VLLM_API_KEY's *absence* nowhere;
+it fingerprints code/schedule files and hardware/software versions only.
 
 Usage:
     python3 run_phase_a.py --self-test
     python3 run_phase_a.py --dry-run --schedule-dir /path/to/runs/phase_a
-    python3 run_phase_a.py --official-run --schedule-dir /path/to/runs/phase_a \\
+    VLLM_API_KEY=... GPU_DEVICE=0 python3 run_phase_a.py --official-run \\
+        --schedule-dir /path/to/runs/phase_a \\
         --output-dir /path/to/runs/phase_a/results/official
     VLLM_API_KEY=... GPU_DEVICE=0 python3 run_phase_a.py --smoke-test \\
         --smoke-block llama_block01_low \\
@@ -108,6 +121,7 @@ import io
 import json
 import math
 import os
+import platform
 import random
 import re
 import shutil
@@ -1119,7 +1133,7 @@ def print_execution_plan(bundle: LoadedBundle, plan: dict) -> None:
 # ============================================================================
 
 RESULT_SCHEMA_VERSION = 2
-RUNNER_VERSION = "run_phase_a-stage2"
+RUNNER_VERSION = "run_phase_a-stage3"
 RECORD_TYPE_REGULAR_EPISODE = "regular_episode"
 RECORD_TYPE_STABILIZATION = "stabilization"
 
@@ -1594,6 +1608,7 @@ MODELS_ENDPOINT = "/v1/models"
 OPENAPI_ENDPOINT = "/openapi.json"
 
 RUN_MODE_SMOKE = "smoke"
+RUN_MODE_OFFICIAL = "official"
 
 REQUEST_STATUS_COMPLETE = "complete"
 REQUEST_STATUS_INCOMPLETE = "incomplete"
@@ -2904,6 +2919,7 @@ async def run_regular_episode(
     first_token_events = {i: asyncio.Event() for i in first_wave}
     sem = asyncio.Semaphore(concurrency)
     victim_tasks: dict[int, asyncio.Task] = {}
+    burst_tasks: list[asyncio.Task] = []
 
     def _cb_factory(i: int) -> Callable[[], None]:
         def _cb() -> None:
@@ -2917,74 +2933,85 @@ async def run_regular_episode(
         async with sem:
             return await _run_victim_request(ctx, episode, i, on_first_token=_cb_factory(i))
 
-    # Section 7: explicit first wave. Do not rely solely on implicit
-    # semaphore-acquisition fairness -- start exactly victim indices
-    # 0..concurrency-1 first, yield control so they actually get a
-    # chance to acquire their semaphore slots, and only then create/
-    # activate the remaining deterministic queue (indices
-    # concurrency..n-1), which will block on the same semaphore until a
-    # first-wave slot frees up. This does not change the scientific
-    # schedule order or any seed derivation -- only the startup
-    # sequencing guarantee.
-    for i in range(first_wave_size):
-        victim_tasks[i] = asyncio.create_task(_victim(i))
-    await asyncio.sleep(0)
-    await asyncio.sleep(0)
+    try:
+        # Section 7: explicit first wave. Do not rely solely on implicit
+        # semaphore-acquisition fairness -- start exactly victim indices
+        # 0..concurrency-1 first, yield control so they actually get a
+        # chance to acquire their semaphore slots, and only then create/
+        # activate the remaining deterministic queue (indices
+        # concurrency..n-1), which will block on the same semaphore until a
+        # first-wave slot frees up. This does not change the scientific
+        # schedule order or any seed derivation -- only the startup
+        # sequencing guarantee.
+        for i in range(first_wave_size):
+            victim_tasks[i] = asyncio.create_task(_victim(i))
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
 
-    for i in range(first_wave_size, n):
-        victim_tasks[i] = asyncio.create_task(_victim(i))
-    await asyncio.sleep(0)
+        for i in range(first_wave_size, n):
+            victim_tasks[i] = asyncio.create_task(_victim(i))
+        await asyncio.sleep(0)
 
-    trigger_start_ns = ctx.clock.perf_counter_ns()
-    trigger_status = await _watch_trigger(
-        first_wave, first_token_events, victim_tasks, ctx.trigger_timeout_s
-    )
-    trigger_ns = ctx.clock.perf_counter_ns()
-    trigger_utc = ctx.clock.utcnow_iso()
-    trigger = {
-        "status": trigger_status,
-        "trigger_utc": trigger_utc,
-        "trigger_perf_ns": trigger_ns,
-        "waited_ms": (trigger_ns - trigger_start_ns) / 1e6,
-    }
+        trigger_start_ns = ctx.clock.perf_counter_ns()
+        trigger_status = await _watch_trigger(
+            first_wave, first_token_events, victim_tasks, ctx.trigger_timeout_s
+        )
+        trigger_ns = ctx.clock.perf_counter_ns()
+        trigger_utc = ctx.clock.utcnow_iso()
+        trigger = {
+            "status": trigger_status,
+            "trigger_utc": trigger_utc,
+            "trigger_perf_ns": trigger_ns,
+            "waited_ms": (trigger_ns - trigger_start_ns) / 1e6,
+        }
 
-    if trigger_status != "ok":
-        # Section 6: cancel everything, wait for cancellation to fully
-        # settle, then collect *all* 20 victim task outcomes (not just
-        # the first wave) -- tasks that never got far enough to build
-        # their own record become minimal, clearly-identified 'cancelled'
-        # records, and no raw data from tasks that did start is discarded.
-        await cancel_all(victim_tasks.values())
+        if trigger_status != "ok":
+            # Section 6: cancel everything, wait for cancellation to fully
+            # settle, then collect *all* 20 victim task outcomes (not just
+            # the first wave) -- tasks that never got far enough to build
+            # their own record become minimal, clearly-identified 'cancelled'
+            # records, and no raw data from tasks that did start is discarded.
+            await cancel_all(victim_tasks.values())
+            victim_results_raw = await asyncio.gather(
+                *[victim_tasks[i] for i in range(n)], return_exceptions=True
+            )
+            victim_results = _enrich_minimal_records(
+                _coerce_task_results(victim_results_raw), episode_id=episode.episode_id, role="victim"
+            )
+            return _build_episode_result(
+                episode=episode,
+                schedule_fingerprint=schedule_fingerprint,
+                server_metadata=server_metadata,
+                stabilization_ref=stabilization_ref,
+                trigger=trigger,
+                burst_interval=None,
+                victim_results=victim_results,
+                burst_results=[],
+                status="failed",
+                validation_errors=[f"trigger failed: {trigger_status}"],
+            )
+
+        if episode.condition == "fixed_burst":
+            for j in range(episode.burst_parallel_requests):
+                burst_tasks.append(asyncio.create_task(_run_burst_request(ctx, episode, j)))
+
         victim_results_raw = await asyncio.gather(
             *[victim_tasks[i] for i in range(n)], return_exceptions=True
         )
-        victim_results = _enrich_minimal_records(
-            _coerce_task_results(victim_results_raw), episode_id=episode.episode_id, role="victim"
+        burst_results_raw = (
+            await asyncio.gather(*burst_tasks, return_exceptions=True) if burst_tasks else []
         )
-        return _build_episode_result(
-            episode=episode,
-            schedule_fingerprint=schedule_fingerprint,
-            server_metadata=server_metadata,
-            stabilization_ref=stabilization_ref,
-            trigger=trigger,
-            burst_interval=None,
-            victim_results=victim_results,
-            burst_results=[],
-            status="failed",
-            validation_errors=[f"trigger failed: {trigger_status}"],
-        )
-
-    burst_tasks: list[asyncio.Task] = []
-    if episode.condition == "fixed_burst":
-        for j in range(episode.burst_parallel_requests):
-            burst_tasks.append(asyncio.create_task(_run_burst_request(ctx, episode, j)))
-
-    victim_results_raw = await asyncio.gather(
-        *[victim_tasks[i] for i in range(n)], return_exceptions=True
-    )
-    burst_results_raw = (
-        await asyncio.gather(*burst_tasks, return_exceptions=True) if burst_tasks else []
-    )
+    except asyncio.CancelledError:
+        # Section 9: a cancellation can arrive at ANY point above -- while
+        # tasks are still being created, while waiting for the trigger
+        # (asyncio.wait(), used inside _watch_trigger, does NOT auto-cancel
+        # the tasks it was waiting on the way gather() does), or while
+        # awaiting either results gather. Regardless of phase, make sure
+        # every victim/burst task actually created so far is cancelled and
+        # its cleanup (including closing its SSE generator) is awaited
+        # before the cancellation propagates to the caller.
+        await cancel_all(list(victim_tasks.values()) + burst_tasks)
+        raise
 
     victim_results = _coerce_task_results(victim_results_raw)
     burst_results = _coerce_task_results(burst_results_raw)
@@ -3042,7 +3069,14 @@ async def run_stabilization(
             return await _run_stabilization_request(ctx, bundle_seed, model_key, block_id, i)
 
     tasks = [asyncio.create_task(_one(i)) for i in range(STABILIZATION_REQUEST_COUNT)]
-    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+    try:
+        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+    except asyncio.CancelledError:
+        # Section 9: same protection principle as run_regular_episode --
+        # explicitly cancel and await cleanup (including SSE generator
+        # closing) before letting the cancellation propagate.
+        await cancel_all(tasks)
+        raise
     results = _coerce_task_results(raw_results)
 
     functional_passed = all(r.get("status") == REQUEST_STATUS_COMPLETE for r in results)
@@ -3229,6 +3263,8 @@ class FakeServerProcessAdapter:
         self.started: list[FakeServerHandle] = []
 
     def start(self, cmd: list[str], log_path: Path) -> FakeServerHandle:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("", encoding="utf-8")
         handle = FakeServerHandle(cmd)
         self.started.append(handle)
         return handle
@@ -3258,7 +3294,7 @@ async def stop_server(
     timeout_s: float = SERVER_STOP_TIMEOUT_S,
     port_free_check: Callable[[str, int], bool] = is_port_free,
     kill_confirm_timeout_s: float = 5.0,
-    port_poll_timeout_s: float = 5.0,
+    port_poll_timeout_s: float = 30.0,
 ) -> dict:
     """Section 3: targeted, verified server-process-group stop. Signals
     only the server's own PGID, never a global kill. ProcessLookupError
@@ -3497,6 +3533,699 @@ def read_api_key_from_env(env: dict[str, str] | None = None) -> str:
 
 
 # ============================================================================
+# Environment fingerprinting (Stage 3, Section 7 + precision addendum)
+#
+# The environment_fingerprint exists so a --resume can never silently
+# continue on a different physical GPU or a different relevant code/
+# software state. It is computed from: the resolved *physical* GPU
+# (UUID/model/memory/driver -- never the raw CUDA_VISIBLE_DEVICES
+# string, which is just an index/alias), interpreter/library versions,
+# kernel, git commit, and explicit SHA-256 hashes of the six frozen
+# runner/schedule files. Timestamps, the output path, and the tracked
+# git-dirty boolean are deliberately excluded from the hash (dirty is
+# still recorded, informatively, in the manifest). The API key is never
+# part of this module at all.
+# ============================================================================
+
+def _sha256_file(path: Path) -> str | None:
+    try:
+        h = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
+def _safe_run_text(cmd: list[str], timeout_s: float = 10.0, cwd: Path | None = None) -> str | None:
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout_s, cwd=str(cwd) if cwd else None,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.strip()
+
+
+def _safe_package_version(name: str) -> str | None:
+    try:
+        import importlib.metadata as _im
+        return _im.version(name)
+    except Exception:  # noqa: BLE001 -- an uninstalled/unintrospectable package is not fatal
+        return None
+
+
+def _query_nvidia_smi_gpus() -> list[dict]:
+    out = _safe_run_text(
+        ["nvidia-smi", "--query-gpu=index,name,uuid,memory.total,driver_version", "--format=csv,noheader"]
+    )
+    gpus: list[dict] = []
+    if not out:
+        return gpus
+    for line in out.splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) != 5:
+            continue
+        index, name, uuid, memory_total, driver_version = parts
+        gpus.append(
+            {
+                "index": index, "name": name, "uuid": uuid,
+                "memory_total": memory_total, "driver_version": driver_version,
+            }
+        )
+    return gpus
+
+
+def _resolve_visible_gpu(gpu_list: list[dict], cuda_visible_devices: str | None) -> dict | None:
+    """Resolves CUDA_VISIBLE_DEVICES (an index, a UUID, or unset) against
+    the full nvidia-smi GPU list to find the one *physical* GPU that is
+    actually visible/measuring. This is what goes into the fingerprint --
+    never the raw env var string, which is meaningless across machines."""
+    if not gpu_list:
+        return None
+    if not cuda_visible_devices:
+        for g in gpu_list:
+            if g["index"] == "0":
+                return g
+        return gpu_list[0]
+    first = cuda_visible_devices.split(",")[0].strip()
+    for g in gpu_list:
+        if g["index"] == first:
+            return g
+    for g in gpu_list:
+        if g["uuid"] == first or g["uuid"] == first.replace("GPU-", "") or first.endswith(g["uuid"]):
+            return g
+    return None
+
+
+@runtime_checkable
+class EnvironmentProbe(Protocol):
+    def gather(self, schedule_dir: Path) -> dict: ...
+
+
+class RealEnvironmentProbe:
+    """Real environment probe: shells out to nvidia-smi/git, reads
+    interpreter/library versions, and hashes the six frozen files. Never
+    raises -- every field independently degrades to None on failure."""
+
+    def gather(self, schedule_dir: Path) -> dict:
+        cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+        gpu_list = _query_nvidia_smi_gpus()
+        resolved_gpu = _resolve_visible_gpu(gpu_list, cuda_visible)
+
+        git_commit = _safe_run_text(["git", "-C", str(PROJECT_ROOT), "rev-parse", "HEAD"])
+        git_status = _safe_run_text(
+            ["git", "-C", str(PROJECT_ROOT), "status", "--porcelain", "--untracked-files=no"]
+        )
+        tracked_git_dirty = (git_status != "") if git_status is not None else None
+
+        file_hash_targets = {
+            "run_phase_a.py": SCRIPT_PATH,
+            "run_phase_a.sh": SCRIPT_PATH.parent / "run_phase_a.sh",
+            "run_server.sh": SCRIPT_PATH.parent / "run_server.sh",
+            "phase_a_schedule.json": schedule_dir / "phase_a_schedule.json",
+            "phase_a_schedule.csv": schedule_dir / "phase_a_schedule.csv",
+            "phase_a_schedule_audit.txt": schedule_dir / "phase_a_schedule_audit.txt",
+        }
+        file_hashes = {name: _sha256_file(p) for name, p in file_hash_targets.items()}
+
+        return {
+            "python_executable": sys.executable,
+            "python_version": platform.python_version(),
+            "platform": platform.platform(),
+            "hostname": platform.node(),
+            "kernel": platform.release(),
+            "git_commit": git_commit,
+            "git_dirty": tracked_git_dirty,
+            "cuda_visible_devices": cuda_visible,
+            "vllm_version": _safe_package_version("vllm"),
+            "torch_version": _safe_package_version("torch"),
+            "transformers_version": _safe_package_version("transformers"),
+            "httpx_version": _safe_package_version("httpx"),
+            "gpu_list": gpu_list,
+            "resolved_gpu": resolved_gpu,
+            "file_hashes": file_hashes,
+        }
+
+
+class FakeEnvironmentProbe:
+    """Deterministic environment probe for tests -- no nvidia-smi, no
+    git, no real file hashing, no network."""
+
+    def __init__(self, env: dict | None = None) -> None:
+        self.env: dict = env if env is not None else {
+            "python_executable": "/fake/bin/python3",
+            "python_version": "3.12.0",
+            "platform": "FakeLinux-6.0.0-x86_64",
+            "hostname": "fake-host",
+            "kernel": "6.0.0-fake",
+            "git_commit": "f" * 40,
+            "git_dirty": False,
+            "cuda_visible_devices": "0",
+            "vllm_version": "0.17.1",
+            "torch_version": "2.5.0",
+            "transformers_version": "4.45.0",
+            "httpx_version": "0.27.0",
+            "gpu_list": [
+                {
+                    "index": "0", "name": "Fake RTX 3090", "uuid": "GPU-fake-0000-0000",
+                    "memory_total": "24576 MiB", "driver_version": "550.00",
+                }
+            ],
+            "resolved_gpu": {
+                "index": "0", "name": "Fake RTX 3090", "uuid": "GPU-fake-0000-0000",
+                "memory_total": "24576 MiB", "driver_version": "550.00",
+            },
+            "file_hashes": {
+                "run_phase_a.py": "a" * 64,
+                "run_phase_a.sh": "b" * 64,
+                "run_server.sh": "c" * 64,
+                "phase_a_schedule.json": "d" * 64,
+                "phase_a_schedule.csv": "e" * 64,
+                "phase_a_schedule_audit.txt": "0" * 64,
+            },
+        }
+
+    def gather(self, schedule_dir: Path) -> dict:
+        return json.loads(json.dumps(self.env))  # deep copy, no shared mutable state across calls
+
+
+def compute_environment_fingerprint(env: dict) -> str:
+    resolved = env.get("resolved_gpu") or {}
+    payload = {
+        "gpu_uuid": resolved.get("uuid"),
+        "gpu_model": resolved.get("name"),
+        "gpu_memory_total": resolved.get("memory_total"),
+        "gpu_driver_version": resolved.get("driver_version"),
+        "python_version": env.get("python_version"),
+        "vllm_version": env.get("vllm_version"),
+        "torch_version": env.get("torch_version"),
+        "transformers_version": env.get("transformers_version"),
+        "httpx_version": env.get("httpx_version"),
+        "kernel": env.get("kernel"),
+        "git_commit": env.get("git_commit"),
+        "file_hashes": dict(sorted((env.get("file_hashes") or {}).items())),
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return f"sha256:{digest}"
+
+
+EXPECTED_ENVIRONMENT_FILE_HASH_NAMES = frozenset(
+    {
+        "run_phase_a.py",
+        "run_phase_a.sh",
+        "run_server.sh",
+        "phase_a_schedule.json",
+        "phase_a_schedule.csv",
+        "phase_a_schedule_audit.txt",
+    }
+)
+
+
+def _is_hex_of_length(value: object, length: int) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == length
+        and all(c in "0123456789abcdefABCDEF" for c in value)
+    )
+
+
+def validate_official_environment(env: dict) -> list[str]:
+    """Section 1 (Stage-3 patch): a strict, isolated pre-flight gate. Both
+    a fresh run and a resume must abort -- before any output-directory
+    change and before any server start -- unless every one of these holds.
+    None, empty strings, and an unresolved GPU identity are hard errors,
+    never silently tolerated or defaulted."""
+    errors: list[str] = []
+
+    if env.get("git_dirty") is not False:
+        errors.append("git_dirty must be exactly False (tracked working tree must be clean)")
+
+    if not _is_hex_of_length(env.get("git_commit"), 40):
+        errors.append("git_commit must be a 40-character hex commit hash")
+
+    resolved_gpu = env.get("resolved_gpu")
+    if not isinstance(resolved_gpu, dict):
+        errors.append("resolved_gpu could not be resolved to a physical GPU (missing or not a dict)")
+    else:
+        for key in ("uuid", "name", "memory_total", "driver_version"):
+            v = resolved_gpu.get(key)
+            if not isinstance(v, str) or not v.strip():
+                errors.append(f"resolved_gpu.{key} is missing or empty")
+
+    for key in (
+        "python_version", "vllm_version", "torch_version", "transformers_version",
+        "httpx_version", "kernel",
+    ):
+        v = env.get(key)
+        if not isinstance(v, str) or not v.strip():
+            errors.append(f"{key} is missing or empty")
+
+    file_hashes = env.get("file_hashes")
+    if not isinstance(file_hashes, dict) or set(file_hashes.keys()) != EXPECTED_ENVIRONMENT_FILE_HASH_NAMES:
+        errors.append(
+            f"file_hashes must contain exactly the six expected files: "
+            f"{sorted(EXPECTED_ENVIRONMENT_FILE_HASH_NAMES)} (got {sorted(file_hashes.keys()) if isinstance(file_hashes, dict) else file_hashes!r})"
+        )
+    else:
+        for name, h in file_hashes.items():
+            if not _is_hex_of_length(h, 64):
+                errors.append(f"file_hashes[{name!r}] is not a well-formed 64-character SHA-256 hex value")
+
+    return errors
+
+
+# ============================================================================
+# Official run manifest (Section 7)
+# ============================================================================
+
+MANIFEST_SCHEMA_VERSION = 1
+OFFICIAL_RUN_MANIFEST_FILENAME = "official_run_manifest.json"
+OFFICIAL_RUN_SUMMARY_FILENAME = "official_run_summary.json"
+INTEGRITY_MANIFEST_FILENAME = "integrity_manifest.json"
+
+
+def build_official_run_manifest(
+    *, env: dict, bundle: LoadedBundle, run_mode: str, output_dir: Path, host: str, port: int, clock: Clock,
+) -> dict:
+    return {
+        "manifest_schema_version": MANIFEST_SCHEMA_VERSION,
+        "runner_version": RUNNER_VERSION,
+        "result_schema_version": RESULT_SCHEMA_VERSION,
+        "schedule_fingerprint": bundle.fingerprint,
+        "design_version": bundle.json_obj.get("design_version"),
+        "schedule_seed": bundle.json_obj.get("seed"),
+        "run_mode": run_mode,
+        "created_utc": clock.utcnow_iso(),
+        "output_dir": str(output_dir),
+        "host": host,
+        "port": port,
+        "python_executable": env.get("python_executable"),
+        "python_version": env.get("python_version"),
+        "platform": env.get("platform"),
+        "hostname": env.get("hostname"),
+        "kernel": env.get("kernel"),
+        "git_commit": env.get("git_commit"),
+        "git_dirty": env.get("git_dirty"),
+        "CUDA_VISIBLE_DEVICES": env.get("cuda_visible_devices"),
+        "vllm_version": env.get("vllm_version"),
+        "torch_version": env.get("torch_version"),
+        "transformers_version": env.get("transformers_version"),
+        "httpx_version": env.get("httpx_version"),
+        "gpu_list": env.get("gpu_list"),
+        "resolved_gpu": env.get("resolved_gpu"),
+        "file_hashes": env.get("file_hashes"),
+        "environment_fingerprint": compute_environment_fingerprint(env),
+    }
+
+
+def load_json_file_or_none(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    try:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return obj if isinstance(obj, dict) else None
+
+
+def validate_resume_manifest(
+    existing: dict, *, bundle: LoadedBundle, run_mode: str, current_env: dict,
+) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(existing, dict):
+        return ["existing official_run_manifest.json is not a JSON object"]
+    if existing.get("manifest_schema_version") != MANIFEST_SCHEMA_VERSION:
+        errors.append("manifest_schema_version mismatch")
+    if existing.get("schedule_fingerprint") != bundle.fingerprint:
+        errors.append("schedule_fingerprint mismatch")
+    if existing.get("run_mode") != run_mode:
+        errors.append("run_mode mismatch")
+    current_fingerprint = compute_environment_fingerprint(current_env)
+    if existing.get("environment_fingerprint") != current_fingerprint:
+        errors.append(
+            f"environment_fingerprint mismatch (manifest={existing.get('environment_fingerprint')!r}, "
+            f"current={current_fingerprint!r}) -- refusing to resume on what may be "
+            f"different code, GPU, or software"
+        )
+    return errors
+
+
+# ============================================================================
+# Integrity manifest (Section 11)
+# ============================================================================
+
+def _iter_output_files_for_integrity(output_dir: Path) -> list[Path]:
+    files = [
+        p for p in output_dir.rglob("*")
+        if p.is_file() and p.name != INTEGRITY_MANIFEST_FILENAME
+    ]
+    return sorted(files, key=lambda p: p.relative_to(output_dir).as_posix())
+
+
+def build_integrity_manifest(
+    output_dir: Path, *, schedule_fingerprint: str, environment_fingerprint: str, clock: Clock,
+) -> dict:
+    entries: list[dict] = []
+    episode_file_count = 0
+    stabilization_file_count = 0
+    block_summary_count = 0
+    for p in _iter_output_files_for_integrity(output_dir):
+        rel = p.relative_to(output_dir).as_posix()
+        entries.append({"relative_path": rel, "size_bytes": p.stat().st_size, "sha256": _sha256_file(p)})
+        if rel.startswith("episodes/"):
+            episode_file_count += 1
+        elif rel.startswith("stabilization/"):
+            stabilization_file_count += 1
+        elif rel.startswith("block_summaries/"):
+            block_summary_count += 1
+    return {
+        "file_count": len(entries),
+        "episode_file_count": episode_file_count,
+        "stabilization_file_count": stabilization_file_count,
+        "block_summary_count": block_summary_count,
+        "generated_utc": clock.utcnow_iso(),
+        "schedule_fingerprint": schedule_fingerprint,
+        "environment_fingerprint": environment_fingerprint,
+        "files": entries,
+    }
+
+
+def verify_integrity_manifest(
+    output_dir: Path,
+    manifest: object,
+    *,
+    expected_schedule_fingerprint: str | None = None,
+    expected_environment_fingerprint: str | None = None,
+    expected_episode_count: int | None = None,
+    expected_stabilization_count: int | None = None,
+    expected_block_summary_count: int | None = None,
+    expected_server_log_count: int | None = None,
+) -> tuple[bool, list[str]]:
+    """Section 5: deep structural validation of the integrity manifest
+    itself (not just a hash re-check against disk). A manifest that
+    fails ANY of these structural/metadata checks is never treated as
+    valid, regardless of whether the underlying files happen to still
+    hash-match -- callers must never reseal such a manifest automatically."""
+    errors: list[str] = []
+
+    if not isinstance(manifest, dict):
+        return False, ["integrity manifest is not a JSON object"]
+
+    files = manifest.get("files")
+    if not isinstance(files, list):
+        errors.append("'files' is not a list")
+        files = []
+
+    seen_paths: set[str] = set()
+    structurally_valid_entries: list[dict] = []
+    for i, entry in enumerate(files):
+        if not isinstance(entry, dict):
+            errors.append(f"files[{i}] is not a JSON object")
+            continue
+        rel = entry.get("relative_path")
+        size = entry.get("size_bytes")
+        sha = entry.get("sha256")
+        entry_ok = True
+        if type(rel) is not str or not rel:
+            errors.append(f"files[{i}].relative_path is missing or not a non-empty str")
+            entry_ok = False
+        if type(size) is not int or isinstance(size, bool) or size < 0:
+            errors.append(f"files[{i}].size_bytes is missing or not a non-negative int")
+            entry_ok = False
+        if not _is_hex_of_length(sha, 64):
+            errors.append(f"files[{i}].sha256 is not a well-formed 64-character SHA-256 hex value")
+            entry_ok = False
+        if entry_ok:
+            if rel in seen_paths:
+                errors.append(f"duplicate relative_path in integrity manifest: {rel}")
+            seen_paths.add(rel)
+            structurally_valid_entries.append(entry)
+
+    rel_paths_in_order = [e["relative_path"] for e in files if isinstance(e, dict) and type(e.get("relative_path")) is str]
+    if rel_paths_in_order != sorted(rel_paths_in_order):
+        errors.append("'files' entries are not in lexicographic relative_path order")
+
+    for key in ("file_count", "episode_file_count", "stabilization_file_count", "block_summary_count"):
+        if type(manifest.get(key)) is not int or isinstance(manifest.get(key), bool):
+            errors.append(f"'{key}' is missing or not an int")
+
+    if type(manifest.get("file_count")) is int and manifest.get("file_count") != len(files):
+        errors.append(f"'file_count' ({manifest.get('file_count')!r}) != len(files) ({len(files)})")
+
+    if not isinstance(manifest.get("schedule_fingerprint"), str) or not manifest.get("schedule_fingerprint"):
+        errors.append("'schedule_fingerprint' is missing or not a non-empty str")
+    elif expected_schedule_fingerprint is not None and manifest.get("schedule_fingerprint") != expected_schedule_fingerprint:
+        errors.append(
+            f"schedule_fingerprint mismatch: manifest={manifest.get('schedule_fingerprint')!r} "
+            f"expected={expected_schedule_fingerprint!r}"
+        )
+
+    if not isinstance(manifest.get("environment_fingerprint"), str) or not manifest.get("environment_fingerprint"):
+        errors.append("'environment_fingerprint' is missing or not a non-empty str")
+    elif expected_environment_fingerprint is not None and manifest.get("environment_fingerprint") != expected_environment_fingerprint:
+        errors.append(
+            f"environment_fingerprint mismatch: manifest={manifest.get('environment_fingerprint')!r} "
+            f"expected={expected_environment_fingerprint!r}"
+        )
+
+    if expected_episode_count is not None and manifest.get("episode_file_count") != expected_episode_count:
+        errors.append(f"episode_file_count {manifest.get('episode_file_count')!r} != expected {expected_episode_count!r}")
+    if expected_stabilization_count is not None and manifest.get("stabilization_file_count") != expected_stabilization_count:
+        errors.append(
+            f"stabilization_file_count {manifest.get('stabilization_file_count')!r} != "
+            f"expected {expected_stabilization_count!r}"
+        )
+    if expected_block_summary_count is not None and manifest.get("block_summary_count") != expected_block_summary_count:
+        errors.append(
+            f"block_summary_count {manifest.get('block_summary_count')!r} != "
+            f"expected {expected_block_summary_count!r}"
+        )
+    if expected_server_log_count is not None:
+        actual_server_log_count = sum(
+            1 for rel in rel_paths_in_order if rel.startswith("server_logs/")
+        )
+        if actual_server_log_count != expected_server_log_count:
+            errors.append(
+                f"server_logs file count {actual_server_log_count} != expected {expected_server_log_count}"
+            )
+
+    # A structurally broken manifest is never compared against disk --
+    # there is nothing trustworthy left to compare.
+    if errors:
+        return False, errors
+
+    current_files = {p.relative_to(output_dir).as_posix(): p for p in _iter_output_files_for_integrity(output_dir)}
+    manifest_files = {e["relative_path"]: e for e in structurally_valid_entries}
+
+    for rel in sorted(set(manifest_files) - set(current_files)):
+        errors.append(f"file listed in the integrity manifest is missing on disk: {rel}")
+    for rel in sorted(set(current_files) - set(manifest_files)):
+        errors.append(f"file present on disk but not listed in the integrity manifest: {rel}")
+
+    for rel, entry in manifest_files.items():
+        p = current_files.get(rel)
+        if p is None:
+            continue
+        actual_size = p.stat().st_size
+        actual_hash = _sha256_file(p)
+        if actual_size != entry.get("size_bytes"):
+            errors.append(f"size mismatch for {rel}: manifest={entry.get('size_bytes')!r} actual={actual_size!r}")
+        if actual_hash != entry.get("sha256"):
+            errors.append(f"sha256 mismatch for {rel}: manifest={entry.get('sha256')!r} actual={actual_hash!r}")
+
+    return (not errors), errors
+
+
+# ============================================================================
+# Deep validators for stabilization files and block summaries
+# (Stage-3 patch, Sections 6/7). A bare status=="complete"/
+# overall_status=="block_complete" is never sufficient on its own --
+# these are used wherever a block is treated as already finished:
+# skipping a complete block, no-op resume, reconstructing a missing
+# integrity manifest, and the final campaign-wide complete decision.
+# ============================================================================
+
+def validate_complete_stabilization_file(
+    obj: object,
+    *,
+    bundle: LoadedBundle,
+    block_id: str,
+    model_key: str,
+    offload_gb: int,
+    state_label: str,
+    run_mode: str,
+) -> list[str]:
+    if not isinstance(obj, dict):
+        return ["stabilization result is not a JSON object"]
+    errors: list[str] = []
+
+    def _eq(key: str, expected: object) -> None:
+        if obj.get(key) != expected:
+            errors.append(f"{key} {obj.get(key)!r} != expected {expected!r}")
+
+    _eq("result_schema_version", RESULT_SCHEMA_VERSION)
+    _eq("runner_version", RUNNER_VERSION)
+    _eq("record_type", RECORD_TYPE_STABILIZATION)
+    _eq("run_mode", run_mode)
+    _eq("schedule_fingerprint", bundle.fingerprint)
+    _eq("block_id", block_id)
+    _eq("model", model_key)
+    _eq("offload_gb", offload_gb)
+    _eq("state_label", state_label)
+
+    if obj.get("excluded_from_analysis") is not True:
+        errors.append("excluded_from_analysis must be exactly True")
+    if obj.get("counted_repeat") is not False:
+        errors.append("counted_repeat must be exactly False")
+    if obj.get("status") != REQUEST_STATUS_COMPLETE:
+        errors.append(f"status {obj.get('status')!r} != 'complete'")
+    if obj.get("functional_passed") is not True:
+        errors.append("functional_passed must be exactly True")
+    if obj.get("stabilization_passed") is not True:
+        errors.append("stabilization_passed must be exactly True")
+
+    expected_cfg = {
+        "condition": STABILIZATION_CONDITION,
+        "concurrency": STABILIZATION_CONCURRENCY,
+        "request_count": STABILIZATION_REQUEST_COUNT,
+        "input_len": STABILIZATION_INPUT_LEN,
+        "output_len": STABILIZATION_OUTPUT_LEN,
+        "temperature": STABILIZATION_TEMPERATURE,
+    }
+    if obj.get("stabilization_configuration") != expected_cfg:
+        errors.append(
+            f"stabilization_configuration {obj.get('stabilization_configuration')!r} != "
+            f"expected {expected_cfg!r}"
+        )
+
+    results = obj.get("request_results")
+    if not isinstance(results, list) or len(results) != STABILIZATION_REQUEST_COUNT:
+        errors.append(f"request_results must be a list of exactly {STABILIZATION_REQUEST_COUNT} entries")
+    else:
+        bundle_seed = bundle.json_obj.get("seed")
+        for i, record in enumerate(results):
+            errors.extend(
+                _validate_request_record_fields(
+                    record,
+                    episode_id=block_id,
+                    role="stabilization",
+                    request_index=i,
+                    expected_prompt_seed=stabilization_prompt_seed(bundle_seed, model_key, block_id, i),
+                    expected_generation_seed=stabilization_generation_seed(bundle_seed, model_key, block_id, i),
+                    expected_prompt_tokens=STABILIZATION_INPUT_LEN,
+                    expected_completion_tokens=STABILIZATION_OUTPUT_LEN,
+                )
+            )
+
+    return errors
+
+
+def validate_complete_block_summary(
+    obj: object,
+    *,
+    bundle: LoadedBundle,
+    block_id: str,
+    model_key: str,
+    offload_gb: int,
+    state_label: str,
+    repeat: int,
+    run_mode: str,
+) -> list[str]:
+    if not isinstance(obj, dict):
+        return ["block summary is not a JSON object"]
+    errors: list[str] = []
+
+    def _eq(key: str, expected: object) -> None:
+        if obj.get(key) != expected:
+            errors.append(f"{key} {obj.get(key)!r} != expected {expected!r}")
+
+    _eq("block_id", block_id)
+    _eq("model", model_key)
+    _eq("offload_gb", offload_gb)
+    _eq("state_label", state_label)
+    _eq("repeat", repeat)
+    _eq("run_mode", run_mode)
+    _eq("schedule_fingerprint", bundle.fingerprint)
+
+    expected_planned = [ep.episode_id for ep in find_block(bundle, block_id)]
+    if obj.get("planned_episode_ids") != expected_planned:
+        errors.append(
+            f"planned_episode_ids {obj.get('planned_episode_ids')!r} != "
+            f"expected schedule order {expected_planned!r}"
+        )
+
+    episode_statuses = obj.get("episode_statuses")
+    if not isinstance(episode_statuses, dict) or any(
+        episode_statuses.get(eid) != CLASSIFICATION_VALID_COMPLETE for eid in expected_planned
+    ):
+        errors.append("not every planned episode has episode_statuses == 'valid_complete'")
+
+    if obj.get("stabilization_status") != REQUEST_STATUS_COMPLETE:
+        errors.append(f"stabilization_status {obj.get('stabilization_status')!r} != 'complete'")
+
+    psh = obj.get("post_stabilization_health")
+    if not (isinstance(psh, dict) and psh.get("ok") is True):
+        errors.append("post_stabilization_health.ok must be exactly True")
+
+    if obj.get("cooldown_s") != COOLDOWN_S:
+        errors.append(f"cooldown_s {obj.get('cooldown_s')!r} != expected {COOLDOWN_S!r}")
+
+    if obj.get("overall_status") != "block_complete":
+        errors.append(f"overall_status {obj.get('overall_status')!r} != 'block_complete'")
+
+    server_stop = obj.get("server_stop")
+    if not isinstance(server_stop, dict):
+        errors.append("server_stop is missing or not a dict")
+    else:
+        if server_stop.get("stop_success") is not True:
+            errors.append("server_stop.stop_success must be exactly True")
+        if server_stop.get("alive_after_stop") is not False:
+            errors.append("server_stop.alive_after_stop must be exactly False")
+        if server_stop.get("port_free_after_stop") is not True:
+            errors.append("server_stop.port_free_after_stop must be exactly True")
+
+    return errors
+
+
+def _validate_block_finalization(
+    block_id: str, output_dir: Path, bundle: LoadedBundle, run_mode: str,
+) -> tuple[list[str], list[str]]:
+    """Returns (stabilization_errors, block_summary_errors) -- the deep
+    validation results for a single block's two finalization artifacts."""
+    block_episodes = find_block(bundle, block_id)
+    model_key = block_episodes[0].model
+    offload_gb = block_episodes[0].offload_gb
+    state_label = block_episodes[0].state_label
+    repeat = block_episodes[0].repeat
+
+    stab_obj = load_json_file_or_none(stabilization_result_path(output_dir, block_id))
+    if stab_obj is None:
+        stab_errors = ["stabilization file missing or unreadable"]
+    else:
+        stab_errors = validate_complete_stabilization_file(
+            stab_obj, bundle=bundle, block_id=block_id, model_key=model_key,
+            offload_gb=offload_gb, state_label=state_label, run_mode=run_mode,
+        )
+
+    summary_obj = load_json_file_or_none(output_dir / "block_summaries" / f"{block_id}.json")
+    if summary_obj is None:
+        summary_errors = ["block_summary file missing or unreadable"]
+    else:
+        summary_errors = validate_complete_block_summary(
+            summary_obj, bundle=bundle, block_id=block_id, model_key=model_key,
+            offload_gb=offload_gb, state_label=state_label, repeat=repeat, run_mode=run_mode,
+        )
+
+    return stab_errors, summary_errors
+
+
+# ============================================================================
 # Smoke-block orchestration (Sections 3, 15-23)
 # ============================================================================
 
@@ -3517,42 +4246,27 @@ def find_and_validate_smoke_block(bundle: LoadedBundle, block_id: str) -> list[E
     return episodes
 
 
-async def run_smoke_block(
-    *,
+def _classify_and_plan_block(
+    block_episodes: list[Episode],
     bundle: LoadedBundle,
-    block_id: str,
     output_dir: Path,
-    host: str,
-    port: int,
+    run_mode: str,
     resume: bool,
-    api_key: str,
-    transport: HTTPTransport,
-    tokenizer: TokenizerAdapter,
-    server_adapter: ServerProcessAdapter,
-    sleeper: Sleeper,
-    clock: Clock,
-    run_server_path: Path,
-    stop_timeout_s: float = SERVER_STOP_TIMEOUT_S,
-    stop_kill_confirm_timeout_s: float = 5.0,
-    stop_port_poll_timeout_s: float = 5.0,
-) -> dict:
-    start_utc = clock.utcnow_iso()
-    block_episodes = find_and_validate_smoke_block(bundle, block_id)
-
-    model_key = block_episodes[0].model
-    offload_gb = block_episodes[0].offload_gb
-    state_label = block_episodes[0].state_label
-    model_full_id = MODEL_FULL_ID[model_key]
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    check_output_dir_not_shared(output_dir, RUN_MODE_SMOKE)
-    write_run_mode_marker(output_dir, RUN_MODE_SMOKE)
-
+) -> tuple[dict[str, str], list[Episode]]:
+    """Section 2/5/6: shared resume-classification and fresh-run
+    precondition logic for exactly one block's 4 episodes. Identical for
+    smoke and official (only `run_mode` differs). Raises
+    ServerLifecycleError -- before any server is started -- on:
+      - fresh run: any existing episode/stabilization file for this block
+      - resume: any episode classified partial/invalid/corrupted
+    Returns (episode_statuses, episodes_to_run) in schedule order.
+    """
+    block_id = block_episodes[0].block_id
     episode_statuses: dict[str, str] = {}
     if resume:
         for ep in block_episodes:
             result_path = episode_result_path(output_dir, ep.episode_id)
-            cls, _notes = classify_result_file(result_path, ep, bundle.fingerprint, RUN_MODE_SMOKE)
+            cls, _notes = classify_result_file(result_path, ep, bundle.fingerprint, run_mode)
             episode_statuses[ep.episode_id] = cls
         bad = {
             eid: cls
@@ -3561,8 +4275,9 @@ async def run_smoke_block(
         }
         if bad:
             raise ServerLifecycleError(
-                f"--resume found non-resumable existing result file(s): {bad}; "
-                f"refusing to silently overwrite. Fix or remove them manually first."
+                f"--resume found non-resumable existing result file(s) for block "
+                f"{block_id!r}: {bad}; refusing to silently overwrite. Fix or "
+                f"remove them manually first."
             )
         episodes_to_run = [
             ep for ep in block_episodes if episode_statuses[ep.episode_id] != CLASSIFICATION_VALID_COMPLETE
@@ -3581,6 +4296,230 @@ async def run_smoke_block(
             )
         episode_statuses = {ep.episode_id: CLASSIFICATION_MISSING for ep in block_episodes}
         episodes_to_run = list(block_episodes)
+    return episode_statuses, episodes_to_run
+
+
+async def _run_block_protocol(
+    *,
+    bundle: LoadedBundle,
+    block_episodes: list[Episode],
+    episodes_to_run: list[Episode],
+    block_id: str,
+    output_dir: Path,
+    host: str,
+    port: int,
+    run_mode: str,
+    api_key: str,
+    transport: HTTPTransport,
+    tokenizer: TokenizerAdapter,
+    server_adapter: ServerProcessAdapter,
+    sleeper: Sleeper,
+    clock: Clock,
+    run_server_path: Path,
+    episode_statuses: dict[str, str],
+    stop_timeout_s: float = SERVER_STOP_TIMEOUT_S,
+    stop_kill_confirm_timeout_s: float = 5.0,
+    stop_port_poll_timeout_s: float = 30.0,
+    should_abort: Callable[[], bool] | None = None,
+) -> dict:
+    """Section 2: the reusable internal block executor. Identical
+    scientific execution for --smoke-test and --official-run: server
+    start -> readiness -> exactly one stabilization run (atomically
+    written) -> post-stabilization health gate -> fixed cooldown ->
+    `episodes_to_run` in schedule order (atomically written, aborting
+    the block at the first non-complete episode) -> a verified server
+    stop. Only `run_mode` (threaded into every written record) differs
+    between callers.
+
+    `episode_statuses` is the SAME dict the caller already built via
+    `_classify_and_plan_block()`; it is mutated in place as episodes
+    complete, so the caller always observes progress even if this
+    function is cancelled.
+
+    `should_abort`, if given, is checked immediately before
+    `server_adapter.start()` (Section 8): if it returns True at that
+    point, no server is ever started and this returns
+    overall_status='interrupted' straight away.
+
+    Never raises for execution-phase failures (readiness timeout,
+    stabilization failure, episode failure, stop failure, or any other
+    unexpected exception) -- those are reported via the returned dict's
+    `overall_status`/`error`. The one exception is asyncio.CancelledError,
+    which is caught, recorded as overall_status='interrupted', and then
+    deliberately swallowed (not re-raised) so a cooperative caller (the
+    official campaign orchestrator, cancelling this coroutine's own task
+    to implement signal handling) always gets a complete, well-formed
+    result dict back -- including a verified server stop -- instead of a
+    propagating exception.
+    """
+    model_key = block_episodes[0].model
+    offload_gb = block_episodes[0].offload_gb
+    state_label = block_episodes[0].state_label
+    model_full_id = MODEL_FULL_ID[model_key]
+
+    result: dict[str, Any] = {
+        "server_start": None,
+        "readiness": None,
+        "stabilization_status": "not_run",
+        "post_stabilization_health": None,
+        "cooldown_s": None,
+        "server_stop": None,
+        "overall_status": "not_run",
+        "executed_episode_ids": [],
+    }
+
+    handle = None
+    try:
+        if should_abort is not None and should_abort():
+            result["overall_status"] = "interrupted"
+            return result
+
+        if not is_port_free(host, port):
+            raise ServerLifecycleError(f"port {port} on host {host!r} is already in use")
+
+        cmd = build_server_command(run_server_path, model_key, offload_gb, host, port)
+        log_path = output_dir / "server_logs" / f"{block_id}.log"
+
+        if should_abort is not None and should_abort():
+            # Checked again immediately before the actual server start --
+            # a signal may have arrived while resolving the port/command.
+            result["overall_status"] = "interrupted"
+            return result
+
+        handle = server_adapter.start(cmd, log_path)
+        result["server_start"] = {
+            "cmd": cmd, "pid": handle.pid, "pgid": handle.pgid, "start_utc": handle.start_utc,
+        }
+
+        base_url = f"http://{host}:{port}"
+        readiness_info = await wait_for_server_ready(
+            transport, handle, base_url, api_key, model_full_id, sleeper
+        )
+        readiness_info["capability_summary"] = await fetch_capability_summary(
+            transport, base_url, api_key
+        )
+        result["readiness"] = readiness_info
+
+        valid_ids = compute_valid_token_ids(tokenizer)
+        ctx = RunContext(
+            transport=transport, clock=clock, sleeper=sleeper, base_url=base_url,
+            api_key=api_key, model_full_id=model_full_id, valid_ids=valid_ids,
+        )
+        server_metadata = {
+            "model_key": model_key,
+            "model_full_id": model_full_id,
+            "offload_gb": offload_gb,
+            "host": host,
+            "port": port,
+            "server_command": cmd,
+            "pid": handle.pid,
+            "pgid": handle.pgid,
+            "server_start_utc": handle.start_utc,
+            "readiness": readiness_info,
+        }
+
+        stab_result = await run_stabilization(
+            ctx, bundle, model_key, block_id, offload_gb, state_label, server_metadata=server_metadata
+        )
+        stab_result["run_mode"] = run_mode
+        write_json_atomic(stabilization_result_path(output_dir, block_id), stab_result)
+        result["stabilization_status"] = stab_result["status"]
+
+        if stab_result["status"] != REQUEST_STATUS_COMPLETE:
+            result["overall_status"] = "stabilization_failed"
+            return result
+
+        post_stabilization_health = await check_post_stabilization_health(transport, base_url)
+        readiness_info["post_stabilization_health"] = post_stabilization_health
+        result["readiness"] = readiness_info
+        result["post_stabilization_health"] = post_stabilization_health
+
+        if not post_stabilization_health["ok"]:
+            result["overall_status"] = "post_stabilization_health_failed"
+            return result
+
+        await sleeper.sleep(COOLDOWN_S)
+        result["cooldown_s"] = COOLDOWN_S
+
+        stabilization_ref = {
+            "block_id": block_id,
+            "path": str(stabilization_result_path(output_dir, block_id)),
+            "functional_passed": stab_result["functional_passed"],
+        }
+
+        block_aborted = False
+        for ep in episodes_to_run:
+            ep_result = await run_regular_episode(
+                ctx, ep, schedule_fingerprint=bundle.fingerprint,
+                server_metadata=server_metadata, stabilization_ref=stabilization_ref,
+            )
+            ep_result["run_mode"] = run_mode
+            write_json_atomic(episode_result_path(output_dir, ep.episode_id), ep_result)
+            result["executed_episode_ids"].append(ep.episode_id)
+            ok = ep_result["status"] == REQUEST_STATUS_COMPLETE
+            episode_statuses[ep.episode_id] = (
+                CLASSIFICATION_VALID_COMPLETE if ok else CLASSIFICATION_PARTIAL
+            )
+            if not ok:
+                block_aborted = True
+                break
+
+        result["overall_status"] = "block_failed" if block_aborted else "block_complete"
+        return result
+    except asyncio.CancelledError:
+        result["overall_status"] = "interrupted"
+        return result
+    except BaseException as exc:  # noqa: BLE001 -- must always return, never crash the caller
+        result["overall_status"] = "error"
+        result["error"] = str(exc)
+        return result
+    finally:
+        if handle is not None:
+            stop_result = await stop_server(
+                handle, host, port, sleeper,
+                timeout_s=stop_timeout_s,
+                kill_confirm_timeout_s=stop_kill_confirm_timeout_s,
+                port_poll_timeout_s=stop_port_poll_timeout_s,
+            )
+            result["server_stop"] = stop_result
+            if not stop_result.get("stop_success") and result.get("overall_status") == "block_complete":
+                # A successful block must never be reported as complete if
+                # the server itself was not verifiably stopped afterward.
+                result["overall_status"] = "server_stop_failed"
+
+
+async def run_smoke_block(
+    *,
+    bundle: LoadedBundle,
+    block_id: str,
+    output_dir: Path,
+    host: str,
+    port: int,
+    resume: bool,
+    api_key: str,
+    transport: HTTPTransport,
+    tokenizer: TokenizerAdapter,
+    server_adapter: ServerProcessAdapter,
+    sleeper: Sleeper,
+    clock: Clock,
+    run_server_path: Path,
+    stop_timeout_s: float = SERVER_STOP_TIMEOUT_S,
+    stop_kill_confirm_timeout_s: float = 5.0,
+    stop_port_poll_timeout_s: float = 30.0,
+) -> dict:
+    """Thin, --smoke-test-specific wrapper around the shared block
+    executor (Section 2). Output shape (smoke_run_summary.json) is
+    unchanged from Stage 2."""
+    start_utc = clock.utcnow_iso()
+    block_episodes = find_and_validate_smoke_block(bundle, block_id)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    check_output_dir_not_shared(output_dir, RUN_MODE_SMOKE)
+    write_run_mode_marker(output_dir, RUN_MODE_SMOKE)
+
+    episode_statuses, episodes_to_run = _classify_and_plan_block(
+        block_episodes, bundle, output_dir, RUN_MODE_SMOKE, resume
+    )
 
     summary: dict[str, Any] = {
         "runner_version": RUNNER_VERSION,
@@ -3606,109 +4545,537 @@ async def run_smoke_block(
         write_json_atomic(output_dir / "smoke_run_summary.json", summary)
         return summary
 
-    handle = None
-    try:
-        if not is_port_free(host, port):
-            raise ServerLifecycleError(f"port {port} on host {host!r} is already in use")
+    protocol_result = await _run_block_protocol(
+        bundle=bundle,
+        block_episodes=block_episodes,
+        episodes_to_run=episodes_to_run,
+        block_id=block_id,
+        output_dir=output_dir,
+        host=host,
+        port=port,
+        run_mode=RUN_MODE_SMOKE,
+        api_key=api_key,
+        transport=transport,
+        tokenizer=tokenizer,
+        server_adapter=server_adapter,
+        sleeper=sleeper,
+        clock=clock,
+        run_server_path=run_server_path,
+        episode_statuses=episode_statuses,
+        stop_timeout_s=stop_timeout_s,
+        stop_kill_confirm_timeout_s=stop_kill_confirm_timeout_s,
+        stop_port_poll_timeout_s=stop_port_poll_timeout_s,
+    )
 
-        cmd = build_server_command(run_server_path, model_key, offload_gb, host, port)
-        log_path = output_dir / "server_logs" / f"{block_id}.log"
-        handle = server_adapter.start(cmd, log_path)
-        summary["server_start"] = {
-            "cmd": cmd, "pid": handle.pid, "pgid": handle.pgid, "start_utc": handle.start_utc,
-        }
+    summary["server_start"] = protocol_result["server_start"]
+    summary["readiness"] = protocol_result["readiness"]
+    summary["stabilization_status"] = protocol_result["stabilization_status"]
+    summary["cooldown_s"] = protocol_result["cooldown_s"]
+    summary["episode_statuses"] = dict(episode_statuses)
+    summary["server_stop"] = protocol_result["server_stop"]
+    summary["overall_status"] = protocol_result["overall_status"]
+    if "error" in protocol_result:
+        summary["error"] = protocol_result["error"]
+    summary["end_utc"] = clock.utcnow_iso()
+    write_json_atomic(output_dir / "smoke_run_summary.json", summary)
+    return summary
 
-        base_url = f"http://{host}:{port}"
-        readiness_info = await wait_for_server_ready(
-            transport, handle, base_url, api_key, model_full_id, sleeper
+
+
+# ============================================================================
+# Official campaign orchestrator (Stage 3, Sections 3-11)
+# ============================================================================
+
+@dataclass
+class InterruptState:
+    """Cooperative signal-handling state shared between the CLI's real
+    signal handlers (or a test's simulated ones) and run_official_campaign().
+    `event` is awaited/polled at safe points; `signal_name` records which
+    signal (if any) triggered it, for the persisted summary."""
+
+    event: asyncio.Event = field(default_factory=asyncio.Event)
+    signal_name: str | None = None
+
+    def trigger(self, signal_name: str) -> None:
+        self.signal_name = signal_name
+        self.event.set()
+
+
+def all_block_ids_in_schedule_order(bundle: LoadedBundle) -> list[str]:
+    seen: dict[str, None] = {}
+    for ep in bundle.episodes:
+        seen.setdefault(ep.block_id, None)
+    return list(seen.keys())
+
+
+def _check_all_blocks_finalized(
+    block_ids: list[str], output_dir: Path, bundle: LoadedBundle, run_mode: str,
+) -> tuple[bool, bool]:
+    """Returns (stabilization_ok, block_summaries_ok) using full deep
+    validation (Sections 6/7 of the Stage-3 contract-blocker patch) --
+    a bare status=='complete' or overall_status=='block_complete' is
+    never sufficient on its own."""
+    stab_ok = True
+    block_summary_ok = True
+    for bid in block_ids:
+        stab_errors, summary_errors = _validate_block_finalization(bid, output_dir, bundle, run_mode)
+        if stab_errors:
+            stab_ok = False
+        if summary_errors:
+            block_summary_ok = False
+
+    return stab_ok, block_summary_ok
+
+
+def _build_official_summary(
+    *, runner_version: str, run_mode: str, schedule_fingerprint: str, environment_fingerprint: str,
+    start_utc: str, end_utc: str | None, overall_status: str, planned_blocks: int, completed_blocks: int,
+    skipped_blocks: int, pending_blocks: int, planned_episodes: int, valid_complete_episodes: int,
+    missing_episodes: int, failed_block: str | None, interrupted_by: str | None, block_statuses: dict[str, str],
+) -> dict:
+    return {
+        "runner_version": runner_version,
+        "result_schema_version": RESULT_SCHEMA_VERSION,
+        "run_mode": run_mode,
+        "schedule_fingerprint": schedule_fingerprint,
+        "environment_fingerprint": environment_fingerprint,
+        "start_utc": start_utc,
+        "end_utc": end_utc,
+        "overall_status": overall_status,
+        "planned_blocks": planned_blocks,
+        "completed_blocks": completed_blocks,
+        "skipped_blocks": skipped_blocks,
+        "pending_blocks": pending_blocks,
+        "planned_episodes": planned_episodes,
+        "valid_complete_episodes": valid_complete_episodes,
+        "missing_episodes": missing_episodes,
+        "failed_block": failed_block,
+        "interrupted_by": interrupted_by,
+        "block_statuses": dict(block_statuses),
+    }
+
+
+async def run_official_campaign(
+    *,
+    bundle: LoadedBundle,
+    output_dir: Path,
+    host: str,
+    port: int,
+    resume: bool,
+    api_key: str,
+    transport: HTTPTransport,
+    tokenizer_factory: Callable[[str], TokenizerAdapter],
+    server_adapter: ServerProcessAdapter,
+    sleeper: Sleeper,
+    clock: Clock,
+    run_server_path: Path,
+    environment_probe: EnvironmentProbe,
+    interrupt_state: InterruptState | None = None,
+    stop_timeout_s: float = SERVER_STOP_TIMEOUT_S,
+    stop_kill_confirm_timeout_s: float = 5.0,
+    stop_port_poll_timeout_s: float = 30.0,
+) -> dict:
+    """Section 3: runs every block of the validated schedule bundle, in
+    exact schedule order, via the shared block executor
+    (_run_block_protocol, run_mode='official'). Tokenizers are loaded at
+    most once per model (cached locally). Never starts more than one
+    server at a time; a block is only ever begun once the previous one's
+    server has been verifiably stopped."""
+    if interrupt_state is None:
+        interrupt_state = InterruptState()
+
+    start_utc = clock.utcnow_iso()
+    run_mode = RUN_MODE_OFFICIAL
+
+    block_ids = all_block_ids_in_schedule_order(bundle)
+    episodes_by_block: dict[str, list[Episode]] = {bid: find_block(bundle, bid) for bid in block_ids}
+    for bid, eps in episodes_by_block.items():
+        if len(eps) != BLOCK_SIZE:
+            raise ValueError(f"block {bid!r} does not form a complete block of size {BLOCK_SIZE}")
+
+    manifest_path = output_dir / OFFICIAL_RUN_MANIFEST_FILENAME
+    summary_path = output_dir / OFFICIAL_RUN_SUMMARY_FILENAME
+    integrity_path = output_dir / INTEGRITY_MANIFEST_FILENAME
+
+    # --- Section 1: strict environment gate ---------------------------------
+    # Gathered and validated before ANY output-directory change of any
+    # kind (not even mkdir/marker/manifest) and before any server start,
+    # for both a fresh run and a resume.
+    env = environment_probe.gather(bundle.schedule_dir)
+    env_errors = validate_official_environment(env)
+    if env_errors:
+        raise ServerLifecycleError(
+            f"official-run environment gate failed; refusing to start or resume: {env_errors}"
         )
-        readiness_info["capability_summary"] = await fetch_capability_summary(
-            transport, base_url, api_key
-        )
-        summary["readiness"] = readiness_info
+    env_fingerprint = compute_environment_fingerprint(env)
 
-        valid_ids = compute_valid_token_ids(tokenizer)
-        ctx = RunContext(
-            transport=transport, clock=clock, sleeper=sleeper, base_url=base_url,
-            api_key=api_key, model_full_id=model_full_id, valid_ids=valid_ids,
-        )
-        server_metadata = {
-            "model_key": model_key,
-            "model_full_id": model_full_id,
-            "offload_gb": offload_gb,
-            "host": host,
-            "port": port,
-            "server_command": cmd,
-            "pid": handle.pid,
-            "pgid": handle.pgid,
-            "server_start_utc": handle.start_utc,
-            "readiness": readiness_info,
-        }
-
-        stab_result = await run_stabilization(
-            ctx, bundle, model_key, block_id, offload_gb, state_label, server_metadata=server_metadata
-        )
-        write_json_atomic(stabilization_result_path(output_dir, block_id), stab_result)
-        summary["stabilization_status"] = stab_result["status"]
-
-        if stab_result["status"] != REQUEST_STATUS_COMPLETE:
-            summary["overall_status"] = "stabilization_failed"
-            return summary
-
-        post_stabilization_health = await check_post_stabilization_health(transport, base_url)
-        readiness_info["post_stabilization_health"] = post_stabilization_health
-        summary["readiness"] = readiness_info
-
-        if not post_stabilization_health["ok"]:
-            summary["overall_status"] = "post_stabilization_health_failed"
-            return summary
-
-        await sleeper.sleep(COOLDOWN_S)
-        summary["cooldown_s"] = COOLDOWN_S
-
-        stabilization_ref = {
-            "block_id": block_id,
-            "path": str(stabilization_result_path(output_dir, block_id)),
-            "functional_passed": stab_result["functional_passed"],
-        }
-
-        block_aborted = False
-        for ep in episodes_to_run:
-            ep_result = await run_regular_episode(
-                ctx, ep, schedule_fingerprint=bundle.fingerprint,
-                server_metadata=server_metadata, stabilization_ref=stabilization_ref,
+    if resume:
+        if not output_dir.exists():
+            raise ServerLifecycleError(
+                f"--official-run --resume requires an existing output directory; "
+                f"{output_dir} does not exist"
             )
-            write_json_atomic(episode_result_path(output_dir, ep.episode_id), ep_result)
-            ok = ep_result["status"] == REQUEST_STATUS_COMPLETE
-            episode_statuses[ep.episode_id] = (
-                CLASSIFICATION_VALID_COMPLETE if ok else CLASSIFICATION_PARTIAL
+        check_output_dir_not_shared(output_dir, run_mode)
+        existing_manifest = load_json_file_or_none(manifest_path)
+        if existing_manifest is None:
+            raise ServerLifecycleError(
+                "--official-run --resume requires an existing official_run_manifest.json "
+                "in the output directory; none found or unreadable"
             )
-            summary["episode_statuses"] = dict(episode_statuses)
-            if not ok:
-                block_aborted = True
-                break
+        manifest_errors = validate_resume_manifest(
+            existing_manifest, bundle=bundle, run_mode=run_mode, current_env=env
+        )
+        if manifest_errors:
+            raise ServerLifecycleError(
+                f"--resume manifest validation failed; refusing to continue on "
+                f"possibly different code, GPU, or software: {manifest_errors}"
+            )
+        # Resume never writes or overwrites the marker or the manifest.
+    else:
+        # --- Section 2: real fresh-run contract ---
+        # output_dir must not exist, OR exist and contain *no entries at
+        # all*. No exceptions for "known" artifacts (server_logs/,
+        # integrity_manifest.json, .phase_a_run_mode) or unknown ones --
+        # every single entry aborts the run before any change is made.
+        if output_dir.exists():
+            existing_entries = sorted(p.name for p in output_dir.iterdir())
+            if existing_entries:
+                raise ServerLifecycleError(
+                    f"--official-run without --resume requires a new or "
+                    f"completely empty output directory; found existing "
+                    f"entr{'y' if len(existing_entries) == 1 else 'ies'} in "
+                    f"{output_dir}: {existing_entries}; refusing to silently overwrite"
+                )
+        output_dir.mkdir(parents=True, exist_ok=True)
+        write_run_mode_marker(output_dir, run_mode)
+        manifest = build_official_run_manifest(
+            env=env, bundle=bundle, run_mode=run_mode, output_dir=output_dir, host=host, port=port, clock=clock,
+        )
+        write_json_atomic(manifest_path, manifest)
 
-        summary["overall_status"] = "block_failed" if block_aborted else "block_complete"
-        return summary
-    except BaseException as exc:
-        summary["overall_status"] = "error"
-        summary["error"] = str(exc)
-        raise
-    finally:
-        if handle is not None:
-            stop_result = await stop_server(
-                handle, host, port, sleeper,
-                timeout_s=stop_timeout_s,
-                kill_confirm_timeout_s=stop_kill_confirm_timeout_s,
-                port_poll_timeout_s=stop_port_poll_timeout_s,
+    # Campaign-wide classification scan: any partial/invalid/corrupted
+    # episode file anywhere aborts the whole resume before any server is
+    # started.
+    episode_statuses_by_block: dict[str, dict[str, str]] = {}
+    all_bad: dict[str, str] = {}
+    for bid in block_ids:
+        statuses: dict[str, str] = {}
+        for ep in episodes_by_block[bid]:
+            cls, _notes = classify_result_file(
+                episode_result_path(output_dir, ep.episode_id), ep, bundle.fingerprint, run_mode
             )
-            summary["server_stop"] = stop_result
-            if not stop_result.get("stop_success") and summary.get("overall_status") == "block_complete":
-                # A successful block must never be reported as complete if
-                # the server itself was not verifiably stopped afterward.
-                summary["overall_status"] = "server_stop_failed"
-        summary["end_utc"] = clock.utcnow_iso()
-        write_json_atomic(output_dir / "smoke_run_summary.json", summary)
+            statuses[ep.episode_id] = cls
+            if cls in (CLASSIFICATION_PARTIAL, CLASSIFICATION_INVALID, CLASSIFICATION_CORRUPTED):
+                all_bad[ep.episode_id] = cls
+        episode_statuses_by_block[bid] = statuses
+
+    if all_bad:
+        raise ServerLifecycleError(
+            f"resume found non-resumable existing result file(s) across the "
+            f"campaign: {all_bad}; refusing to silently overwrite. Fix or remove "
+            f"them manually first."
+        )
+
+    planned_episodes = sum(len(v) for v in episode_statuses_by_block.values())
+    valid_complete_count = sum(
+        1 for statuses in episode_statuses_by_block.values() for c in statuses.values()
+        if c == CLASSIFICATION_VALID_COMPLETE
+    )
+    block_fully_done = {
+        bid: all(c == CLASSIFICATION_VALID_COMPLETE for c in episode_statuses_by_block[bid].values())
+        for bid in block_ids
+    }
+
+    integrity_expected_kwargs = dict(
+        expected_schedule_fingerprint=bundle.fingerprint,
+        expected_environment_fingerprint=env_fingerprint,
+        expected_episode_count=planned_episodes,
+        expected_stabilization_count=len(block_ids),
+        expected_block_summary_count=len(block_ids),
+        expected_server_log_count=len(block_ids),
+    )
+
+    # --- Idempotency short-circuits (Sections 3/4): every scientific
+    # episode output already present -> never start a server again. ---
+    if valid_complete_count == planned_episodes and all(block_fully_done.values()):
+        stab_ok, block_summary_ok = _check_all_blocks_finalized(block_ids, output_dir, bundle, run_mode)
+
+        if stab_ok and block_summary_ok:
+            if integrity_path.exists():
+                # Section 4: an *existing* integrity manifest that fails
+                # deep verification is NEVER silently replaced -- that
+                # would paper over a genuine integrity problem. Hard
+                # abort instead, touching nothing.
+                existing_integrity_raw = load_json_file_or_none(integrity_path)
+                if existing_integrity_raw is None:
+                    raise ServerLifecycleError(
+                        f"existing {INTEGRITY_MANIFEST_FILENAME} is unreadable or not "
+                        f"valid JSON; refusing to silently reseal it"
+                    )
+                verified, verify_errors = verify_integrity_manifest(
+                    output_dir, existing_integrity_raw, **integrity_expected_kwargs
+                )
+                if not verified:
+                    raise ServerLifecycleError(
+                        f"existing {INTEGRITY_MANIFEST_FILENAME} failed deep verification; "
+                        f"refusing to silently reseal it: {verify_errors}"
+                    )
+                # Section 3: a genuine no-op. Return an in-memory-only
+                # summary -- touch nothing on disk, not even a timestamp.
+                return _build_official_summary(
+                    runner_version=RUNNER_VERSION, run_mode=run_mode,
+                    schedule_fingerprint=bundle.fingerprint, environment_fingerprint=env_fingerprint,
+                    start_utc=start_utc, end_utc=clock.utcnow_iso(), overall_status="already_complete",
+                    planned_blocks=len(block_ids), completed_blocks=0, skipped_blocks=len(block_ids),
+                    pending_blocks=0, planned_episodes=planned_episodes,
+                    valid_complete_episodes=valid_complete_count, missing_episodes=0,
+                    failed_block=None, interrupted_by=None,
+                    block_statuses={bid: "already_complete" for bid in block_ids},
+                )
+
+            # Section 4: the manifest is genuinely MISSING (never
+            # present-but-invalid -- that already hard-aborted above).
+            # Only now, after every scientific artifact has independently
+            # passed deep validation, may a fresh integrity manifest be built.
+            summary_out = _build_official_summary(
+                runner_version=RUNNER_VERSION, run_mode=run_mode,
+                schedule_fingerprint=bundle.fingerprint, environment_fingerprint=env_fingerprint,
+                start_utc=start_utc, end_utc=clock.utcnow_iso(), overall_status="complete",
+                planned_blocks=len(block_ids), completed_blocks=len(block_ids), skipped_blocks=0,
+                pending_blocks=0, planned_episodes=planned_episodes,
+                valid_complete_episodes=valid_complete_count, missing_episodes=0,
+                failed_block=None, interrupted_by=None,
+                block_statuses={bid: "block_complete" for bid in block_ids},
+            )
+            write_json_atomic(summary_path, summary_out)
+            integrity = build_integrity_manifest(
+                output_dir, schedule_fingerprint=bundle.fingerprint,
+                environment_fingerprint=env_fingerprint, clock=clock,
+            )
+            write_json_atomic(integrity_path, integrity)
+            verified, verify_errors = verify_integrity_manifest(output_dir, integrity, **integrity_expected_kwargs)
+            if not verified:
+                summary_out["overall_status"] = "error"
+                summary_out["error"] = f"integrity manifest self-verification failed: {verify_errors}"
+                write_json_atomic(summary_path, summary_out)
+            return summary_out
+        # else: fall through to the normal loop -- some blocks are
+        # episode-complete but not yet (validly) finalized, so re-enter
+        # that block's protocol below.
+
+    # --- main execution loop ------------------------------------------------
+    block_statuses: dict[str, str] = {}
+    completed_blocks = 0
+    skipped_blocks = 0
+    failed_block: str | None = None
+    interrupted_by: str | None = None
+    tokenizer_cache: dict[str, TokenizerAdapter] = {}
+
+    def _should_abort() -> bool:
+        return interrupt_state.event.is_set()
+
+    summary_out = _build_official_summary(
+        runner_version=RUNNER_VERSION, run_mode=run_mode, schedule_fingerprint=bundle.fingerprint,
+        environment_fingerprint=env_fingerprint, start_utc=start_utc, end_utc=None, overall_status="running",
+        planned_blocks=len(block_ids), completed_blocks=0, skipped_blocks=0, pending_blocks=len(block_ids),
+        planned_episodes=planned_episodes, valid_complete_episodes=valid_complete_count,
+        missing_episodes=planned_episodes - valid_complete_count, failed_block=None, interrupted_by=None,
+        block_statuses=block_statuses,
+    )
+    write_json_atomic(summary_path, summary_out)
+
+    for bid in block_ids:
+        if _should_abort():
+            interrupted_by = interrupt_state.signal_name
+            break
+
+        block_episodes = episodes_by_block[bid]
+
+        if block_fully_done[bid]:
+            # Section 7: deep-validate, never accept a bare status flag.
+            stab_errors, summary_errors = _validate_block_finalization(bid, output_dir, bundle, run_mode)
+            already_finalized = not stab_errors and not summary_errors
+            if already_finalized:
+                block_statuses[bid] = "already_complete"
+                skipped_blocks += 1
+                summary_out["skipped_blocks"] = skipped_blocks
+                summary_out["pending_blocks"] = len(block_ids) - len(block_statuses)
+                summary_out["block_statuses"] = dict(block_statuses)
+                summary_out["end_utc"] = clock.utcnow_iso()
+                write_json_atomic(summary_path, summary_out)
+                continue
+            # All 4 episodes are valid_complete but this block's
+            # stabilization/summary is missing or not deep-valid (e.g.
+            # interrupted right after its last episode write, or a
+            # server_stop that never actually verified) -- fall through
+            # and let the protocol run again. Section 6: stabilization is
+            # mandatory again whenever a block is re-entered;
+            # _classify_and_plan_block() below correctly produces an
+            # empty episodes_to_run (nothing to re-run, existing episode
+            # files stay byte-untouched) while the protocol still
+            # performs one fresh stabilization + health + cooldown pass
+            # and (re)writes a corrected block_summary.
+
+        if _should_abort():  # Section 8: after resume planning is about to begin
+            interrupted_by = interrupt_state.signal_name
+            break
+
+        model_key = block_episodes[0].model
+        if model_key not in tokenizer_cache:
+            tokenizer_cache[model_key] = tokenizer_factory(model_key)
+        tokenizer = tokenizer_cache[model_key]
+
+        if _should_abort():  # Section 8: immediately after tokenizer loading
+            interrupted_by = interrupt_state.signal_name
+            break
+
+        # The campaign-wide scan above already proved there is nothing
+        # partial/invalid/corrupted anywhere, so resume=True here is
+        # always safe and simply (re)classifies this block's 4 files.
+        episode_statuses, episodes_to_run = _classify_and_plan_block(
+            block_episodes, bundle, output_dir, run_mode, resume=True
+        )
+
+        if _should_abort():  # Section 8: after resume planning, before any task exists
+            interrupted_by = interrupt_state.signal_name
+            break
+
+        block_start_utc = clock.utcnow_iso()
+
+        if _should_abort():  # Section 8: immediately before block-task creation/start
+            interrupted_by = interrupt_state.signal_name
+            break
+
+        block_task: asyncio.Task = asyncio.ensure_future(
+            _run_block_protocol(
+                bundle=bundle, block_episodes=block_episodes, episodes_to_run=episodes_to_run,
+                block_id=bid, output_dir=output_dir, host=host, port=port, run_mode=run_mode,
+                api_key=api_key, transport=transport, tokenizer=tokenizer, server_adapter=server_adapter,
+                sleeper=sleeper, clock=clock, run_server_path=run_server_path, episode_statuses=episode_statuses,
+                stop_timeout_s=stop_timeout_s, stop_kill_confirm_timeout_s=stop_kill_confirm_timeout_s,
+                stop_port_poll_timeout_s=stop_port_poll_timeout_s, should_abort=_should_abort,
+            )
+        )
+        interrupt_wait_task = asyncio.ensure_future(interrupt_state.event.wait())
+        done, _pending = await asyncio.wait({block_task, interrupt_wait_task}, return_when=asyncio.FIRST_COMPLETED)
+        if block_task not in done:
+            # Signal arrived mid-block: cancel the block's task in a
+            # controlled way (this cascades into cancelling every active
+            # request task) and wait for its own cleanup (verified server
+            # stop) to finish before proceeding.
+            block_task.cancel()
+        protocol_result = await block_task
+        if not interrupt_wait_task.done():
+            interrupt_wait_task.cancel()
+            try:
+                await interrupt_wait_task
+            except asyncio.CancelledError:
+                pass
+
+        block_overall_status = protocol_result.get("overall_status")
+
+        if block_overall_status == "interrupted" and protocol_result.get("server_start") is None:
+            # Aborted before any server was ever started (should_abort()
+            # fired inside _run_block_protocol itself) -- no block_summary
+            # is written for a block that was never actually attempted.
+            interrupted_by = interrupt_state.signal_name
+            break
+
+        block_end_utc = clock.utcnow_iso()
+        executed_ids = set(protocol_result.get("executed_episode_ids") or [])
+        block_summary = {
+            "block_id": bid,
+            "model": model_key,
+            "offload_gb": block_episodes[0].offload_gb,
+            "state_label": block_episodes[0].state_label,
+            "repeat": block_episodes[0].repeat,
+            "run_mode": run_mode,
+            "schedule_fingerprint": bundle.fingerprint,
+            "start_utc": block_start_utc,
+            "end_utc": block_end_utc,
+            "planned_episode_ids": [ep.episode_id for ep in block_episodes],
+            "executed_episode_ids": protocol_result.get("executed_episode_ids") or [],
+            "skipped_episode_ids": [ep.episode_id for ep in block_episodes if ep.episode_id not in executed_ids],
+            "episode_statuses": dict(episode_statuses),
+            "stabilization_status": protocol_result.get("stabilization_status"),
+            "post_stabilization_health": protocol_result.get("post_stabilization_health"),
+            "cooldown_s": protocol_result.get("cooldown_s"),
+            "server_start": protocol_result.get("server_start"),
+            "server_stop": protocol_result.get("server_stop"),
+            "overall_status": block_overall_status,
+        }
+        write_json_atomic(output_dir / "block_summaries" / f"{bid}.json", block_summary)
+
+        block_statuses[bid] = block_overall_status
+
+        valid_complete_count += sum(
+            1 for eid in [ep.episode_id for ep in episodes_to_run]
+            if episode_statuses.get(eid) == CLASSIFICATION_VALID_COMPLETE
+        )
+
+        summary_out["valid_complete_episodes"] = valid_complete_count
+        summary_out["missing_episodes"] = planned_episodes - valid_complete_count
+        summary_out["block_statuses"] = dict(block_statuses)
+        summary_out["end_utc"] = clock.utcnow_iso()
+
+        if block_overall_status == "interrupted":
+            interrupted_by = interrupt_state.signal_name
+            summary_out["pending_blocks"] = len(block_ids) - len(block_statuses)
+            summary_out["interrupted_by"] = interrupted_by
+            summary_out["overall_status"] = "interrupted"
+            write_json_atomic(summary_path, summary_out)
+            return summary_out
+
+        if block_overall_status != "block_complete":
+            failed_block = bid
+            summary_out["failed_block"] = failed_block
+            summary_out["pending_blocks"] = len(block_ids) - len(block_statuses)
+            summary_out["overall_status"] = (
+                block_overall_status if block_overall_status in ("server_stop_failed", "error") else "block_failed"
+            )
+            write_json_atomic(summary_path, summary_out)
+            return summary_out
+
+        completed_blocks += 1
+        summary_out["completed_blocks"] = completed_blocks
+        summary_out["pending_blocks"] = len(block_ids) - len(block_statuses)
+        write_json_atomic(summary_path, summary_out)
+
+    if interrupted_by is not None:
+        summary_out["overall_status"] = "interrupted"
+        summary_out["interrupted_by"] = interrupted_by
+        summary_out["pending_blocks"] = len(block_ids) - len(block_statuses)
+        summary_out["end_utc"] = clock.utcnow_iso()
+        write_json_atomic(summary_path, summary_out)
+        return summary_out
+
+    # --- final integrity proof (Section 11 base + Section 5 of this patch) --
+    stab_ok, block_summary_ok = _check_all_blocks_finalized(block_ids, output_dir, bundle, run_mode)
+    all_valid = valid_complete_count == planned_episodes
+    all_verified_stopped = all(block_statuses.get(bid) in ("block_complete", "already_complete") for bid in block_ids)
+
+    if all_valid and stab_ok and block_summary_ok and all_verified_stopped:
+        summary_out["overall_status"] = "complete"
+        summary_out["end_utc"] = clock.utcnow_iso()
+        write_json_atomic(summary_path, summary_out)
+
+        integrity = build_integrity_manifest(
+            output_dir, schedule_fingerprint=bundle.fingerprint, environment_fingerprint=env_fingerprint, clock=clock,
+        )
+        write_json_atomic(integrity_path, integrity)
+        verified, verify_errors = verify_integrity_manifest(output_dir, integrity, **integrity_expected_kwargs)
+        if not verified:
+            summary_out["overall_status"] = "error"
+            summary_out["error"] = f"integrity manifest self-verification failed: {verify_errors}"
+            write_json_atomic(summary_path, summary_out)
+    else:
+        summary_out["overall_status"] = "error"
+        summary_out["error"] = "campaign loop finished without every block verifiably complete"
+        summary_out["end_utc"] = clock.utcnow_iso()
+        write_json_atomic(summary_path, summary_out)
+
+    return summary_out
+
 
 
 
@@ -3720,10 +5087,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="run_phase_a.py",
         description=(
-            "Phase A runner (stage 2: schedule-bundle validation, "
-            "resume-depth checks, self-test, dry-run, and real execution "
-            "of a single selectable smoke-test block). --official-run "
-            "remains disabled until stage 3."
+            "Phase A runner (stage 3: schedule-bundle validation, "
+            "resume-depth checks, self-test, dry-run, real execution of a "
+            "single selectable smoke-test block, and the complete "
+            "official 20-block/80-episode campaign). --official-run is "
+            "enabled."
         ),
     )
     mode_group = parser.add_mutually_exclusive_group(required=True)
@@ -3738,8 +5106,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     mode_group.add_argument(
         "--official-run", action="store_true",
-        help="Validate everything for a real official run, then abort: "
-        "official execution is disabled until stage 3.",
+        help="Really run the complete frozen campaign (20 server blocks, "
+        "80 regular episodes) in exact schedule order: strict environment "
+        "gate, per-block server start/readiness/stabilization/health/"
+        "cooldown/episodes/verified stop, atomic manifest/summary/"
+        "block-summary output, and a final self-verifying integrity "
+        "manifest on genuine completion.",
     )
     mode_group.add_argument(
         "--smoke-test", action="store_true",
@@ -3749,8 +5121,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--resume", action="store_true",
-        help="Only valid with --official-run or --smoke-test: scan the "
-        "output directory and classify existing result files.",
+        help="Only valid with --official-run or --smoke-test: resume from "
+        "existing result files after a strict environment-fingerprint and "
+        "resume-depth validation; never silently overwrites anything.",
     )
     parser.add_argument(
         "--schedule-dir", type=Path, default=DEFAULT_SCHEDULE_DIR,
@@ -3761,7 +5134,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--output-dir", type=Path, default=None,
         help="Result output directory for --official-run/--smoke-test "
         "(default: results/official or results/smoke under the schedule "
-        "runs directory).",
+        "runs directory). Without --resume this directory must not exist "
+        "or must be completely empty.",
     )
     parser.add_argument(
         "--smoke-block", type=str, default=None,
@@ -3770,11 +5144,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--host", type=str, default=DEFAULT_SMOKE_HOST,
-        help=f"Server host for --smoke-test (default: {DEFAULT_SMOKE_HOST}).",
+        help=f"Server host for --smoke-test and --official-run "
+        f"(default: {DEFAULT_SMOKE_HOST}).",
     )
     parser.add_argument(
         "--port", type=int, default=DEFAULT_SMOKE_PORT,
-        help=f"Server port for --smoke-test, 1-65535 (default: {DEFAULT_SMOKE_PORT}).",
+        help=f"Server port for --smoke-test and --official-run, 1-65535 "
+        f"(default: {DEFAULT_SMOKE_PORT}).",
     )
     return parser
 
@@ -3802,2138 +5178,97 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 # ============================================================================
-# Self-test (Stage 1: exercises this runner's own validation logic against
-# small synthetic fixtures it builds itself; does not touch --schedule-dir)
+# Self-test
 # ============================================================================
+#
+# The full self-test suite (Stage 1 inline checks, Stage 2/3 async check
+# suites, fixtures, and the fake/real integration tests) has been
+# mechanically moved, verbatim, into the sibling phase_a_tests/ package
+# (phase_a_tests/selftest_runner.py and friends) -- see main() below for
+# the lazy import. This module's own production logic above is otherwise
+# byte-for-byte unchanged by that move.
 
-def _build_fixture_episodes(model: str, seed: int) -> list[Episode]:
-    """
-    Self-test-only fixture: builds a small, internally-consistent
-    1-repeat (2-block, 8-episode) synthetic schedule for a single model,
-    used purely to exercise `_check_model_structure()`'s logic in
-    isolation. This is NOT the frozen generator, is NOT used by any real
-    validation path, and does not claim to match the official 80-episode
-    contract (which needs 5 repeats x 2 models).
-    """
-    episodes: list[Episode] = []
-    states = [(0, "low"), (12, "high")]
-    cells = [
-        (concurrency, condition)
-        for concurrency in OFFICIAL_CONCURRENCIES
-        for condition in OFFICIAL_CONDITIONS
-    ]
-    block_number = 0
-    for offload_gb, state_label in states:
-        block_number += 1
-        block_id = f"{model}_block{block_number:02d}_{state_label}"
-        for order_in_block, (concurrency, condition) in enumerate(cells, start=1):
-            repeat = 1
-            episode_id = (
-                f"{model}_off{offload_gb}_conc{concurrency}_{condition}_"
-                f"rep{repeat}"
-            )
-            episodes.append(
-                Episode(
-                    episode_id=episode_id,
-                    model=model,
-                    offload_gb=offload_gb,
-                    state_label=state_label,
-                    concurrency=concurrency,
-                    condition=condition,
-                    repeat=repeat,
-                    random_seed=seed,
-                    episode_seed=derive_seed(str(seed), episode_id),
-                    victim_workload_seed=derive_seed(
-                        str(seed), model, str(concurrency), str(repeat)
-                    ),
-                    burst_workload_seed=derive_seed(
-                        str(seed), model, str(concurrency), str(repeat), "burst"
-                    ),
-                    victim_request_count=20,
-                    victim_input_len=256,
-                    victim_output_len=64,
-                    victim_temperature=0.0,
-                    burst_parallel_requests=4,
-                    burst_input_len=256,
-                    burst_output_len=256,
-                    burst_temperature=0.0,
-                    restart_server_before_block=1 if order_in_block == 1 else 0,
-                    block_id=block_id,
-                    order_in_block=order_in_block,
-                )
-            )
-    return episodes
-
-
-def _make_fixture_block_bundle(model: str, seed: int) -> tuple["LoadedBundle", str]:
-    episodes = _build_fixture_episodes(model, seed)
-    block_id = episodes[0].block_id
-    bundle = LoadedBundle(
-        schedule_dir=Path("/nonexistent-fixture-only"),
-        json_obj={"seed": seed},
-        csv_fieldnames=[],
-        csv_rows=[],
-        audit_text="",
-        episodes=episodes,
-        fingerprint="sha256:" + "a" * 64,
-    )
-    return bundle, block_id
-
-
-def _success_script_factory(payload: dict) -> "FakeStreamScript":
-    return FakeStreamScript(
-        prompt_token_ids_echo=list(payload["prompt"]),
-        token_events=[[9000 + k] for k in range(payload["max_tokens"])],
-        usage={"prompt_tokens": len(payload["prompt"]), "completion_tokens": payload["max_tokens"]},
-    )
-
-
-def _make_success_transport() -> "FakeTransport":
-    t = FakeTransport()
-    t.default_script_factory = _success_script_factory
-    t.set_get_response(HEALTH_ENDPOINT, 200, {})
-    t.set_get_response(
-        MODELS_ENDPOINT, 200,
-        {"data": [{"id": MODEL_FULL_ID["llama"]}, {"id": MODEL_FULL_ID["qwen"]}]},
-    )
-    t.set_get_response(OPENAPI_ENDPOINT, 200, {"paths": {COMPLETIONS_ENDPOINT: {}}})
-    return t
-
-
-async def _stage2_async_checks() -> list[tuple[str, bool, str]]:
-    results: list[tuple[str, bool, str]] = []
-
-    def check(name: str, condition: bool, detail: str = "") -> None:
-        results.append((name, condition, detail))
-
-    fake_clock = RealClock()
-
-    # --- 1. Token-ID prompt has exactly 256 ids -----------------------------
-    tok = FakeTokenizerAdapter(vocab_size=300, special_token_ids={0, 1, 2})
-    valid_ids = compute_valid_token_ids(tok)
-    p256 = generate_token_id_prompt(seed=1, valid_ids=valid_ids, length=256)
-    check("(1) token-id prompt has exactly 256 ids", len(p256) == 256)
-
-    # --- 2. Special ids are never chosen -------------------------------------
-    tok2 = FakeTokenizerAdapter(vocab_size=50, special_token_ids={0, 1, 2, 3, 4})
-    valid_ids2 = compute_valid_token_ids(tok2)
-    p_many = generate_token_id_prompt(seed=7, valid_ids=valid_ids2, length=2000)
-    check(
-        "(2) special token ids are never chosen",
-        all(x not in {0, 1, 2, 3, 4} for x in p_many),
-    )
-
-    # --- 3. Same seed -> identical prompt-id lists ---------------------------
-    a1 = generate_token_id_prompt(seed=42, valid_ids=valid_ids, length=256)
-    a2 = generate_token_id_prompt(seed=42, valid_ids=valid_ids, length=256)
-    a3 = generate_token_id_prompt(seed=43, valid_ids=valid_ids, length=256)
-    check("(3) identical seeds produce identical prompt-id lists", a1 == a2 and a1 != a3)
-
-    # --- 4/5. Matched low/high episodes share victim/burst sequences --------
-    fixture_seed = 555001
-    fixture_eps = _build_fixture_episodes("matchtest", fixture_seed)
-    by_key: dict[tuple[int, str, int], list[Episode]] = {}
-    for ep in fixture_eps:
-        by_key.setdefault((ep.concurrency, ep.condition, ep.repeat), []).append(ep)
-    matched_pairs = [v for v in by_key.values() if len(v) == 2]
-    check("(4/5 setup) fixture has matched low/high pairs", len(matched_pairs) > 0)
-    victim_match_ok = True
-    burst_match_ok = True
-    for pair in matched_pairs:
-        low_ep, high_ep = pair[0], pair[1]
-        for i in range(3):
-            if victim_prompt_seed(low_ep, i) != victim_prompt_seed(high_ep, i):
-                victim_match_ok = False
-            if victim_generation_seed(low_ep, i) != victim_generation_seed(high_ep, i):
-                victim_match_ok = False
-            if burst_prompt_seed(low_ep, i) != burst_prompt_seed(high_ep, i):
-                burst_match_ok = False
-            if burst_generation_seed(low_ep, i) != burst_generation_seed(high_ep, i):
-                burst_match_ok = False
-        low_victims = [
-            generate_token_id_prompt(victim_prompt_seed(low_ep, i), valid_ids, 8) for i in range(3)
-        ]
-        high_victims = [
-            generate_token_id_prompt(victim_prompt_seed(high_ep, i), valid_ids, 8) for i in range(3)
-        ]
-        if low_victims != high_victims:
-            victim_match_ok = False
-        low_bursts = [
-            generate_token_id_prompt(burst_prompt_seed(low_ep, j), valid_ids, 8) for j in range(2)
-        ]
-        high_bursts = [
-            generate_token_id_prompt(burst_prompt_seed(high_ep, j), valid_ids, 8) for j in range(2)
-        ]
-        if low_bursts != high_bursts:
-            burst_match_ok = False
-    check("(4) matched low/high episodes produce identical victim sequences", victim_match_ok)
-    check("(5) matched low/high episodes produce identical burst sequences", burst_match_ok)
-
-    # --- 6. Stabilization uses its own seed domain ---------------------------
-    stab_p_seed = stabilization_prompt_seed(fixture_seed, "matchtest", "matchtest_block01_low", 0)
-    victim_p_seed_same_i = victim_prompt_seed(fixture_eps[0], 0)
-    expected_stab_seed = derive_seed(
-        str(fixture_seed), "matchtest", "matchtest_block01_low", "stabilization-prompt", "0"
-    )
-    check(
-        "(6) stabilization_prompt_seed matches its own documented derivation "
-        "and differs from the victim-prompt seed domain",
-        stab_p_seed == expected_stab_seed and stab_p_seed != victim_p_seed_same_i,
-    )
-
-    # --- 7-13. Server-side completeness validation ---------------------------
-    async def _exec(script: FakeStreamScript, expected_prompt: int = 10, expected_completion: int = 4) -> dict:
-        t = FakeTransport()
-        t.queue_script("t713", script)
-        return await execute_completion_request(
-            transport=t, clock=fake_clock, url="http://x/v1/completions",
-            api_key="k", model_full_id="m", prompt_token_ids=list(range(expected_prompt)),
-            max_tokens=expected_completion, min_tokens=expected_completion, temperature=0.0,
-            request_seed=1, request_id="t713", role="victim", request_index=0,
-            prompt_seed=1, generation_seed=1, expected_prompt_tokens=expected_prompt,
-            expected_completion_tokens=expected_completion, http_timeout_s=5.0,
-        )
-
-    r7 = await _exec(FakeStreamScript(
-        prompt_token_ids_echo=list(range(10)), token_events=[[1], [2], [3], [4]],
-        usage={"prompt_tokens": 10, "completion_tokens": 4},
-    ))
-    check(
-        "(7) matching server-side prompt ids -> complete",
-        r7["status"] == REQUEST_STATUS_COMPLETE, str(r7["validation_errors"]),
-    )
-
-    r8 = await _exec(FakeStreamScript(
-        prompt_token_ids_echo=[99] * 10, token_events=[[1], [2], [3], [4]],
-        usage={"prompt_tokens": 10, "completion_tokens": 4},
-    ))
-    check("(8) mismatched server-side prompt ids -> incomplete", r8["status"] == REQUEST_STATUS_INCOMPLETE)
-
-    r9 = await _exec(FakeStreamScript(
-        prompt_token_ids_echo=list(range(10)), token_events=[[1], [2], [3], [4]],
-        usage={"prompt_tokens": 999, "completion_tokens": 4},
-    ))
-    check("(9) wrong usage.prompt_tokens -> incomplete", r9["status"] == REQUEST_STATUS_INCOMPLETE)
-
-    r10 = await _exec(FakeStreamScript(
-        prompt_token_ids_echo=list(range(10)), token_events=[[1], [2], [3], [4]],
-        usage={"prompt_tokens": 10, "completion_tokens": 999},
-    ))
-    check("(10) wrong usage.completion_tokens -> incomplete", r10["status"] == REQUEST_STATUS_INCOMPLETE)
-
-    r11 = await _exec(FakeStreamScript(
-        prompt_token_ids_echo=list(range(10)), token_events=[[1], [2], [3]],
-        usage={"prompt_tokens": 10, "completion_tokens": 3},
-    ))
-    check("(11) too-short output-id list -> incomplete", r11["status"] == REQUEST_STATUS_INCOMPLETE)
-
-    r12 = await _exec(FakeStreamScript(
-        prompt_token_ids_echo=list(range(10)), token_events=[[1], [2], [3], [4]],
-        usage={"prompt_tokens": 10, "completion_tokens": 4}, include_done=False,
-    ))
-    check("(12) missing [DONE] -> incomplete", r12["status"] == REQUEST_STATUS_INCOMPLETE)
-
-    r13 = await _exec(FakeStreamScript(
-        prompt_token_ids_echo=list(range(10)), token_events=[[1], [2], [3], [4]],
-        usage={"prompt_tokens": 10, "completion_tokens": 4}, finish_reason="stop",
-    ))
-    check("(13) wrong finish_reason -> incomplete", r13["status"] == REQUEST_STATUS_INCOMPLETE)
-
-    # --- 14/15. ITL availability rule -----------------------------------------
-    r14 = await _exec(FakeStreamScript(
-        prompt_token_ids_echo=list(range(10)), token_events=[[1], [2], [3], [4]],
-        usage={"prompt_tokens": 10, "completion_tokens": 4},
-    ))
-    check(
-        "(14) one token per event -> itl_available=true",
-        r14["itl_available"] is True and r14["itl_ms"] is not None,
-    )
-
-    r15 = await _exec(FakeStreamScript(
-        prompt_token_ids_echo=list(range(10)), token_events=[[1, 2], [3, 4]],
-        usage={"prompt_tokens": 10, "completion_tokens": 4},
-    ))
-    check(
-        "(15) multiple tokens in one event -> itl_available=false",
-        r15["itl_available"] is False and r15["itl_ms"] is None and r15["token_batch_sizes"] == [2, 2],
-    )
-
-    # --- 16/17. TPOT ends at last token event (not [DONE]); E2EL ends at stream end
-    step_clock = FakeClock(step_ns=1_000_000)  # 1ms advance per clock call
-    t1617 = FakeTransport()
-    t1617.queue_script("t1617", FakeStreamScript(
-        prompt_token_ids_echo=list(range(10)), token_events=[[1], [2]],
-        usage={"prompt_tokens": 10, "completion_tokens": 2}, extra_keepalives=3,
-    ))
-    r1617 = await execute_completion_request(
-        transport=t1617, clock=step_clock, url="http://x/v1/completions",
-        api_key="k", model_full_id="m", prompt_token_ids=list(range(10)),
-        max_tokens=2, min_tokens=2, temperature=0.0, request_seed=1,
-        request_id="t1617", role="victim", request_index=0, prompt_seed=1,
-        generation_seed=1, expected_prompt_tokens=10, expected_completion_tokens=2,
-        http_timeout_s=5.0,
-    )
-    manual_tpot_ms = (r1617["last_token_receive_ns"] - r1617["first_token_receive_ns"]) / 1e6
-    check(
-        "(16) client-observed TPOT is derived from first/last token "
-        "timestamps, not from [DONE]",
-        r1617["client_observed_tpot_ms"] == manual_tpot_ms
-        and r1617["last_token_receive_ns"] < r1617["stream_end_ns"],
-    )
-    check(
-        "(17) E2EL is derived from stream end, which is later than the last token event",
-        r1617["e2el_ms"] == (r1617["stream_end_ns"] - r1617["request_start_ns"]) / 1e6
-        and r1617["e2el_ms"] > manual_tpot_ms,
-    )
-
-    # --- 18. Trigger fires only after every first-wave request's first token
-    ev0, ev1 = asyncio.Event(), asyncio.Event()
-    order: list[str] = []
-
-    async def _fast_set() -> str:
-        ev0.set()
-        order.append("fast")
-        await asyncio.Event().wait()  # hang forever (real task keeps running)
-
-    async def _slow_set() -> str:
-        await asyncio.sleep(0.05)
-        ev1.set()
-        order.append("slow")
-        await asyncio.Event().wait()
-
-    t_fast = asyncio.create_task(_fast_set())
-    t_slow = asyncio.create_task(_slow_set())
-    events18 = {0: ev0, 1: ev1}
-    tasks18 = {0: t_fast, 1: t_slow}
-    start18 = time.monotonic()
-    status18 = await _watch_trigger({0, 1}, events18, tasks18, timeout_s=2.0)
-    elapsed18 = time.monotonic() - start18
-    await cancel_all([t_fast, t_slow])
-    check(
-        "(18) trigger only fires once every first-wave request's first "
-        "token has arrived (waits for the slow one)",
-        status18 == "ok" and elapsed18 >= 0.04 and order == ["fast", "slow"],
-    )
-
-    # --- 19. Trigger timeout cancels all tasks --------------------------------
-    async def _hangs_forever() -> None:
-        await asyncio.Event().wait()
-
-    ev_a, ev_b = asyncio.Event(), asyncio.Event()
-    t_a = asyncio.create_task(_hangs_forever())
-    t_b = asyncio.create_task(_hangs_forever())
-    status19 = await _watch_trigger(
-        {0, 1}, {0: ev_a, 1: ev_b}, {0: t_a, 1: t_b}, timeout_s=0.05
-    )
-    await cancel_all([t_a, t_b])
-    check(
-        "(19) trigger timeout is reported and both first-wave tasks can "
-        "then be cancelled",
-        status19 == "timeout" and t_a.done() and t_b.done(),
-    )
-
-    # --- 20. No request task keeps running after cancellation ---------------
-    t20 = FakeTransport()
-    t20.default_script_factory = lambda payload: FakeStreamScript(hang=True, prompt_token_ids_echo=None, token_events=[])
-
-    async def _hanging_request(i: int) -> dict:
-        return await execute_completion_request(
-            transport=t20, clock=fake_clock, url="http://x", api_key="k", model_full_id="m",
-            prompt_token_ids=[1, 2, 3], max_tokens=4, min_tokens=4, temperature=0.0,
-            request_seed=1, request_id=f"hang{i}", role="victim", request_index=i,
-            prompt_seed=1, generation_seed=1, expected_prompt_tokens=3,
-            expected_completion_tokens=4, http_timeout_s=30.0,
-        )
-
-    hang_tasks = [asyncio.create_task(_hanging_request(i)) for i in range(4)]
-    await asyncio.sleep(0.02)
-    active_before = t20.active_stream_count
-    await cancel_all(hang_tasks)
-    check(
-        "(20) after cancel_all(), no fake stream is still active and all "
-        "tasks are done",
-        active_before == 4 and t20.active_stream_count == 0 and all(t.done() for t in hang_tasks),
-    )
-
-    # --- 21/22. Burst starts only after trigger; no_burst issues no bursts ---
-    tok21 = FakeTokenizerAdapter(vocab_size=2000, special_token_ids={0, 1, 2})
-    valid21 = compute_valid_token_ids(tok21)
-    transport21 = _make_success_transport()
-    ctx21 = RunContext(
-        transport=transport21, clock=RealClock(), sleeper=FakeSleeper(),
-        base_url="http://127.0.0.1:1", api_key="k21", model_full_id="fake/model",
-        valid_ids=valid21, trigger_timeout_s=5.0,
-    )
-    ep21 = Episode(
-        episode_id="burst_after_trigger_ep", model="llama", offload_gb=0, state_label="low",
-        concurrency=4, condition="fixed_burst", repeat=1, random_seed=1, episode_seed=1,
-        victim_workload_seed=111, burst_workload_seed=222, victim_request_count=8,
-        victim_input_len=16, victim_output_len=4, victim_temperature=0.0,
-        burst_parallel_requests=2, burst_input_len=16, burst_output_len=4,
-        burst_temperature=0.0, restart_server_before_block=1, block_id="fake_block21",
-        order_in_block=1,
-    )
-    result21 = await run_regular_episode(
-        ctx21, ep21, schedule_fingerprint="sha256:" + "0" * 64,
-        server_metadata={}, stabilization_ref={},
-    )
-    burst_starts_after_trigger = (
-        result21["burst_interval"] is not None
-        and result21["burst_interval"]["start_ns"] >= result21["trigger"]["trigger_perf_ns"]
-    )
-    check(
-        "(21) burst requests only start once the trigger has fired",
-        result21["status"] == REQUEST_STATUS_COMPLETE and burst_starts_after_trigger,
-        str(result21.get("validation_errors")),
-    )
-
-    ep22 = Episode(**{**vars(ep21), "condition": "no_burst", "episode_id": "no_burst_ep22"})
-    result22 = await run_regular_episode(
-        ctx21, ep22, schedule_fingerprint="sha256:" + "0" * 64,
-        server_metadata={}, stabilization_ref={},
-    )
-    check(
-        "(22) no_burst issues zero burst requests",
-        result22["burst_requests"] == [] and result22["burst_interval"] is None,
-    )
-
-    # --- 23/24/25/29/30/31/32/33/34: full run_smoke_block scenarios ---------
-    import tempfile as _tempfile
-
-    tok_block = FakeTokenizerAdapter(vocab_size=2000, special_token_ids={0, 1, 2})
-    secret_key = "self-test-secret-key-should-never-leak"
-    run_server_path_fixture = Path("/nonexistent/run_server.sh")
-
-    # (23) partial stabilization prevents every regular episode.
-    with _tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        bundle23, block_id23 = _make_fixture_block_bundle("llama", 700001)
-        t23 = _make_success_transport()
-        t23.queue_script(
-            f"{block_id23}:stabilization:3",
-            FakeStreamScript(
-                prompt_token_ids_echo=list(range(256)), token_events=[[1]] * 64,
-                finish_reason="stop", usage={"prompt_tokens": 256, "completion_tokens": 64},
-            ),
-        )
-        server_adapter23 = FakeServerProcessAdapter()
-        summary23 = await run_smoke_block(
-            bundle=bundle23, block_id=block_id23, output_dir=tmp_path / "out",
-            host="127.0.0.1", port=18101, resume=False, api_key=secret_key,
-            transport=t23, tokenizer=tok_block, server_adapter=server_adapter23,
-            sleeper=FakeSleeper(), clock=RealClock(), run_server_path=run_server_path_fixture,
-        )
-        episodes_written = list((tmp_path / "out" / "episodes").glob("*.json")) if (tmp_path / "out" / "episodes").exists() else []
-        check(
-            "(23) partial stabilization prevents every regular episode from running",
-            summary23["overall_status"] == "stabilization_failed" and not episodes_written,
-            str(summary23.get("overall_status")),
-        )
-        check("(31, block on stab-fail) episode dir stays empty under episodes/", not episodes_written)
-        check(
-            "(32) stabilization output is written under stabilization/",
-            (tmp_path / "out" / "stabilization" / f"{block_id23}.json").exists(),
-        )
-        check(
-            "(34a) API key never appears in the smoke summary",
-            secret_key not in json.dumps(summary23),
-        )
-
-    # (24) drift alone does not block the episodes (abort_on_stability_drift=False).
-    with _tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        bundle24, block_id24 = _make_fixture_block_bundle("llama", 700002)
-        t24 = _make_success_transport()
-        valid_ids24 = compute_valid_token_ids(tok_block)
-        # First half: 1 token/event (fast). Second half: dramatically more
-        # elapsed wall time via extra keepalives -- still functionally
-        # complete, but the two halves' timing looks very different.
-        for i in range(10, 20):
-            p_seed24 = stabilization_prompt_seed(bundle24.json_obj["seed"], "llama", block_id24, i)
-            prompt_ids24 = generate_token_id_prompt(p_seed24, valid_ids24, STABILIZATION_INPUT_LEN)
-            t24.queue_script(
-                f"{block_id24}:stabilization:{i}",
-                FakeStreamScript(
-                    prompt_token_ids_echo=prompt_ids24, token_events=[[1]] * 64,
-                    usage={"prompt_tokens": 256, "completion_tokens": 64},
-                    extra_keepalives=25,
-                ),
-            )
-        server_adapter24 = FakeServerProcessAdapter()
-        summary24 = await run_smoke_block(
-            bundle=bundle24, block_id=block_id24, output_dir=tmp_path / "out",
-            host="127.0.0.1", port=18102, resume=False, api_key=secret_key,
-            transport=t24, tokenizer=tok_block, server_adapter=server_adapter24,
-            sleeper=FakeSleeper(), clock=RealClock(), run_server_path=run_server_path_fixture,
-        )
-        stab24 = json.loads((tmp_path / "out" / "stabilization" / f"{block_id24}.json").read_text())
-        check(
-            "(24) functional/stabilization pass even with large timing drift "
-            "between halves (abort_on_stability_drift=False)",
-            stab24["functional_passed"] is True and stab24["stabilization_passed"] is True,
-            str([r["validation_errors"] for r in stab24["request_results"] if r["status"] != "complete"]),
-        )
-        check(
-            "(24b) drift is documented, not gating: episodes still ran",
-            summary24["overall_status"] == "block_complete",
-        )
-
-
-    # (25) a partial episode prevents the next episode of the block.
-    with _tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        bundle25, block_id25 = _make_fixture_block_bundle("llama", 700003)
-        block_eps25 = find_block(bundle25, block_id25)
-        second_ep25 = block_eps25[1]
-        t25 = _make_success_transport()
-        t25.queue_script(
-            f"{second_ep25.episode_id}:victim:0",
-            FakeStreamScript(
-                prompt_token_ids_echo=list(range(second_ep25.victim_input_len)),
-                token_events=[[1]] * (second_ep25.victim_output_len - 1),
-                usage={
-                    "prompt_tokens": second_ep25.victim_input_len,
-                    "completion_tokens": second_ep25.victim_output_len - 1,
-                },
-            ),
-        )
-        server_adapter25 = FakeServerProcessAdapter()
-        summary25 = await run_smoke_block(
-            bundle=bundle25, block_id=block_id25, output_dir=tmp_path / "out",
-            host="127.0.0.1", port=18103, resume=False, api_key=secret_key,
-            transport=t25, tokenizer=tok_block, server_adapter=server_adapter25,
-            sleeper=FakeSleeper(), clock=RealClock(), run_server_path=run_server_path_fixture,
-        )
-        st25 = summary25["episode_statuses"]
-        check(
-            "(25) a partial episode prevents the next episode(s) of the "
-            "block from starting",
-            st25[block_eps25[0].episode_id] == CLASSIFICATION_VALID_COMPLETE
-            and st25[block_eps25[1].episode_id] == CLASSIFICATION_PARTIAL
-            and st25[block_eps25[2].episode_id] == CLASSIFICATION_MISSING
-            and st25[block_eps25[3].episode_id] == CLASSIFICATION_MISSING
-            and not episode_result_path(tmp_path / "out", block_eps25[2].episode_id).exists(),
-            str(st25),
-        )
-        # Per section 22, a 'partial' file is exactly as non-resumable as
-        # 'invalid'/'corrupted' -- it must gate resume with a clear abort,
-        # not be silently rerun.
-        server_adapter25_resume = FakeServerProcessAdapter()
-        raised25b = False
-        try:
-            await run_smoke_block(
-                bundle=bundle25, block_id=block_id25, output_dir=tmp_path / "out",
-                host="127.0.0.1", port=18104, resume=True, api_key=secret_key,
-                transport=_make_success_transport(), tokenizer=tok_block,
-                server_adapter=server_adapter25_resume, sleeper=FakeSleeper(), clock=RealClock(),
-                run_server_path=run_server_path_fixture,
-            )
-        except ServerLifecycleError:
-            raised25b = True
-        check(
-            "(25b) a leftover 'partial' episode file also gates --resume "
-            "with a clear abort (never silently rerun)",
-            raised25b and len(server_adapter25_resume.started) == 0,
-        )
-
-    # (29) --resume begins at the first genuinely missing episode, restarts
-    # the server, and leaves already-valid_complete episodes untouched.
-    with _tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        bundle29, block_id29 = _make_fixture_block_bundle("llama", 700005)
-        block_eps29 = find_block(bundle29, block_id29)
-        server_adapter29a = FakeServerProcessAdapter()
-        summary29a = await run_smoke_block(
-            bundle=bundle29, block_id=block_id29, output_dir=tmp_path / "out",
-            host="127.0.0.1", port=18107, resume=False, api_key=secret_key,
-            transport=_make_success_transport(), tokenizer=tok_block,
-            server_adapter=server_adapter29a, sleeper=FakeSleeper(), clock=RealClock(),
-            run_server_path=run_server_path_fixture,
-        )
-        check("(29 setup) initial full run completes", summary29a["overall_status"] == "block_complete")
-
-        kept_path = episode_result_path(tmp_path / "out", block_eps29[0].episode_id)
-        kept_text = kept_path.read_text()
-        for ep in block_eps29[1:]:
-            episode_result_path(tmp_path / "out", ep.episode_id).unlink()
-
-        server_adapter29b = FakeServerProcessAdapter()
-        summary29b = await run_smoke_block(
-            bundle=bundle29, block_id=block_id29, output_dir=tmp_path / "out",
-            host="127.0.0.1", port=18108, resume=True, api_key=secret_key,
-            transport=_make_success_transport(), tokenizer=tok_block,
-            server_adapter=server_adapter29b, sleeper=FakeSleeper(), clock=RealClock(),
-            run_server_path=run_server_path_fixture,
-        )
-        check(
-            "(29) --resume begins at the first missing episode, restarts "
-            "the server (stabilization is mandatory again), and leaves "
-            "the already-valid_complete episode's file byte-for-byte untouched",
-            summary29b["overall_status"] == "block_complete"
-            and len(server_adapter29b.started) == 1
-            and kept_path.read_text() == kept_text
-            and all(
-                v == CLASSIFICATION_VALID_COMPLETE for v in summary29b["episode_statuses"].values()
-            ),
-            str(summary29b["episode_statuses"]),
-        )
-
-    # (30) a foreign/invalid result file must never be silently overwritten,
-    # and must gate resume before any server is started.
-    with _tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        bundle30, block_id30 = _make_fixture_block_bundle("llama", 700006)
-        block_eps30 = find_block(bundle30, block_id30)
-        bad_path = episode_result_path(tmp_path / "out", block_eps30[0].episode_id)
-        bad_path.parent.mkdir(parents=True, exist_ok=True)
-        bad_payload = json.dumps({"runner_version": "not-the-real-runner"})
-        bad_path.write_text(bad_payload, encoding="utf-8")
-        server_adapter30 = FakeServerProcessAdapter()
-        raised30 = False
-        try:
-            await run_smoke_block(
-                bundle=bundle30, block_id=block_id30, output_dir=tmp_path / "out",
-                host="127.0.0.1", port=18109, resume=True, api_key=secret_key,
-                transport=_make_success_transport(), tokenizer=tok_block,
-                server_adapter=server_adapter30, sleeper=FakeSleeper(), clock=RealClock(),
-                run_server_path=run_server_path_fixture,
-            )
-        except ServerLifecycleError:
-            raised30 = True
-        check(
-            "(30) a foreign/invalid episode result file is rejected, not "
-            "silently overwritten, and no server is started",
-            raised30 and len(server_adapter30.started) == 0 and bad_path.read_text() == bad_payload,
-        )
-
-    # (31/32/33/34 full happy path) episodes/ + stabilization/ dirs, no temp
-    # files after success, API key never leaks anywhere on disk.
-    with _tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        bundle31, block_id31 = _make_fixture_block_bundle("llama", 700004)
-        block_eps31 = find_block(bundle31, block_id31)
-        server_adapter31 = FakeServerProcessAdapter()
-        summary31 = await run_smoke_block(
-            bundle=bundle31, block_id=block_id31, output_dir=tmp_path / "out",
-            host="127.0.0.1", port=18106, resume=False, api_key=secret_key,
-            transport=_make_success_transport(), tokenizer=tok_block,
-            server_adapter=server_adapter31, sleeper=FakeSleeper(), clock=RealClock(),
-            run_server_path=run_server_path_fixture,
-        )
-        episodes_ok = all(
-            episode_result_path(tmp_path / "out", ep.episode_id).exists() for ep in block_eps31
-        )
-        check("(31) episode files live under episodes/", episodes_ok and summary31["overall_status"] == "block_complete")
-        check(
-            "(32, happy path) stabilization file lives under stabilization/",
-            stabilization_result_path(tmp_path / "out", block_id31).exists(),
-        )
-        leftovers = list((tmp_path / "out").rglob("*.tmp.*"))
-        check("(33) the atomic writer leaves no temp file behind after success", not leftovers, str(leftovers))
-        all_text = "".join(p.read_text() for p in (tmp_path / "out").rglob("*.json"))
-        check(
-            "(34) the API key never appears in any serialized result on disk",
-            secret_key not in all_text and secret_key not in json.dumps(summary31),
-        )
-        check(
-            "(28) stop_server only signals the server's own process "
-            "group (SIGTERM path), never a global kill",
-            server_adapter31.started[0].terminated and not server_adapter31.started[0].killed,
-        )
-
-    # --- 26/27. Server command shape -----------------------------------------
-    cmd = build_server_command(Path("/x/run_server.sh"), "llama", 12, "127.0.0.1", 8123)
-    check(
-        "(26) the server command is exactly `bash run_server.sh <model> "
-        "<offload_gb> <host> <port>`",
-        cmd == ["bash", "/x/run_server.sh", "llama", "12", "127.0.0.1", "8123"],
-    )
-    check(
-        "(27) the server command never contains an API key",
-        all("secret" not in part.lower() and "key" not in part.lower() for part in cmd),
-    )
-
-    # =========================================================================
-    # Patch: Stage-2-Realpfad-Abschluss -- sections 1, 2, 3, 5, 6, 7
-    # =========================================================================
-
-    # --- Section 1: readiness polls through transient connection errors ----
-    # (P1-1) two ConnectionRefusedError, then a successful health/models check.
-    t_p1a = FakeTransport()
-    t_p1a.queue_get_error(HEALTH_ENDPOINT, ConnectionRefusedError("refused"))
-    t_p1a.queue_get_error(HEALTH_ENDPOINT, ConnectionRefusedError("refused"))
-    t_p1a.set_get_response(HEALTH_ENDPOINT, 200, {})
-    t_p1a.set_get_response(MODELS_ENDPOINT, 200, {"data": [{"id": "fake/model"}]})
-    handle_p1a = FakeServerHandle(["bash", "x"])
-    readiness_p1a = await wait_for_server_ready(
-        t_p1a, handle_p1a, "http://x", "k", "fake/model", FakeSleeper(),
-        timeout_s=5.0, poll_interval_s=0.001,
-    )
-    check(
-        "(P1-1) readiness polls through two transient ConnectionRefusedError "
-        "and then succeeds",
-        readiness_p1a["detected_model"] == "fake/model" and readiness_p1a["poll_count"] >= 3,
-        str(readiness_p1a),
-    )
-
-    # (P1-2) health 200 immediately; models 503 then 200.
-    t_p1b = FakeTransport()
-    t_p1b.set_get_response(HEALTH_ENDPOINT, 200, {})
-    t_p1b.queue_get_status(MODELS_ENDPOINT, 503, {})
-    t_p1b.set_get_response(MODELS_ENDPOINT, 200, {"data": [{"id": "fake/model"}]})
-    handle_p1b = FakeServerHandle(["bash", "x"])
-    readiness_p1b = await wait_for_server_ready(
-        t_p1b, handle_p1b, "http://x", "k", "fake/model", FakeSleeper(),
-        timeout_s=5.0, poll_interval_s=0.001,
-    )
-    check(
-        "(P1-2) readiness polls through a transient /v1/models 503 and then succeeds",
-        readiness_p1b["detected_model"] == "fake/model",
-    )
-
-    # (P1-3) server process dies mid-poll -> a clear error.
-    class _DyingSleeper:
-        def __init__(self, handle: FakeServerHandle) -> None:
-            self.handle = handle
-
-        async def sleep(self, seconds: float) -> None:
-            self.handle.alive = False
-            await asyncio.sleep(0)
-
-    t_p1c = FakeTransport()
-    t_p1c.queue_get_error(HEALTH_ENDPOINT, ConnectionRefusedError("refused"))
-    handle_p1c = FakeServerHandle(["bash", "x"])
-    raised_p1c = False
-    try:
-        await wait_for_server_ready(
-            t_p1c, handle_p1c, "http://x", "k", "fake/model", _DyingSleeper(handle_p1c),
-            timeout_s=5.0, poll_interval_s=0.001,
-        )
-    except ServerLifecycleError:
-        raised_p1c = True
-    check("(P1-3) the server process dying mid-poll raises a clear ServerLifecycleError", raised_p1c)
-
-    # (P1-4) only transient errors until the deadline -> a clean timeout.
-    class _AlwaysFailTransport:
-        async def get_json(self, url: str, headers: dict, timeout_s: float):
-            raise ConnectionRefusedError("refused")
-
-    handle_p1d = FakeServerHandle(["bash", "x"])
-    raised_p1d = False
-    try:
-        await wait_for_server_ready(
-            _AlwaysFailTransport(), handle_p1d, "http://x", "k", "fake/model", FakeSleeper(),
-            timeout_s=0.05, poll_interval_s=0.001,
-        )
-    except ServerLifecycleError:
-        raised_p1d = True
-    check("(P1-4) only-transient errors until the deadline -> a clean ServerLifecycleError timeout", raised_p1d)
-
-    # (P1-5) cancellation is never swallowed.
-    class _HangingTransport:
-        async def get_json(self, url: str, headers: dict, timeout_s: float):
-            await asyncio.Event().wait()
-
-    handle_p1e = FakeServerHandle(["bash", "x"])
-    readiness_task = asyncio.create_task(
-        wait_for_server_ready(
-            _HangingTransport(), handle_p1e, "http://x", "k", "fake/model", FakeSleeper(),
-            timeout_s=30.0, poll_interval_s=1.0,
-        )
-    )
-    await asyncio.sleep(0.02)
-    readiness_task.cancel()
-    cancelled_p1e = False
-    try:
-        await readiness_task
-    except asyncio.CancelledError:
-        cancelled_p1e = True
-    check("(P1-5) readiness cancellation (asyncio.CancelledError) is never swallowed", cancelled_p1e)
-
-    # --- Section 2: post-stabilization health gate --------------------------
-    t_health_ok = FakeTransport()
-    t_health_ok.set_get_response(HEALTH_ENDPOINT, 200, {})
-    result_health_ok = await check_post_stabilization_health(t_health_ok, "http://x")
-    check(
-        "(P2-1) post-stabilization health check: HTTP 200 -> ok=True",
-        result_health_ok["ok"] is True and result_health_ok["http_status"] == 200,
-    )
-
-    t_health_503 = FakeTransport()
-    t_health_503.set_get_response(HEALTH_ENDPOINT, 503, {})
-    result_health_503 = await check_post_stabilization_health(t_health_503, "http://x")
-    check(
-        "(P2-2) post-stabilization health check: HTTP 503 -> ok=False",
-        result_health_503["ok"] is False and result_health_503["http_status"] == 503,
-    )
-
-    class _RaisingHealthTransport:
-        async def get_json(self, url: str, headers: dict, timeout_s: float):
-            raise ConnectionRefusedError("refused")
-
-    result_health_exc = await check_post_stabilization_health(_RaisingHealthTransport(), "http://x")
-    check(
-        "(P2-3) post-stabilization health check: connection exception -> "
-        "ok=False, no crash",
-        result_health_exc["ok"] is False and result_health_exc["error_type"] == "ConnectionRefusedError",
-    )
-
-    class _CountingHealthTransport:
-        """Wraps a base FakeTransport: /health returns 200 for the first
-        `pass_count` calls (covering readiness's own polling), then
-        `fail_status`/`fail_exc` for every call after that (covering the
-        post-stabilization gate specifically)."""
-
-        def __init__(self, base: "FakeTransport", pass_count: int, fail_status: int | None = None, fail_exc: BaseException | None = None) -> None:
-            self.base = base
-            self.pass_count = pass_count
-            self.fail_status = fail_status
-            self.fail_exc = fail_exc
-            self.health_calls = 0
-
-        async def get_json(self, url: str, headers: dict, timeout_s: float):
-            if url.endswith(HEALTH_ENDPOINT):
-                self.health_calls += 1
-                if self.health_calls > self.pass_count:
-                    if self.fail_exc is not None:
-                        raise self.fail_exc
-                    return self.fail_status, {}
-                return 200, {}
-            return await self.base.get_json(url, headers, timeout_s)
-
-        async def stream_completion(self, *a, **kw):
-            async for x in self.base.stream_completion(*a, **kw):
-                yield x
-
-    # (P2-4) health 200 after stabilization -> cooldown happens, episodes run.
-    bundle_p2a, block_id_p2a = _make_fixture_block_bundle("llama", 800101)
-    t_p2a = _CountingHealthTransport(_make_success_transport(), pass_count=1, fail_status=200)
-    server_adapter_p2a = FakeServerProcessAdapter()
-    sleeper_p2a = FakeSleeper()
-    with _tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        summary_p2a = await run_smoke_block(
-            bundle=bundle_p2a, block_id=block_id_p2a, output_dir=tmp_path / "out",
-            host="127.0.0.1", port=18301, resume=False, api_key="k",
-            transport=t_p2a, tokenizer=tok_block, server_adapter=server_adapter_p2a,
-            sleeper=sleeper_p2a, clock=RealClock(), run_server_path=run_server_path_fixture,
-        )
-        check(
-            "(P2-4) health 200 after stabilization -> cooldown happens and episodes run",
-            summary_p2a["overall_status"] == "block_complete"
-            and summary_p2a["readiness"]["post_stabilization_health"]["ok"] is True
-            and COOLDOWN_S in sleeper_p2a.calls,
-            str(summary_p2a.get("overall_status")),
-        )
-
-    # (P2-5) health 503 after stabilization -> no episode runs.
-    bundle_p2b, block_id_p2b = _make_fixture_block_bundle("llama", 800102)
-    t_p2b = _CountingHealthTransport(_make_success_transport(), pass_count=1, fail_status=503)
-    server_adapter_p2b = FakeServerProcessAdapter()
-    sleeper_p2b = FakeSleeper()
-    with _tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        summary_p2b = await run_smoke_block(
-            bundle=bundle_p2b, block_id=block_id_p2b, output_dir=tmp_path / "out",
-            host="127.0.0.1", port=18302, resume=False, api_key="k",
-            transport=t_p2b, tokenizer=tok_block, server_adapter=server_adapter_p2b,
-            sleeper=sleeper_p2b, clock=RealClock(), run_server_path=run_server_path_fixture,
-        )
-        episodes_dir_p2b = tmp_path / "out" / "episodes"
-        episodes_written_p2b = list(episodes_dir_p2b.glob("*.json")) if episodes_dir_p2b.exists() else []
-        check(
-            "(P2-5) health 503 after stabilization -> "
-            "post_stabilization_health_failed, no episode runs, no cooldown",
-            summary_p2b["overall_status"] == "post_stabilization_health_failed"
-            and not episodes_written_p2b
-            and COOLDOWN_S not in sleeper_p2b.calls,
-        )
-
-    # (P2-6) connection exception at the post-stabilization health check.
-    bundle_p2c, block_id_p2c = _make_fixture_block_bundle("llama", 800103)
-    t_p2c = _CountingHealthTransport(
-        _make_success_transport(), pass_count=1, fail_exc=ConnectionRefusedError("refused")
-    )
-    server_adapter_p2c = FakeServerProcessAdapter()
-    sleeper_p2c = FakeSleeper()
-    with _tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        summary_p2c = await run_smoke_block(
-            bundle=bundle_p2c, block_id=block_id_p2c, output_dir=tmp_path / "out",
-            host="127.0.0.1", port=18303, resume=False, api_key="k",
-            transport=t_p2c, tokenizer=tok_block, server_adapter=server_adapter_p2c,
-            sleeper=sleeper_p2c, clock=RealClock(), run_server_path=run_server_path_fixture,
-        )
-        episodes_dir_p2c = tmp_path / "out" / "episodes"
-        episodes_written_p2c = list(episodes_dir_p2c.glob("*.json")) if episodes_dir_p2c.exists() else []
-        check(
-            "(P2-6) a connection exception at the post-stabilization health "
-            "check does not crash and prevents every episode",
-            summary_p2c["overall_status"] == "post_stabilization_health_failed" and not episodes_written_p2c,
-        )
-
-    # --- Section 3: robust, verified server stop ----------------------------
-    def _always_free(host: str, port: int) -> bool:
-        return True
-
-    def _always_occupied(host: str, port: int) -> bool:
-        return False
-
-    handle_p3a = FakeServerHandle(["bash", "x"], already_dead=True)
-    stop_p3a = await stop_server(handle_p3a, "127.0.0.1", 1, FakeSleeper(), port_free_check=_always_free)
-    check(
-        "(P3-1) an already-dead process gets no unnecessary signal, "
-        "stop_success=True",
-        stop_p3a["term_sent"] is False and not handle_p3a.terminated and stop_p3a["stop_success"] is True,
-    )
-
-    handle_p3b = FakeServerHandle(["bash", "x"], raise_on_terminate=ProcessLookupError())
-    stop_p3b = await stop_server(handle_p3b, "127.0.0.1", 1, FakeSleeper(), port_free_check=_always_free)
-    check(
-        "(P3-2) ProcessLookupError on SIGTERM is handled cleanly (no crash, "
-        "stop_success=True, no stop_error)",
-        stop_p3b["stop_success"] is True and stop_p3b["stop_error"] is None,
-    )
-
-    handle_p3c = FakeServerHandle(["bash", "x"])
-    stop_p3c = await stop_server(handle_p3c, "127.0.0.1", 1, FakeSleeper(), port_free_check=_always_free)
-    check(
-        "(P3-3) process dies + port confirmed free -> stop_success=True",
-        stop_p3c["stop_success"] is True and stop_p3c["alive_after_stop"] is False,
-    )
-
-    handle_p3d = FakeServerHandle(["bash", "x"], dies_on_terminate=False, dies_on_kill=False)
-    stop_p3d = await stop_server(
-        handle_p3d, "127.0.0.1", 1, FakeSleeper(),
-        timeout_s=0.01, kill_confirm_timeout_s=0.01, port_free_check=_always_free,
-    )
-    check(
-        "(P3-4) a process that survives SIGKILL -> stop_success=False, "
-        "forced_kill=True, alive_after_stop=True",
-        stop_p3d["stop_success"] is False
-        and stop_p3d["forced_kill"] is True
-        and stop_p3d["alive_after_stop"] is True,
-    )
-
-    handle_p3e = FakeServerHandle(["bash", "x"])
-    stop_p3e = await stop_server(
-        handle_p3e, "127.0.0.1", 1, FakeSleeper(),
-        port_free_check=_always_occupied, port_poll_timeout_s=0.01,
-    )
-    check(
-        "(P3-5) process dies but the port stays occupied -> stop_success=False",
-        stop_p3e["stop_success"] is False
-        and stop_p3e["alive_after_stop"] is False
-        and stop_p3e["port_free_after_stop"] is False,
-    )
-
-    class _StuckServerAdapter:
-        def __init__(self) -> None:
-            self.started: list[FakeServerHandle] = []
-
-        def start(self, cmd: list[str], log_path: Path) -> FakeServerHandle:
-            h = FakeServerHandle(cmd, dies_on_terminate=False, dies_on_kill=False)
-            self.started.append(h)
-            return h
-
-    bundle_p3f, block_id_p3f = _make_fixture_block_bundle("llama", 800201)
-    adapter_p3f = _StuckServerAdapter()
-    with _tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        summary_p3f = await run_smoke_block(
-            bundle=bundle_p3f, block_id=block_id_p3f, output_dir=tmp_path / "out",
-            host="127.0.0.1", port=18310, resume=False, api_key="k",
-            transport=_make_success_transport(), tokenizer=tok_block,
-            server_adapter=adapter_p3f, sleeper=FakeSleeper(), clock=RealClock(),
-            run_server_path=run_server_path_fixture,
-            stop_timeout_s=0.01, stop_kill_confirm_timeout_s=0.01, stop_port_poll_timeout_s=0.01,
-        )
-        check(
-            "(P3-6) a block that otherwise finished cleanly is downgraded to "
-            "'server_stop_failed' when the server process never actually stops",
-            summary_p3f["overall_status"] == "server_stop_failed"
-            and summary_p3f["server_stop"]["stop_success"] is False,
-            str(summary_p3f.get("overall_status")),
-        )
-
-    handle_p3g = FakeServerHandle(["bash", "x"])
-    await stop_server(handle_p3g, "127.0.0.1", 1, FakeSleeper(), port_free_check=_always_free)
-    check(
-        "(P3-7) stop_server only ever signals the handle's own PGID "
-        "(terminate_group()/kill_group() on that exact handle)",
-        handle_p3g.terminated and not handle_p3g.killed,
-    )
-
-    # --- Section 5: SSE/JSON protocol errors devalue a request --------------
-    async def _exec_raw(extra_raw_events: list[str], token_events=None) -> dict:
-        expected_prompt, expected_completion = 10, 4
-        t = FakeTransport()
-        t.queue_script(
-            "t_proto",
-            FakeStreamScript(
-                prompt_token_ids_echo=list(range(expected_prompt)),
-                token_events=token_events if token_events is not None else [[1], [2], [3], [4]],
-                usage={"prompt_tokens": expected_prompt, "completion_tokens": expected_completion},
-                extra_raw_events_before_finish=extra_raw_events,
-            ),
-        )
-        return await execute_completion_request(
-            transport=t, clock=RealClock(), url="http://x/v1/completions",
-            api_key="k", model_full_id="m", prompt_token_ids=list(range(expected_prompt)),
-            max_tokens=expected_completion, min_tokens=expected_completion, temperature=0.0,
-            request_seed=1, request_id="t_proto", role="victim", request_index=0,
-            prompt_seed=1, generation_seed=1, expected_prompt_tokens=expected_prompt,
-            expected_completion_tokens=expected_completion, http_timeout_s=5.0,
-        )
-
-    r_p5_1 = await _exec_raw(["{not valid json"])
-    check(
-        "(P5-1) an invalid-JSON SSE event, followed by an otherwise complete "
-        "stream, is never 'complete'",
-        r_p5_1["status"] != REQUEST_STATUS_COMPLETE
-        and any("JSON parse error" in e for e in r_p5_1["validation_errors"]),
-        str(r_p5_1["validation_errors"]),
-    )
-
-    r_p5_2 = await _exec_raw(
-        [json.dumps({"choices": [{"index": 0, "token_ids": ["1"], "finish_reason": None}]})]
-    )
-    check(
-        "(P5-2) token_ids containing non-int elements is a protocol error -> not 'complete'",
-        r_p5_2["status"] != REQUEST_STATUS_COMPLETE
-        and any("token_ids" in e for e in r_p5_2["validation_errors"]),
-        str(r_p5_2["validation_errors"]),
-    )
-
-    r_p5_3 = await _exec_raw(
-        [json.dumps({"choices": [{"index": 0, "token_ids": [], "finish_reason": None}], "usage": []})]
-    )
-    check(
-        "(P5-3) usage as a list instead of a dict is a protocol error and "
-        "never crashes -> not 'complete'",
-        r_p5_3["status"] != REQUEST_STATUS_COMPLETE
-        and any("usage" in e for e in r_p5_3["validation_errors"]),
-        str(r_p5_3["validation_errors"]),
-    )
-
-    r_p5_4 = await _exec_raw([json.dumps({"prompt_token_ids": [999] * 10, "choices": []})])
-    check(
-        "(P5-4) contradicting prompt_token_ids across multiple events -> not 'complete'",
-        r_p5_4["status"] != REQUEST_STATUS_COMPLETE
-        and any("contradicting prompt_token_ids" in e for e in r_p5_4["validation_errors"]),
-        str(r_p5_4["validation_errors"]),
-    )
-
-    r_p5_5 = await _exec_raw([])
-    check(
-        "(P5-5) a fully well-formed protocol stays 'complete'",
-        r_p5_5["status"] == REQUEST_STATUS_COMPLETE, str(r_p5_5["validation_errors"]),
-    )
-
-    # --- Section 6: trigger failures preserve full raw abort data ----------
-    tok_trig = FakeTokenizerAdapter(vocab_size=500, special_token_ids={0, 1, 2})
-    valid_trig = compute_valid_token_ids(tok_trig)
-
-    t_p6a = FakeTransport()
-    t_p6a.default_script_factory = lambda payload: FakeStreamScript(
-        hang=True, prompt_token_ids_echo=None, token_events=[]
-    )
-    ctx_p6a = RunContext(
-        transport=t_p6a, clock=RealClock(), sleeper=FakeSleeper(), base_url="http://x",
-        api_key="k", model_full_id="m", valid_ids=valid_trig, trigger_timeout_s=0.05,
-    )
-    ep_p6a = Episode(
-        episode_id="trig_timeout_ep", model="llama", offload_gb=0, state_label="low",
-        concurrency=3, condition="no_burst", repeat=1, random_seed=1, episode_seed=1,
-        victim_workload_seed=111, burst_workload_seed=222, victim_request_count=6,
-        victim_input_len=8, victim_output_len=4, victim_temperature=0.0,
-        burst_parallel_requests=2, burst_input_len=8, burst_output_len=4,
-        burst_temperature=0.0, restart_server_before_block=1, block_id="fake_block_p6a",
-        order_in_block=1,
-    )
-    result_p6a = await run_regular_episode(
-        ctx_p6a, ep_p6a, schedule_fingerprint="x", server_metadata={}, stabilization_ref={},
-    )
-    check(
-        "(P6-1) trigger timeout: exactly N victim records are stored and "
-        "the episode is marked failed",
-        len(result_p6a["victim_requests"]) == ep_p6a.victim_request_count
-        and result_p6a["trigger"]["status"] == "timeout"
-        and result_p6a["status"] == "failed",
-        str(len(result_p6a["victim_requests"])),
-    )
-    check("(P6-2) after a trigger timeout, no fake stream is still active", t_p6a.active_stream_count == 0)
-    check(
-        "(P6-2b) every stored victim record after a trigger timeout has a "
-        "well-formed identity, even the ones that never started",
-        all(
-            r.get("request_id") == f"trig_timeout_ep:victim:{i}" and r.get("role") == "victim"
-            for i, r in enumerate(result_p6a["victim_requests"])
-        ),
-    )
-
-    t_p6b = FakeTransport()
-    t_p6b.queue_script(
-        "trig_partial_ep:victim:0",
-        FakeStreamScript(
-            prompt_token_ids_echo=list(range(8)), token_events=[[1]],
-            usage={"prompt_tokens": 8, "completion_tokens": 1},
-        ),
-    )
-    t_p6b.queue_script(
-        "trig_partial_ep:victim:1", FakeStreamScript(hang=True, prompt_token_ids_echo=None, token_events=[])
-    )
-    t_p6b.queue_script(
-        "trig_partial_ep:victim:2", FakeStreamScript(hang=True, prompt_token_ids_echo=None, token_events=[])
-    )
-    ctx_p6b = RunContext(
-        transport=t_p6b, clock=RealClock(), sleeper=FakeSleeper(), base_url="http://x",
-        api_key="k", model_full_id="m", valid_ids=valid_trig, trigger_timeout_s=2.0,
-    )
-    ep_p6b = Episode(
-        episode_id="trig_partial_ep", model="llama", offload_gb=0, state_label="low",
-        concurrency=3, condition="fixed_burst", repeat=1, random_seed=1, episode_seed=1,
-        victim_workload_seed=111, burst_workload_seed=222, victim_request_count=3,
-        victim_input_len=8, victim_output_len=4, victim_temperature=0.0,
-        burst_parallel_requests=2, burst_input_len=8, burst_output_len=4,
-        burst_temperature=0.0, restart_server_before_block=1, block_id="fake_block_p6b",
-        order_in_block=1,
-    )
-    result_p6b = await run_regular_episode(
-        ctx_p6b, ep_p6b, schedule_fingerprint="x", server_metadata={}, stabilization_ref={},
-    )
-    check(
-        "(P6-3) a first-wave request that delivers one token and then ends "
-        "incomplete triggers pretrigger_failure even while a sibling is "
-        "still waiting",
-        result_p6b["trigger"]["status"] == "pretrigger_failure",
-        str(result_p6b["trigger"]),
-    )
-    check("(P6-4) zero burst requests are started after a pretrigger_failure", result_p6b["burst_requests"] == [])
-    check(
-        "(P6-5) raw SSE events from the request that did start are preserved",
-        len(result_p6b["victim_requests"]) == 3
-        and any(r.get("raw_sse_events") for r in result_p6b["victim_requests"]),
-        str([len(r.get("raw_sse_events") or []) for r in result_p6b["victim_requests"]]),
-    )
-
-    # --- Section 7: exact first wave -----------------------------------------
-    t_p7 = _make_success_transport()
-    ctx_p7 = RunContext(
-        transport=t_p7, clock=RealClock(), sleeper=FakeSleeper(), base_url="http://x",
-        api_key="k", model_full_id=MODEL_FULL_ID["llama"], valid_ids=compute_valid_token_ids(tok_block),
-        trigger_timeout_s=5.0,
-    )
-    ep_p7 = Episode(
-        episode_id="firstwave_ep", model="llama", offload_gb=0, state_label="low",
-        concurrency=4, condition="no_burst", repeat=1, random_seed=1, episode_seed=1,
-        victim_workload_seed=333, burst_workload_seed=444, victim_request_count=10,
-        victim_input_len=16, victim_output_len=4, victim_temperature=0.0,
-        burst_parallel_requests=2, burst_input_len=16, burst_output_len=4,
-        burst_temperature=0.0, restart_server_before_block=1, block_id="fake_block_p7",
-        order_in_block=1,
-    )
-    result_p7 = await run_regular_episode(
-        ctx_p7, ep_p7, schedule_fingerprint="x", server_metadata={}, stabilization_ref={},
-    )
-    first_started = t_p7.call_order[: ep_p7.concurrency]
-    expected_first = [f"{ep_p7.episode_id}:victim:{i}" for i in range(ep_p7.concurrency)]
-    check(
-        "(P7-1) the first `concurrency` requests to actually start are "
-        "exactly victim indices 0..concurrency-1",
-        first_started == expected_first, str(t_p7.call_order),
-    )
-    check(
-        "(P7-2) never more than `concurrency` victim streams are active at once",
-        t_p7.max_active_stream_count <= ep_p7.concurrency, str(t_p7.max_active_stream_count),
-    )
-    check("(P7-setup) the episode itself still completes successfully", result_p7["status"] == REQUEST_STATUS_COMPLETE)
-
-    # =========================================================================
-    # Patch: real-vLLM prompt-token-id mapping (choices[0] vs top-level)
-    # =========================================================================
-
-    async def _exec_full_raw(
-        raw_events: list[str], expected_prompt: int = 5, expected_completion: int = 3,
-        sent_prompt: list[int] | None = None,
-    ) -> dict:
-        t = FakeTransport()
-        t.queue_script(
-            "t_map",
-            FakeStreamScript(
-                prompt_token_ids_echo=None, token_events=[], include_done=False,
-                extra_raw_events_before_finish=raw_events,
-            ),
-        )
-        return await execute_completion_request(
-            transport=t, clock=RealClock(), url="http://x/v1/completions",
-            api_key="k", model_full_id="m",
-            prompt_token_ids=sent_prompt if sent_prompt is not None else list(range(expected_prompt)),
-            max_tokens=expected_completion, min_tokens=expected_completion, temperature=0.0,
-            request_seed=1, request_id="t_map", role="victim", request_index=0,
-            prompt_seed=1, generation_seed=1, expected_prompt_tokens=expected_prompt,
-            expected_completion_tokens=expected_completion, http_timeout_s=5.0,
-        )
-
-    prompt5 = [10, 11, 12, 13, 14]
-
-    # --- extract_prompt_token_ids() unit checks (isolated, no I/O) ----------
-    check(
-        "(helper-a) extract_prompt_token_ids: top-level only -> recognized",
-        extract_prompt_token_ids({"prompt_token_ids": prompt5}, {}, 0) == (prompt5, []),
-    )
-    check(
-        "(helper-b) extract_prompt_token_ids: choices[0] only -> recognized",
-        extract_prompt_token_ids({}, {"prompt_token_ids": prompt5}, 0) == (prompt5, []),
-    )
-    check(
-        "(helper-c) extract_prompt_token_ids: both positions null -> (None, [])",
-        extract_prompt_token_ids({"prompt_token_ids": None}, {"prompt_token_ids": None}, 0) == (None, []),
-    )
-    _bad_top, _bad_errs = extract_prompt_token_ids({"prompt_token_ids": "nope"}, {}, 0)
-    check(
-        "(helper-d) extract_prompt_token_ids never crashes on malformed input",
-        _bad_top is None and len(_bad_errs) == 1,
-    )
-
-    # (1) prompt-token-ids reported only at the top level.
-    events_1 = [
-        json.dumps({"prompt_token_ids": prompt5, "choices": [{"index": 0, "text": "", "token_ids": [100], "finish_reason": None}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [101], "finish_reason": None}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [102], "finish_reason": "length"}], "usage": {"prompt_tokens": 5, "completion_tokens": 3}}),
-        "[DONE]",
-    ]
-    r1 = await _exec_full_raw(events_1, sent_prompt=prompt5)
-    check(
-        "(1) prompt-token-ids reported only at the top level are recognized",
-        r1["status"] == REQUEST_STATUS_COMPLETE and r1["prompt_token_ids_returned"] == prompt5,
-        str(r1["validation_errors"]),
-    )
-
-    # (2) prompt-token-ids reported only inside choices[0] (real vLLM 0.17.1 shape).
-    events_2 = [
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [100], "finish_reason": None, "prompt_token_ids": prompt5}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [101], "finish_reason": None, "prompt_token_ids": None}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [102], "finish_reason": "length", "prompt_token_ids": None}], "usage": {"prompt_tokens": 5, "completion_tokens": 3}}),
-        "[DONE]",
-    ]
-    r2 = await _exec_full_raw(events_2, sent_prompt=prompt5)
-    check(
-        "(2) prompt-token-ids reported only inside choices[0] are recognized",
-        r2["status"] == REQUEST_STATUS_COMPLETE and r2["prompt_token_ids_returned"] == prompt5,
-        str(r2["validation_errors"]),
-    )
-
-    # (3) identical top-level and choices[0] values in the same event.
-    events_3 = [
-        json.dumps({"prompt_token_ids": prompt5, "choices": [{"index": 0, "text": "", "token_ids": [100], "finish_reason": None, "prompt_token_ids": prompt5}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [101], "finish_reason": None}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [102], "finish_reason": "length"}], "usage": {"prompt_tokens": 5, "completion_tokens": 3}}),
-        "[DONE]",
-    ]
-    r3 = await _exec_full_raw(events_3, sent_prompt=prompt5)
-    check(
-        "(3) identical top-level and choices[0] prompt_token_ids within the "
-        "same event are both recognized, not treated as a conflict",
-        r3["status"] == REQUEST_STATUS_COMPLETE and r3["prompt_token_ids_returned"] == prompt5,
-        str(r3["validation_errors"]),
-    )
-
-    # (4) contradicting top-level vs choices[0] within the same event.
-    events_4 = [
-        json.dumps({"prompt_token_ids": prompt5, "choices": [{"index": 0, "text": "", "token_ids": [100], "finish_reason": None, "prompt_token_ids": [999, 999, 999, 999, 999]}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [101], "finish_reason": None}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [102], "finish_reason": "length"}], "usage": {"prompt_tokens": 5, "completion_tokens": 3}}),
-        "[DONE]",
-    ]
-    r4 = await _exec_full_raw(events_4, sent_prompt=prompt5)
-    check(
-        "(4) contradicting top-level vs choices[0] prompt_token_ids within "
-        "the same event -> not 'complete'",
-        r4["status"] != REQUEST_STATUS_COMPLETE,
-        str(r4["validation_errors"]),
-    )
-
-    # (5) choices[0].prompt_token_ids of the wrong type.
-    events_5 = [
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [100], "finish_reason": None, "prompt_token_ids": "not-a-list"}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [101], "finish_reason": None}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [102], "finish_reason": "length"}], "usage": {"prompt_tokens": 5, "completion_tokens": 3}}),
-        "[DONE]",
-    ]
-    r5 = await _exec_full_raw(events_5, sent_prompt=prompt5)
-    check(
-        "(5) choices[0].prompt_token_ids of the wrong type -> not 'complete'",
-        r5["status"] != REQUEST_STATUS_COMPLETE,
-        str(r5["validation_errors"]),
-    )
-
-    # (6) only the first event carries choices[0].prompt_token_ids, later events send null.
-    events_6 = [
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [100], "finish_reason": None, "prompt_token_ids": prompt5}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [101], "finish_reason": None, "prompt_token_ids": None}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [102], "finish_reason": "length", "prompt_token_ids": None}], "usage": {"prompt_tokens": 5, "completion_tokens": 3}}),
-        "[DONE]",
-    ]
-    r6 = await _exec_full_raw(events_6, sent_prompt=prompt5)
-    check(
-        "(6) only the first event carries choices[0].prompt_token_ids, "
-        "later events send null -> 'complete'",
-        r6["status"] == REQUEST_STATUS_COMPLETE,
-        str(r6["validation_errors"]),
-    )
-
-    # (7) two events with an identical choices[0].prompt_token_ids list.
-    events_7 = [
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [100], "finish_reason": None, "prompt_token_ids": prompt5}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [101], "finish_reason": None, "prompt_token_ids": prompt5}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [102], "finish_reason": "length"}], "usage": {"prompt_tokens": 5, "completion_tokens": 3}}),
-        "[DONE]",
-    ]
-    r7 = await _exec_full_raw(events_7, sent_prompt=prompt5)
-    check(
-        "(7) two events with an identical choices[0].prompt_token_ids list -> 'complete'",
-        r7["status"] == REQUEST_STATUS_COMPLETE,
-        str(r7["validation_errors"]),
-    )
-
-    # (8) two events with different choices[0].prompt_token_ids lists.
-    events_8 = [
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [100], "finish_reason": None, "prompt_token_ids": prompt5}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [101], "finish_reason": None, "prompt_token_ids": [1, 2, 3, 4, 5]}]}),
-        json.dumps({"choices": [{"index": 0, "text": "", "token_ids": [102], "finish_reason": "length"}], "usage": {"prompt_tokens": 5, "completion_tokens": 3}}),
-        "[DONE]",
-    ]
-    r8 = await _exec_full_raw(events_8, sent_prompt=prompt5)
-    check(
-        "(8) two events with different choices[0].prompt_token_ids lists -> not 'complete'",
-        r8["status"] != REQUEST_STATUS_COMPLETE,
-        str(r8["validation_errors"]),
-    )
-
-    # (9) the real vLLM 0.17.1 event shape at realistic 256/64 dimensions:
-    # choice-level prompt ids on event 0 only, one output token per event,
-    # a trailing usage-only event with empty choices, then [DONE].
-    prompt256 = list(range(2000, 2256))
-    output64 = list(range(3000, 3064))
-    events_9: list[str] = []
-    for i, tok in enumerate(output64):
-        choice = {
-            "index": 0, "text": "", "token_ids": [tok],
-            "finish_reason": "length" if i == len(output64) - 1 else None,
-        }
-        choice["prompt_token_ids"] = prompt256 if i == 0 else None
-        events_9.append(json.dumps({"choices": [choice]}))
-    events_9.append(json.dumps({"choices": [], "usage": {"prompt_tokens": 256, "completion_tokens": 64}}))
-    events_9.append("[DONE]")
-    r9 = await _exec_full_raw(events_9, expected_prompt=256, expected_completion=64, sent_prompt=prompt256)
-    check(
-        "(9) the real vLLM 0.17.1 event shape (choice-level prompt ids on "
-        "event 0, null afterward, trailing usage-only event) -> 'complete'",
-        r9["status"] == REQUEST_STATUS_COMPLETE,
-        str(r9["validation_errors"]),
-    )
-
-    # (10) prompt_token_ids_returned holds exactly the 256 server-reported ids.
-    check(
-        "(10) prompt_token_ids_returned holds exactly the 256 server-reported ids",
-        r9["prompt_token_ids_returned"] == prompt256,
-    )
-
-    # (11) resume-depth validation accepts the resulting real-shaped record.
-    ep_map = _build_fixture_episodes("llama", 900001)[0]
-    tok_map = FakeTokenizerAdapter(vocab_size=5000, special_token_ids={0, 1, 2})
-    valid_map = compute_valid_token_ids(tok_map)
-    p_seed_map = victim_prompt_seed(ep_map, 0)
-    g_seed_map = victim_generation_seed(ep_map, 0)
-    prompt_map = generate_token_id_prompt(p_seed_map, valid_map, ep_map.victim_input_len)
-    output_map = list(range(4000, 4000 + ep_map.victim_output_len))
-    events_11: list[str] = []
-    for i, tok in enumerate(output_map):
-        choice = {
-            "index": 0, "text": "", "token_ids": [tok],
-            "finish_reason": "length" if i == len(output_map) - 1 else None,
-        }
-        choice["prompt_token_ids"] = prompt_map if i == 0 else None
-        events_11.append(json.dumps({"choices": [choice]}))
-    events_11.append(
-        json.dumps(
-            {"choices": [], "usage": {"prompt_tokens": ep_map.victim_input_len, "completion_tokens": ep_map.victim_output_len}}
-        )
-    )
-    events_11.append("[DONE]")
-
-    t_map11 = FakeTransport()
-    t_map11.queue_script(
-        f"{ep_map.episode_id}:victim:0",
-        FakeStreamScript(
-            prompt_token_ids_echo=None, token_events=[], include_done=False,
-            extra_raw_events_before_finish=events_11,
-        ),
-    )
-    r11 = await execute_completion_request(
-        transport=t_map11, clock=RealClock(), url="http://x/v1/completions",
-        api_key="k", model_full_id="m", prompt_token_ids=prompt_map,
-        max_tokens=ep_map.victim_output_len, min_tokens=ep_map.victim_output_len, temperature=0.0,
-        request_seed=g_seed_map, request_id=f"{ep_map.episode_id}:victim:0", role="victim", request_index=0,
-        prompt_seed=p_seed_map, generation_seed=g_seed_map,
-        expected_prompt_tokens=ep_map.victim_input_len, expected_completion_tokens=ep_map.victim_output_len,
-        http_timeout_s=5.0,
-    )
-    depth_errors_11 = validate_complete_request_record(r11, episode=ep_map, role="victim", request_index=0)
-    check(
-        "(11) resume-depth validation accepts the resulting real-shaped "
-        "complete request record",
-        r11["status"] == REQUEST_STATUS_COMPLETE and depth_errors_11 == [],
-        str((r11.get("status"), depth_errors_11)),
-    )
-
-    return results
-
-
-def run_fake_block_integration_test() -> tuple[bool, list[str]]:
-    """Section 26: a full simulated block run -- server start/readiness
-    simulated, 20 stabilization requests, simulated cooldown, four
-    complete regular episodes, simulated server stop -- with every JSON
-    output validated. No sleeping, no GPU, no real network/server."""
-    notes: list[str] = []
-    ok = True
-
-    def note(msg: str) -> None:
-        notes.append(msg)
-
-    try:
-        import tempfile as _tempfile
-
-        with _tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            fixture_seed = 999001
-            # "llama" is reused deliberately so MODEL_FULL_ID resolves; this
-            # is still an isolated, self-built fixture bundle in a fresh
-            # temp dir, not the real official schedule.
-            bundle, block_id = _make_fixture_block_bundle("llama", fixture_seed)
-            episodes = bundle.episodes[:BLOCK_SIZE]
-
-            tok = FakeTokenizerAdapter(vocab_size=2000, special_token_ids={0, 1, 2})
-            transport = _make_success_transport()
-            server_adapter = FakeServerProcessAdapter()
-            sleeper = FakeSleeper()
-            clock = RealClock()
-            fake_api_key = "fake-integration-secret-9f8e7d"
-
-            summary = asyncio.run(
-                run_smoke_block(
-                    bundle=bundle, block_id=block_id, output_dir=tmp_path / "out",
-                    host="127.0.0.1", port=18200, resume=False, api_key=fake_api_key,
-                    transport=transport, tokenizer=tok, server_adapter=server_adapter,
-                    sleeper=sleeper, clock=clock, run_server_path=tmp_path / "run_server.sh",
-                )
-            )
-
-            if summary.get("overall_status") != "block_complete":
-                ok = False
-                note(f"expected overall_status='block_complete', got {summary.get('overall_status')!r}")
-
-            if len(server_adapter.started) != 1:
-                ok = False
-                note(f"expected exactly one simulated server start, got {len(server_adapter.started)}")
-            elif not server_adapter.started[0].terminated:
-                ok = False
-                note("simulated server was never terminated by stop_server()")
-
-            stab_path = stabilization_result_path(tmp_path / "out", block_id)
-            if not stab_path.exists():
-                ok = False
-                note("stabilization output file is missing")
-            else:
-                stab_obj = json.loads(stab_path.read_text(encoding="utf-8"))
-                if stab_obj.get("status") != REQUEST_STATUS_COMPLETE:
-                    ok = False
-                    note("stabilization status != complete")
-                if len(stab_obj.get("request_results", [])) != STABILIZATION_REQUEST_COUNT:
-                    ok = False
-                    note("stabilization did not run exactly 20 requests")
-                if stab_obj.get("record_type") != RECORD_TYPE_STABILIZATION:
-                    ok = False
-                    note("stabilization record_type is wrong")
-
-            for ep in episodes:
-                p = episode_result_path(tmp_path / "out", ep.episode_id)
-                if not p.exists():
-                    ok = False
-                    note(f"episode output file missing for {ep.episode_id}")
-                    continue
-                obj = json.loads(p.read_text(encoding="utf-8"))
-                if obj.get("status") != REQUEST_STATUS_COMPLETE:
-                    ok = False
-                    note(f"episode {ep.episode_id} status != complete")
-                if obj.get("result_schema_version") != RESULT_SCHEMA_VERSION:
-                    ok = False
-                    note(f"episode {ep.episode_id} has the wrong result_schema_version")
-                if obj.get("runner_version") != RUNNER_VERSION:
-                    ok = False
-                    note(f"episode {ep.episode_id} has the wrong runner_version")
-                if len(obj.get("victim_requests", [])) != ep.victim_request_count:
-                    ok = False
-                    note(f"episode {ep.episode_id} has the wrong victim_requests count")
-                expected_burst = ep.burst_parallel_requests if ep.condition == "fixed_burst" else 0
-                if len(obj.get("burst_requests", [])) != expected_burst:
-                    ok = False
-                    note(f"episode {ep.episode_id} has the wrong burst_requests count")
-                if fake_api_key in json.dumps(obj):
-                    ok = False
-                    note(f"API key leaked into episode {ep.episode_id} result file")
-
-            leftovers = list((tmp_path / "out").rglob("*.tmp.*"))
-            if leftovers:
-                ok = False
-                note(f"atomic writer left temp file(s) behind: {leftovers}")
-
-            if fake_api_key in json.dumps(summary):
-                ok = False
-                note("API key leaked into smoke_run_summary.json")
-
-            if not (tmp_path / "out" / "smoke_run_summary.json").exists():
-                ok = False
-                note("smoke_run_summary.json was not written")
-
-    except Exception as exc:  # noqa: BLE001 -- a failing integration test must report, not crash --self-test
-        ok = False
-        note(f"fake block integration test raised an unexpected exception: {exc!r}")
-
-    return ok, notes
-
-
-def run_self_test() -> int:
-    results: list[tuple[str, bool, str]] = []
-
-    def check(name: str, condition: bool, detail: str = "") -> None:
-        results.append((name, condition, detail))
-
-    # --- derive_seed determinism ------------------------------------------
-    a = derive_seed("20260711", "x")
-    b = derive_seed("20260711", "x")
-    c = derive_seed("20260711", "y")
-    check("derive_seed is deterministic", a == b)
-    check("derive_seed differs for different input", a != c)
-    check(
-        "derive_seed returns a non-negative int below 2**31-1",
-        isinstance(a, int) and 0 <= a < 2**31 - 1,
-    )
-
-    # --- valid fixture is accepted ------------------------------------------
-    fixture_seed = 12345
-    good = _build_fixture_episodes("testmodel", fixture_seed)
-    errors = _check_model_structure(
-        "testmodel", good, fixture_seed,
-        repeats=1, episodes_per_model=8, blocks_per_model=2,
-        expected_state_sequence=["low", "high"],
-    )
-    check("valid fixture schedule is accepted", not errors, str(errors[:3]))
-
-    # --- corrupted fixtures are rejected -------------------------------------
-    def fixture_errors(mutate) -> list[str]:
-        eps = _build_fixture_episodes("testmodel", fixture_seed)
-        mutate(eps)
-        return _check_model_structure(
-            "testmodel", eps, fixture_seed,
-            repeats=1, episodes_per_model=8, blocks_per_model=2,
-            expected_state_sequence=["low", "high"],
-        )
-
-    check(
-        "reordering two episodes within a block is rejected",
-        bool(fixture_errors(lambda eps: eps.__setitem__(slice(0, 2), [eps[1], eps[0]]))),
-    )
-    check(
-        "wrong repeat value is rejected",
-        bool(fixture_errors(lambda eps: setattr(eps[0], "repeat", 2))),
-    )
-    check(
-        "broken block contiguity (interleaving) is rejected",
-        bool(fixture_errors(lambda eps: eps.__setitem__(1, eps.pop(5)))),
-    )
-    check(
-        "wrong episode_seed is rejected",
-        bool(fixture_errors(lambda eps: setattr(eps[0], "episode_seed", eps[0].episode_seed + 1))),
-    )
-    check(
-        "wrong restart_server_before_block sequence is rejected",
-        bool(fixture_errors(lambda eps: setattr(eps[0], "restart_server_before_block", 0))),
-    )
-
-    # --- fingerprint round-trip ----------------------------------------------
-    payload = {"a": 1, "b": [1, 2, 3], "c": {"x": 1.5}}
-    fp1 = recompute_fingerprint(payload)
-    payload_with_fp = dict(payload)
-    payload_with_fp["schedule_fingerprint"] = fp1
-    fp2 = recompute_fingerprint(payload_with_fp)
-    check("fingerprint recomputation ignores schedule_fingerprint key", fp1 == fp2)
-    check("fingerprint has valid format", is_valid_fingerprint_format(fp1))
-    tampered = dict(payload)
-    tampered["a"] = 2
-    fp3 = recompute_fingerprint(tampered)
-    check("fingerprint changes when payload changes", fp1 != fp3)
-
-    # --- csv/json consistency check -------------------------------------
-    sample_json_row = {f: getattr(good[0], f) for f in EPISODE_FIELDS}
-    sample_csv_row = {f: str(getattr(good[0], f)) for f in EPISODE_FIELDS}
-    normalized, norm_errors = normalize_csv_row(sample_csv_row, 0)
-    check("csv row normalizes back to matching types", not norm_errors)
-    check(
-        "normalized csv row equals json row",
-        all(normalized[f] == sample_json_row[f] for f in EPISODE_FIELDS),
-    )
-    sample_csv_row_bad = dict(sample_csv_row)
-    sample_csv_row_bad["victim_output_len"] = "999"
-    normalized_bad, _ = normalize_csv_row(sample_csv_row_bad, 0)
-    check(
-        "csv/json mismatch is detectable after normalization",
-        normalized_bad["victim_output_len"] != sample_json_row["victim_output_len"],
-    )
-
-    # --- strict type checking (bool must not pass as int) -------------------
-    bad_bool_episode = dict(sample_json_row)
-    bad_bool_episode["victim_request_count"] = True
-    schema_errors = check_json_episode_schema(bad_bool_episode, 0)
-    check(
-        "bool is rejected where int is expected",
-        any("victim_request_count" in e for e in schema_errors),
-    )
-    extra_field_episode = dict(sample_json_row)
-    extra_field_episode["warmup_requests"] = 1
-    schema_errors2 = check_json_episode_schema(extra_field_episode, 0)
-    check(
-        "unexpected extra field (e.g. warmup_requests) is rejected",
-        any("warmup_requests" in e for e in schema_errors2),
-    )
-    missing_field_episode = dict(sample_json_row)
-    del missing_field_episode["block_id"]
-    schema_errors3 = check_json_episode_schema(missing_field_episode, 0)
-    check(
-        "missing field is rejected",
-        any("block_id" in e for e in schema_errors3),
-    )
-
-    # --- result-file classification -----------------------------------------
-    import tempfile as _tempfile
-
-    with _tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        ep0 = good[0]
-        ep1 = good[1]
-        expected_fp = "sha256:" + "0" * 64
-
-        _fixture_tok = FakeTokenizerAdapter(vocab_size=5000, special_token_ids={0, 1, 2})
-        _fixture_valid_ids = compute_valid_token_ids(_fixture_tok)
-
-        def make_valid_request_record(ep: Episode, role: str, index: int) -> dict:
-            if role == "victim":
-                p_seed = victim_prompt_seed(ep, index)
-                g_seed = victim_generation_seed(ep, index)
-                input_len, output_len = ep.victim_input_len, ep.victim_output_len
-            else:
-                p_seed = burst_prompt_seed(ep, index)
-                g_seed = burst_generation_seed(ep, index)
-                input_len, output_len = ep.burst_input_len, ep.burst_output_len
-            prompt_ids = generate_token_id_prompt(p_seed, _fixture_valid_ids, input_len)
-            output_ids = [7000 + k for k in range(output_len)]
-            return {
-                "request_id": f"{ep.episode_id}:{role}:{index}",
-                "role": role,
-                "request_index": index,
-                "prompt_seed": p_seed,
-                "generation_seed": g_seed,
-                "prompt_token_ids_sent": prompt_ids,
-                "prompt_token_ids_returned": list(prompt_ids),
-                "prompt_sha256": prompt_sha256(prompt_ids),
-                "expected_prompt_tokens": input_len,
-                "expected_completion_tokens": output_len,
-                "usage": {"prompt_tokens": input_len, "completion_tokens": output_len},
-                "output_token_ids": output_ids,
-                "output_text": "",
-                "finish_reason": "length",
-                "raw_sse_events": [],
-                "done_received": True,
-                "request_start_utc": "1970-01-01T00:00:00Z",
-                "request_end_utc": "1970-01-01T00:00:01Z",
-                "request_start_ns": 1000,
-                "first_token_receive_ns": 1100,
-                "last_token_receive_ns": 1200,
-                "stream_end_ns": 1300,
-                "ttft_ms": 0.1,
-                "client_observed_tpot_ms": 0.01,
-                "e2el_ms": 0.3,
-                "itl_available": True,
-                "itl_ms": [],
-                "token_batch_sizes": None,
-                "token_batch_interarrival_ms": None,
-                "chunk_interarrival_ms": None,
-                "http_status": 200,
-                "timed_out": False,
-                "cancelled": False,
-                "error_type": None,
-                "error_message": None,
-                "validation_errors": [],
-                "status": REQUEST_STATUS_COMPLETE,
-            }
-
-        def make_valid_result(ep: Episode) -> dict:
-            burst_count = ep.burst_parallel_requests if ep.condition == "fixed_burst" else 0
-            return {
-                "result_schema_version": RESULT_SCHEMA_VERSION,
-                "runner_version": RUNNER_VERSION,
-                "run_mode": "smoke",
-                "schedule_fingerprint": expected_fp,
-                "episode_id": ep.episode_id,
-                "schedule_row": asdict(ep),
-                "record_type": RECORD_TYPE_REGULAR_EPISODE,
-                "status": "complete",
-                "trigger": {
-                    "status": "ok", "trigger_utc": "1970-01-01T00:00:00Z",
-                    "trigger_perf_ns": 1000, "waited_ms": 0.0,
-                },
-                "burst_interval": (
-                    {"start_ns": 1100, "end_ns": 1300} if ep.condition == "fixed_burst" else None
-                ),
-                "victim_requests": [
-                    make_valid_request_record(ep, "victim", i) for i in range(ep.victim_request_count)
-                ],
-                "burst_requests": [
-                    make_valid_request_record(ep, "burst", j) for j in range(burst_count)
-                ],
-            }
-
-        valid_result = make_valid_result(ep0)
-
-        missing_path = tmp_path / "missing.json"
-        cls, _ = classify_result_file(missing_path, ep0, expected_fp, "smoke")
-        check("missing result file classified as 'missing'", cls == CLASSIFICATION_MISSING)
-
-        valid_path = tmp_path / "valid.json"
-        valid_path.write_text(json.dumps(valid_result), encoding="utf-8")
-        cls, notes = classify_result_file(valid_path, ep0, expected_fp, "smoke")
-        check(
-            "well-formed complete result classified as 'valid_complete' (test 9)",
-            cls == CLASSIFICATION_VALID_COMPLETE, str(notes),
-        )
-
-        corrupted_path = tmp_path / "corrupted.json"
-        corrupted_path.write_text("{not valid json", encoding="utf-8")
-        cls, _ = classify_result_file(corrupted_path, ep0, expected_fp, "smoke")
-        check("malformed JSON classified as 'corrupted'", cls == CLASSIFICATION_CORRUPTED)
-
-        partial_result = dict(valid_result)
-        partial_result["status"] = "in_progress"
-        partial_path = tmp_path / "partial.json"
-        partial_path.write_text(json.dumps(partial_result), encoding="utf-8")
-        cls, _ = classify_result_file(partial_path, ep0, expected_fp, "smoke")
-        check("status != complete classified as 'partial'", cls == CLASSIFICATION_PARTIAL)
-
-        bad_count_result = dict(valid_result)
-        bad_count_result["victim_requests"] = [{}] * (ep0.victim_request_count - 1)
-        bad_count_path = tmp_path / "badcount.json"
-        bad_count_path.write_text(json.dumps(bad_count_result), encoding="utf-8")
-        cls, _ = classify_result_file(bad_count_path, ep0, expected_fp, "smoke")
-        check("wrong victim_requests count classified as 'invalid' (test 7)", cls == CLASSIFICATION_INVALID)
-
-        missing_key_result = dict(valid_result)
-        del missing_key_result["schedule_row"]
-        mk_path = tmp_path / "missingkey.json"
-        mk_path.write_text(json.dumps(missing_key_result), encoding="utf-8")
-        cls, _ = classify_result_file(mk_path, ep0, expected_fp, "smoke")
-        check("missing required result key classified as 'invalid'", cls == CLASSIFICATION_INVALID)
-
-        # --- new resume-validation tests (this patch) -----------------------
-
-        # Test 1: file at episode A's path contains a fully valid, complete
-        # result -- but for episode B. Must be 'invalid' when validated
-        # against the expected episode A, never silently accepted.
-        wrong_episode_result = make_valid_result(ep1)
-        wrong_episode_path = tmp_path / f"{ep0.episode_id}.json"
-        wrong_episode_path.write_text(json.dumps(wrong_episode_result), encoding="utf-8")
-        cls, notes = classify_result_file(wrong_episode_path, ep0, expected_fp, "smoke")
-        check(
-            "valid result for a different episode is rejected as 'invalid' "
-            "when checked against the expected episode (test 1)",
-            cls == CLASSIFICATION_INVALID, str(notes),
-        )
-
-        # Test 2: wrong runner_version.
-        wrong_runner_result = dict(valid_result)
-        wrong_runner_result["runner_version"] = "some-other-runner-9.9"
-        wr_path = tmp_path / "wrongrunner.json"
-        wr_path.write_text(json.dumps(wrong_runner_result), encoding="utf-8")
-        cls, _ = classify_result_file(wr_path, ep0, expected_fp, "smoke")
-        check("wrong runner_version classified as 'invalid' (test 2)", cls == CLASSIFICATION_INVALID)
-
-        # Test 3: episode_id is a list -- must not crash, must be 'invalid'.
-        list_episode_id_result = dict(valid_result)
-        list_episode_id_result["episode_id"] = []
-        lid_path = tmp_path / "listepid.json"
-        lid_path.write_text(json.dumps(list_episode_id_result), encoding="utf-8")
-        try:
-            cls, _ = classify_result_file(lid_path, ep0, expected_fp, "smoke")
-            crashed = False
-        except Exception:
-            crashed = True
-            cls = None
-        check(
-            "episode_id as a list is classified as 'invalid' without crashing (test 3)",
-            (not crashed) and cls == CLASSIFICATION_INVALID,
-        )
-
-        # Test 4: result_schema_version = true (bool) must NOT be accepted
-        # as version 1, and must not crash.
-        bool_version_result = dict(valid_result)
-        bool_version_result["result_schema_version"] = True
-        bv_path = tmp_path / "boolversion.json"
-        bv_path.write_text(json.dumps(bool_version_result), encoding="utf-8")
-        cls, _ = classify_result_file(bv_path, ep0, expected_fp, "smoke")
-        check(
-            "result_schema_version=true (bool) is rejected as 'invalid', "
-            "not accepted as version 1 (test 4)",
-            cls == CLASSIFICATION_INVALID,
-        )
-
-        # Test 5: result_schema_version = 1 as a real int is still accepted.
-        real_int_version_result = dict(valid_result)
-        real_int_version_result["result_schema_version"] = RESULT_SCHEMA_VERSION
-        riv_path = tmp_path / "realintversion.json"
-        riv_path.write_text(json.dumps(real_int_version_result), encoding="utf-8")
-        cls, notes = classify_result_file(riv_path, ep0, expected_fp, "smoke")
-        check(
-            "result_schema_version as a real int stays accepted (test 5)",
-            cls == CLASSIFICATION_VALID_COMPLETE, str(notes),
-        )
-
-        # Test 6: schedule_row is not a dict.
-        list_row_result = dict(valid_result)
-        list_row_result["schedule_row"] = ["not", "a", "dict"]
-        lr_path = tmp_path / "listrow.json"
-        lr_path.write_text(json.dumps(list_row_result), encoding="utf-8")
-        cls, _ = classify_result_file(lr_path, ep0, expected_fp, "smoke")
-        check("schedule_row as a non-dict is classified as 'invalid' (test 6)", cls == CLASSIFICATION_INVALID)
-
-        # Test 7 (type-level, complementing the count-mismatch test above):
-        # victim_requests is not an array at all.
-        non_array_victim_result = dict(valid_result)
-        non_array_victim_result["victim_requests"] = "not-a-list"
-        nav_path = tmp_path / "nonarrayvictim.json"
-        nav_path.write_text(json.dumps(non_array_victim_result), encoding="utf-8")
-        cls, _ = classify_result_file(nav_path, ep0, expected_fp, "smoke")
-        check("victim_requests as a non-array is classified as 'invalid' (test 7)", cls == CLASSIFICATION_INVALID)
-
-        # Test 8: burst_requests is not an array at all.
-        non_array_burst_result = dict(valid_result)
-        non_array_burst_result["burst_requests"] = 42
-        nab_path = tmp_path / "nonarrayburst.json"
-        nab_path.write_text(json.dumps(non_array_burst_result), encoding="utf-8")
-        cls, _ = classify_result_file(nab_path, ep0, expected_fp, "smoke")
-        check("burst_requests as a non-array is classified as 'invalid' (test 8)", cls == CLASSIFICATION_INVALID)
-
-        # Test 10: scan_existing_results() must not skip any schedule
-        # episode just because a file with a foreign episode_id exists at
-        # a different episode's expected path -- each expected filename is
-        # validated strictly against its own specific episode.
-        fake_bundle = LoadedBundle(
-            schedule_dir=tmp_path,
-            json_obj={},
-            csv_fieldnames=[],
-            csv_rows=[],
-            audit_text="",
-            episodes=[ep0, ep1],
-            fingerprint=expected_fp,
-        )
-        scan_dir = tmp_path / "scan"
-        scan_dir.mkdir()
-        (scan_dir / EPISODES_SUBDIR).mkdir()
-        # ep0's own expected file actually holds ep1's (valid) result --
-        # must show up as 'invalid' for ep0, and ep1 itself must still be
-        # correctly reported as 'missing' (not silently matched/skipped).
-        (scan_dir / EPISODES_SUBDIR / f"{ep0.episode_id}.json").write_text(
-            json.dumps(make_valid_result(ep1)), encoding="utf-8"
-        )
-        classifications = scan_existing_results(scan_dir, fake_bundle, "smoke")
-        check(
-            "scan_existing_results: episode with a foreign result file is "
-            "'invalid', not silently matched (test 10)",
-            classifications.get(ep0.episode_id) == CLASSIFICATION_INVALID,
-            str(classifications),
-        )
-        check(
-            "scan_existing_results: the actual owner episode is still "
-            "reported 'missing', not skipped (test 10)",
-            classifications.get(ep1.episode_id) == CLASSIFICATION_MISSING,
-            str(classifications),
-        )
-
-        # --- Stage-2 patch, section 4: deep per-request resume validation ---
-        ep_burst = next(e for e in good if e.condition == "fixed_burst")
-
-        def write_and_classify(mutated: dict, ep: Episode = ep0) -> tuple[str, list[str]]:
-            p = tmp_path / f"depth_{len(list(tmp_path.glob('depth_*.json')))}.json"
-            p.write_text(json.dumps(mutated), encoding="utf-8")
-            return classify_result_file(p, ep, expected_fp, "smoke")
-
-        # (4-1) empty request dicts are no longer accepted.
-        empty_dicts_result = dict(make_valid_result(ep0))
-        empty_dicts_result["victim_requests"] = [{}] * ep0.victim_request_count
-        cls, notes = write_and_classify(empty_dicts_result)
-        check("(4-1) empty request dicts -> invalid", cls == CLASSIFICATION_INVALID, str(notes[:2]))
-
-        # (4-2) a request with status='incomplete' is rejected even though
-        # every list has the right length.
-        incomplete_result = dict(make_valid_result(ep0))
-        incomplete_result["victim_requests"] = list(incomplete_result["victim_requests"])
-        incomplete_result["victim_requests"][5] = dict(incomplete_result["victim_requests"][5])
-        incomplete_result["victim_requests"][5]["status"] = "incomplete"
-        cls, _ = write_and_classify(incomplete_result)
-        check("(4-2) a request with status='incomplete' -> invalid", cls == CLASSIFICATION_INVALID)
-
-        # (4-3) a tampered prompt_sha256.
-        bad_hash_result = dict(make_valid_result(ep0))
-        bad_hash_result["victim_requests"] = list(bad_hash_result["victim_requests"])
-        bad_hash_result["victim_requests"][0] = dict(bad_hash_result["victim_requests"][0])
-        bad_hash_result["victim_requests"][0]["prompt_sha256"] = "0" * 64
-        cls, _ = write_and_classify(bad_hash_result)
-        check("(4-3) wrong prompt_sha256 -> invalid", cls == CLASSIFICATION_INVALID)
-
-        # (4-4) prompt_token_ids_sent != prompt_token_ids_returned.
-        mismatched_prompt_result = dict(make_valid_result(ep0))
-        mismatched_prompt_result["victim_requests"] = list(mismatched_prompt_result["victim_requests"])
-        mismatched_prompt_result["victim_requests"][0] = dict(mismatched_prompt_result["victim_requests"][0])
-        mismatched_prompt_result["victim_requests"][0]["prompt_token_ids_returned"] = [999] * ep0.victim_input_len
-        cls, _ = write_and_classify(mismatched_prompt_result)
-        check("(4-4) prompt_token_ids_sent != prompt_token_ids_returned -> invalid", cls == CLASSIFICATION_INVALID)
-
-        # (4-5) wrong usage counters.
-        bad_usage_result = dict(make_valid_result(ep0))
-        bad_usage_result["victim_requests"] = list(bad_usage_result["victim_requests"])
-        bad_usage_result["victim_requests"][0] = dict(bad_usage_result["victim_requests"][0])
-        bad_usage_result["victim_requests"][0]["usage"] = {"prompt_tokens": 1, "completion_tokens": 1}
-        cls, _ = write_and_classify(bad_usage_result)
-        check("(4-5) wrong usage counters -> invalid", cls == CLASSIFICATION_INVALID)
-
-        # (4-6) wrong output length.
-        bad_outlen_result = dict(make_valid_result(ep0))
-        bad_outlen_result["victim_requests"] = list(bad_outlen_result["victim_requests"])
-        bad_outlen_result["victim_requests"][0] = dict(bad_outlen_result["victim_requests"][0])
-        bad_outlen_result["victim_requests"][0]["output_token_ids"] = [1, 2, 3]
-        cls, _ = write_and_classify(bad_outlen_result)
-        check("(4-6) wrong output_token_ids length -> invalid", cls == CLASSIFICATION_INVALID)
-
-        # (4-7) wrong role/index on a request record.
-        bad_role_result = dict(make_valid_result(ep0))
-        bad_role_result["victim_requests"] = list(bad_role_result["victim_requests"])
-        bad_role_result["victim_requests"][0] = dict(bad_role_result["victim_requests"][0])
-        bad_role_result["victim_requests"][0]["role"] = "burst"
-        cls, _ = write_and_classify(bad_role_result)
-        check("(4-7a) wrong role -> invalid", cls == CLASSIFICATION_INVALID)
-
-        bad_index_result = dict(make_valid_result(ep0))
-        bad_index_result["victim_requests"] = list(bad_index_result["victim_requests"])
-        bad_index_result["victim_requests"][0] = dict(bad_index_result["victim_requests"][0])
-        bad_index_result["victim_requests"][0]["request_index"] = 17
-        cls, _ = write_and_classify(bad_index_result)
-        check("(4-7b) wrong request_index -> invalid", cls == CLASSIFICATION_INVALID)
-
-        # (4-8) duplicate index.
-        dup_index_result = dict(make_valid_result(ep0))
-        dup_index_result["victim_requests"] = list(dup_index_result["victim_requests"])
-        dup_index_result["victim_requests"][1] = dict(dup_index_result["victim_requests"][0])
-        cls, _ = write_and_classify(dup_index_result)
-        check("(4-8) duplicate request_index -> invalid", cls == CLASSIFICATION_INVALID)
-
-        # (4-9) wrong deterministic seed.
-        bad_seed_result = dict(make_valid_result(ep0))
-        bad_seed_result["victim_requests"] = list(bad_seed_result["victim_requests"])
-        bad_seed_result["victim_requests"][0] = dict(bad_seed_result["victim_requests"][0])
-        bad_seed_result["victim_requests"][0]["prompt_seed"] = 424242424
-        cls, _ = write_and_classify(bad_seed_result)
-        check("(4-9) wrong deterministic prompt_seed -> invalid", cls == CLASSIFICATION_INVALID)
-
-        # (4-10) timestamps out of order.
-        bad_order_result = dict(make_valid_result(ep0))
-        bad_order_result["victim_requests"] = list(bad_order_result["victim_requests"])
-        bad_order_result["victim_requests"][0] = dict(bad_order_result["victim_requests"][0])
-        bad_order_result["victim_requests"][0]["last_token_receive_ns"] = 1
-        cls, _ = write_and_classify(bad_order_result)
-        check("(4-10) out-of-order request timestamps -> invalid", cls == CLASSIFICATION_INVALID)
-
-        # (4-11) a fully correct real Stage-2 schema instance is accepted,
-        # including a fixed_burst episode with a real burst_interval.
-        good_no_burst = write_and_classify(dict(make_valid_result(ep0)), ep0)
-        check("(4-11a) fully correct no_burst episode -> valid_complete", good_no_burst[0] == CLASSIFICATION_VALID_COMPLETE, str(good_no_burst[1]))
-        good_burst = write_and_classify(dict(make_valid_result(ep_burst)), ep_burst)
-        check(
-            "(4-11b) fully correct fixed_burst episode (4 burst requests + "
-            "burst_interval) -> valid_complete",
-            good_burst[0] == CLASSIFICATION_VALID_COMPLETE, str(good_burst[1]),
-        )
-
-        # trigger.status must be 'ok'; burst_interval must match condition.
-        bad_trigger_result = dict(make_valid_result(ep0))
-        bad_trigger_result["trigger"] = {"status": "timeout"}
-        cls, _ = write_and_classify(bad_trigger_result)
-        check("(4-extra) trigger.status != 'ok' -> invalid", cls == CLASSIFICATION_INVALID)
-
-        no_burst_with_interval_result = dict(make_valid_result(ep0))
-        no_burst_with_interval_result["burst_interval"] = {"start_ns": 1, "end_ns": 2}
-        cls, _ = write_and_classify(no_burst_with_interval_result)
-        check(
-            "(4-extra) no_burst episode with a non-null burst_interval -> invalid",
-            cls == CLASSIFICATION_INVALID,
-        )
-
-        fixed_burst_missing_interval_result = dict(make_valid_result(ep_burst))
-        fixed_burst_missing_interval_result["burst_interval"] = None
-        cls, _ = write_and_classify(fixed_burst_missing_interval_result, ep_burst)
-        check(
-            "(4-extra) fixed_burst episode with a null burst_interval -> invalid",
-            cls == CLASSIFICATION_INVALID,
-        )
-
-        # --- output-dir marker conflict --------------------------------
-        write_run_mode_marker(tmp_path, "official")
-        conflict_raised = False
-        try:
-            check_output_dir_not_shared(tmp_path, "smoke")
-        except OutputDirConflictError:
-            conflict_raised = True
-        check("output-dir marker conflict (official vs smoke) is rejected", conflict_raised)
-
-        no_conflict_raised = False
-        try:
-            check_output_dir_not_shared(tmp_path, "official")
-        except OutputDirConflictError:
-            no_conflict_raised = True
-        check("output-dir marker matching the same mode is accepted", not no_conflict_raised)
-
-    # --- CLI mode mutual exclusivity / --resume guard -----------------------
-    def parse_expect_systemexit(argv: list[str]) -> bool:
-        try:
-            parse_args(argv)
-        except SystemExit:
-            return True
-        return False
-
-    check("no mode flag is rejected", parse_expect_systemexit([]))
-    check(
-        "two mode flags together are rejected",
-        parse_expect_systemexit(["--self-test", "--dry-run"]),
-    )
-    check(
-        "--resume without --official-run/--smoke-test is rejected",
-        parse_expect_systemexit(["--dry-run", "--resume"]),
-    )
-    check(
-        "--resume with --official-run is accepted",
-        not parse_expect_systemexit(["--official-run", "--resume"]),
-    )
-
-    # --- VLLM_API_KEY is read from the environment ONLY inside
-    # read_api_key_from_env(), and that function is only ever invoked
-    # from the real --smoke-test execution path -- never from
-    # --self-test, --dry-run, or --official-run. (Stage 1 never read it
-    # at all; Stage 2 legitimately needs it for the real smoke test, so
-    # this check's scope narrows accordingly instead of disappearing.)
-    own_source = SCRIPT_PATH.read_text(encoding="utf-8")
-    try:
-        read_api_key_source = inspect.getsource(read_api_key_from_env)
-    except (OSError, TypeError):
-        read_api_key_source = ""
-    env_access_patterns = [
-        r'os\.environ\.get\(\s*["\']VLLM_API_KEY',
-        r'os\.environ\[\s*["\']VLLM_API_KEY',
-        r'os\.getenv\(\s*["\']VLLM_API_KEY',
-        r'\.get\(\s*["\']VLLM_API_KEY',
-    ]
-    source_without_that_function = own_source.replace(read_api_key_source, "", 1)
-    found_env_access_elsewhere = any(
-        re.search(p, source_without_that_function) for p in env_access_patterns
-    )
-    check(
-        "VLLM_API_KEY is read from the environment only inside "
-        "read_api_key_from_env(), nowhere else in this module",
-        bool(read_api_key_source) and not found_env_access_elsewhere,
-    )
-    main_source = inspect.getsource(main)
-    official_branch_source = main_source.split("if args.official_run:")[1].split(
-        "assert args.smoke_test"
-    )[0]
-    check(
-        "(35) --official-run never calls read_api_key_from_env(), never "
-        "starts a server, and never runs a smoke block",
-        "read_api_key_from_env(" not in official_branch_source
-        and "run_smoke_block(" not in official_branch_source
-        and "server_adapter" not in official_branch_source,
-    )
-
-    # --- 36/37/38: CLI validation for the new Stage-2 flags -----------------
-    check(
-        "(36) '--smoke-test' without '--smoke-block' is rejected",
-        parse_expect_systemexit(["--smoke-test"]),
-    )
-    check(
-        "(36b) '--smoke-block' without '--smoke-test' is rejected",
-        parse_expect_systemexit(["--dry-run", "--smoke-block", "x"]),
-    )
-    fixture_bundle_for_block_check, _bid = _make_fixture_block_bundle("llama", 42)
-    invalid_block_raised = False
-    try:
-        find_and_validate_smoke_block(fixture_bundle_for_block_check, "does_not_exist")
-    except ValueError:
-        invalid_block_raised = True
-    check("(37) an invalid/unknown --smoke-block is rejected", invalid_block_raised)
-    check(
-        "(38) --port outside 1-65535 is rejected",
-        parse_expect_systemexit(["--smoke-test", "--smoke-block", "x", "--port", "0"])
-        and parse_expect_systemexit(["--smoke-test", "--smoke-block", "x", "--port", "70000"]),
-    )
-    check(
-        "(38b) --port within 1-65535 is accepted",
-        not parse_expect_systemexit(["--smoke-test", "--smoke-block", "x", "--port", "8000"]),
-    )
-
-    # --- Stage 2: async request/trigger/stabilization/smoke-block checks ---
-    results.extend(asyncio.run(_stage2_async_checks()))
-
-    # --- Section 26: fake full-block integration test (no sleep, no GPU) ---
-    fake_block_ok, fake_block_notes = run_fake_block_integration_test()
-    check(
-        "fake full-block integration test (simulated server, stabilization "
-        "+ 4 episodes, all JSON outputs validated)",
-        fake_block_ok, "; ".join(fake_block_notes),
-    )
-
-    # --- summary --------------------------------------------------------
-    print("Self-test results")
-    print("=" * 60)
-    all_passed = True
-    for name, passed, detail in results:
-        status = "OK" if passed else "FAIL"
-        if not passed:
-            all_passed = False
-        line = f"[{status}] {name}"
-        if detail and not passed:
-            line += f" -- {detail}"
-        print(line)
-    print("=" * 60)
-    print(f"{sum(1 for _, p, _ in results if p)}/{len(results)} checks passed")
-    print("SELF-TEST: PASS" if all_passed else "SELF-TEST: FAIL")
-    return 0 if all_passed else 1
 
 
 # ============================================================================
 # main
 # ============================================================================
 
+def official_run_exit_code(summary: dict) -> int:
+    """Pure mapping from a campaign summary to the CLI exit code
+    (Section 10 precision addendum): 130 for SIGINT, 143 for SIGTERM,
+    0 for complete/already_complete, else 1. Never calls sys.exit
+    itself -- kept as a pure function so it is trivially unit-testable."""
+    if summary.get("overall_status") == "interrupted":
+        signal_name = summary.get("interrupted_by")
+        if signal_name == "SIGINT":
+            return 130
+        if signal_name == "SIGTERM":
+            return 143
+        return 1
+    return 0 if summary.get("overall_status") in ("complete", "already_complete") else 1
+
+
+async def _run_official_cli(
+    *,
+    bundle: LoadedBundle,
+    output_dir: Path,
+    host: str,
+    port: int,
+    resume: bool,
+    api_key: str,
+    transport: HTTPTransport,
+    tokenizer_factory: Callable[[str], TokenizerAdapter],
+    run_server_path: Path,
+) -> dict:
+    """CLI-only glue: installs real SIGINT/SIGTERM handlers for the
+    duration of the campaign (Section 10), then runs it. Signal handling
+    itself lives in run_official_campaign()/InterruptState -- this
+    function only wires real OS signals to that mechanism and guarantees
+    the handlers are removed afterward either way."""
+    interrupt_state = InterruptState()
+    loop = asyncio.get_running_loop()
+    installed: list[int] = []
+    for sig, name in ((signal.SIGINT, "SIGINT"), (signal.SIGTERM, "SIGTERM")):
+        loop.add_signal_handler(sig, lambda name=name: interrupt_state.trigger(name))
+        installed.append(sig)
+    try:
+        return await run_official_campaign(
+            bundle=bundle,
+            output_dir=output_dir,
+            host=host,
+            port=port,
+            resume=resume,
+            api_key=api_key,
+            transport=transport,
+            tokenizer_factory=tokenizer_factory,
+            server_adapter=RealServerProcessAdapter(),
+            sleeper=RealSleeper(),
+            clock=RealClock(),
+            run_server_path=run_server_path,
+            environment_probe=RealEnvironmentProbe(),
+            interrupt_state=interrupt_state,
+        )
+    finally:
+        for sig in installed:
+            loop.remove_signal_handler(sig)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
 
     if args.self_test:
-        return run_self_test()
+        # The self-test suite lives in the sibling phase_a_tests/ package
+        # (moved out mechanically -- see the "Self-test" section marker
+        # above). Register this already-executing module under the
+        # stable name "run_phase_a" first, so that phase_a_tests'
+        # `from run_phase_a import *` reuses this exact module object
+        # instead of re-executing this file a second time under a
+        # separate module identity.
+        sys.modules.setdefault("run_phase_a", sys.modules[__name__])
+        from phase_a_tests.selftest_runner import run_self_test as _run_self_test
+
+        return _run_self_test()
 
     bundle, errors = load_and_validate_bundle(args.schedule_dir)
     if errors:
@@ -5952,51 +5287,63 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.official_run:
-        mode = "official"
+        mode = RUN_MODE_OFFICIAL
         output_dir = (
             args.output_dir if args.output_dir is not None else default_output_dir(mode)
         )
+
         try:
-            output_dir.mkdir(parents=True, exist_ok=True)
-            check_output_dir_not_shared(output_dir, mode)
-            write_run_mode_marker(output_dir, mode)
-        except OutputDirConflictError as exc:
+            api_key = read_api_key_from_env()
+        except ApiKeyError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
-        except OSError as exc:
-            print(
-                f"ERROR: could not prepare output-dir '{output_dir}': {exc}",
-                file=sys.stderr,
-            )
+
+        run_server_path = resolve_run_server_path(SCRIPT_PATH)
+        try:
+            check_run_server_script(run_server_path)
+        except ServerLifecycleError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
             return 1
+
+        try:
+            transport: HTTPTransport = HttpxTransport()
+        except RuntimeError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
+
+        def tokenizer_factory(model_key: str) -> TokenizerAdapter:
+            return HFTokenizerAdapter(MODEL_FULL_ID[model_key])
 
         print(f"schedule_fingerprint: {bundle.fingerprint}")
         print(f"run_mode: {mode}")
         print(f"output_dir: {output_dir}")
-
-        if args.resume:
-            classifications = scan_existing_results(output_dir, bundle, mode)
-            counts: dict[str, int] = {}
-            for c in classifications.values():
-                counts[c] = counts.get(c, 0) + 1
-            print()
-            print("Resume scan (file-level depth validation):")
-            for key in (
-                CLASSIFICATION_MISSING,
-                CLASSIFICATION_VALID_COMPLETE,
-                CLASSIFICATION_PARTIAL,
-                CLASSIFICATION_INVALID,
-                CLASSIFICATION_CORRUPTED,
-            ):
-                print(f"  {key}: {counts.get(key, 0)}")
-
-        # Section 24: --official-run stays fully blocked in stage 2. No
-        # server is started and no result file is written above this
-        # line -- output-dir preparation and the read-only resume scan
-        # are the only side effects, exactly as in stage 1.
+        print(f"host:port: {args.host}:{args.port}")
         print()
-        print("Official execution is disabled until Stage 3.", file=sys.stderr)
-        return 1
+
+        try:
+            summary = asyncio.run(
+                _run_official_cli(
+                    bundle=bundle, output_dir=output_dir, host=args.host, port=args.port,
+                    resume=args.resume, api_key=api_key, transport=transport,
+                    tokenizer_factory=tokenizer_factory, run_server_path=run_server_path,
+                )
+            )
+        except (ApiKeyError, ServerLifecycleError, CapabilityError, ValueError) as exc:
+            print(f"ERROR: official run aborted: {exc}", file=sys.stderr)
+            return 1
+        except Exception as exc:  # noqa: BLE001 -- always report, never crash silently
+            print(f"ERROR: official run failed with an unexpected error: {exc}", file=sys.stderr)
+            return 1
+
+        print(json.dumps(summary, indent=2, sort_keys=True, default=str))
+
+        exit_code = official_run_exit_code(summary)
+        if summary.get("overall_status") == "interrupted":
+            # Section 10 / precision addendum: exit explicitly with the
+            # conventional 128+signum code; never re-raise or re-deliver
+            # the signal itself.
+            sys.exit(exit_code)
+        return exit_code
 
     # --- --smoke-test: real execution of exactly one block (Stage 2) -------
     assert args.smoke_test
