@@ -1,0 +1,51 @@
+{
+  "CUDA_VISIBLE_DEVICES": "0",
+  "created_utc": "2026-07-16T07:55:18.273956+00:00",
+  "design_version": "chunk-budget-screen-v1",
+  "environment_fingerprint": "sha256:33f2eca2663f163a8998e6c4ed0dd5b9ae1ec19ea83a9cde8fcec5f493386925",
+  "file_hashes": {
+    "chunk_budget_schedule.csv": "730bba7c6d5df93f5ff3c0e297cbbd4b38f55143fad8ec2d3fa4b8e0bebbdbcc",
+    "chunk_budget_schedule.json": "90510652757859f23878708428eedb55a4e30e295726b5d2a32dcddd3a6a79ab",
+    "chunk_budget_schedule_audit.txt": "2e151268b186aa7ac77ed42f1fccda1201ff28d3091a060f2c235656e473ea81",
+    "make_chunk_budget_schedule.py": "946b7b0cfbb149efd30c368fb8aa6ac8e00f0704e3bf523bb2d55c72072a0b8d",
+    "run_chunk_budget_screen.py": "b631deac68dd890c16338862fd36e8468d8bc32df482406ac54905edc4fef6ac",
+    "run_chunk_budget_screen.sh": "1f60042b90304a83d6102346d1797051f556306bc60a0d44a40cc7f896dfebc7",
+    "run_server.sh": "9a1190dfe1e12f595df72913a1c7e83b2ed04243e4be5f72d58271cd8a8e65c2"
+  },
+  "git_commit": "d3a61476505800d4cf595c8b457755db27b9611b",
+  "git_dirty": false,
+  "gpu_list": [
+    {
+      "driver_version": "580.159.03",
+      "index": "0",
+      "memory_total": "24576 MiB",
+      "name": "NVIDIA GeForce RTX 3090",
+      "uuid": "GPU-18343182-00c3-ea0c-3f54-9e811a2f892d"
+    }
+  ],
+  "host": "127.0.0.1",
+  "hostname": "rock-tobefilledbyoem",
+  "httpx_version": "0.28.1",
+  "kernel": "6.17.0-40-generic",
+  "manifest_schema_version": 1,
+  "output_dir": "new/runs/chunk_budget_screen/results/official_20260716T075455Z",
+  "platform": "Linux-6.17.0-40-generic-x86_64-with-glibc2.42",
+  "port": 8000,
+  "python_executable": "/home/rock/projects/porto/.venv/bin/python3",
+  "python_version": "3.13.7",
+  "resolved_gpu": {
+    "driver_version": "580.159.03",
+    "index": "0",
+    "memory_total": "24576 MiB",
+    "name": "NVIDIA GeForce RTX 3090",
+    "uuid": "GPU-18343182-00c3-ea0c-3f54-9e811a2f892d"
+  },
+  "result_schema_version": 2,
+  "run_mode": "official",
+  "runner_version": "run_chunk_budget_screen-v1",
+  "schedule_fingerprint": "sha256:3c35a72ee08e289258c254be6be9566d299b95ba8a2b38817be36bd4c79459cd",
+  "schedule_seed": 20260716,
+  "torch_version": "2.10.0",
+  "transformers_version": "4.57.6",
+  "vllm_version": "0.17.1"
+}

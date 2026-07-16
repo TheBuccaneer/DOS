@@ -1,0 +1,50 @@
+{
+  "CUDA_VISIBLE_DEVICES": "0",
+  "created_utc": "2026-07-15T21:12:05.892162+00:00",
+  "design_version": "prefill-screen-v1",
+  "environment_fingerprint": "sha256:95fb49a579217033c5b247833f1591018f6901f5b72dc062c3935934f6f83935",
+  "file_hashes": {
+    "prefill_screen_schedule.csv": "54b89f9441343b47b6eb7b07451e0359279fc3594ddb7e0aab15bbbc12099e5a",
+    "prefill_screen_schedule.json": "953d4d75ba3e3b0c9ab3f46b3476fb49d268dcda233d62e4ad06481ae50b0997",
+    "prefill_screen_schedule_audit.txt": "543f942779434b12a83594f8fe51ff47abe8bd0bfaaa3bdbf8b7fa3191528937",
+    "run_prefill_screen.py": "10a430e06c65dc37de141ba61f8248f35ec202459f210c44550fe55f486e95ad",
+    "run_prefill_screen.sh": "950657627809be3040ae493680f9152d7f525c864782cac2fb2cb683ac3ab913",
+    "run_server.sh": "fe42016cffb08c63f40475089c757a1866d78da375adc6439c5d74dc6b205108"
+  },
+  "git_commit": "d3a61476505800d4cf595c8b457755db27b9611b",
+  "git_dirty": false,
+  "gpu_list": [
+    {
+      "driver_version": "580.159.03",
+      "index": "0",
+      "memory_total": "24576 MiB",
+      "name": "NVIDIA GeForce RTX 3090",
+      "uuid": "GPU-18343182-00c3-ea0c-3f54-9e811a2f892d"
+    }
+  ],
+  "host": "127.0.0.1",
+  "hostname": "rock-tobefilledbyoem",
+  "httpx_version": "0.28.1",
+  "kernel": "6.17.0-40-generic",
+  "manifest_schema_version": 1,
+  "output_dir": "new/runs/prefill_screen/results/official_20260715T211157Z",
+  "platform": "Linux-6.17.0-40-generic-x86_64-with-glibc2.42",
+  "port": 8000,
+  "python_executable": "/home/rock/projects/porto/.venv/bin/python3",
+  "python_version": "3.13.7",
+  "resolved_gpu": {
+    "driver_version": "580.159.03",
+    "index": "0",
+    "memory_total": "24576 MiB",
+    "name": "NVIDIA GeForce RTX 3090",
+    "uuid": "GPU-18343182-00c3-ea0c-3f54-9e811a2f892d"
+  },
+  "result_schema_version": 2,
+  "run_mode": "official",
+  "runner_version": "run_prefill_screen-v1",
+  "schedule_fingerprint": "sha256:a2f3fa1ddb56c1a8e60fe008603514c1098cfadbf843818fbae5325e9cf59232",
+  "schedule_seed": 20260716,
+  "torch_version": "2.10.0",
+  "transformers_version": "4.57.6",
+  "vllm_version": "0.17.1"
+}

@@ -1,0 +1,64 @@
+{
+  "block_id": "llama_block03_high",
+  "cooldown_s": 5.0,
+  "end_utc": "2026-07-15T22:30:20.128018+00:00",
+  "episode_statuses": {
+    "llama_off12_conc4_no_burst_rep2": "valid_complete",
+    "llama_off12_conc4_prefill_burst_rep2": "valid_complete",
+    "llama_off12_conc8_no_burst_rep2": "valid_complete",
+    "llama_off12_conc8_prefill_burst_rep2": "valid_complete"
+  },
+  "executed_episode_ids": [
+    "llama_off12_conc4_no_burst_rep2",
+    "llama_off12_conc4_prefill_burst_rep2",
+    "llama_off12_conc8_no_burst_rep2",
+    "llama_off12_conc8_prefill_burst_rep2"
+  ],
+  "model": "llama",
+  "offload_gb": 12,
+  "overall_status": "block_complete",
+  "planned_episode_ids": [
+    "llama_off12_conc4_no_burst_rep2",
+    "llama_off12_conc4_prefill_burst_rep2",
+    "llama_off12_conc8_no_burst_rep2",
+    "llama_off12_conc8_prefill_burst_rep2"
+  ],
+  "post_stabilization_health": {
+    "checked_utc": "2026-07-15T22:01:36.166441+00:00",
+    "error_type": null,
+    "http_status": 200,
+    "ok": true
+  },
+  "repeat": 2,
+  "run_mode": "official",
+  "schedule_fingerprint": "sha256:a2f3fa1ddb56c1a8e60fe008603514c1098cfadbf843818fbae5325e9cf59232",
+  "server_start": {
+    "cmd": [
+      "bash",
+      "/home/rock/projects/DOS/new/scripts/prefill_screen/run_server.sh",
+      "llama",
+      "12",
+      "127.0.0.1",
+      "8000"
+    ],
+    "pgid": 77134,
+    "pid": 77134,
+    "start_utc": "2026-07-15T21:52:07.425121+00:00"
+  },
+  "server_stop": {
+    "alive_after_stop": false,
+    "forced_kill": false,
+    "pgid": 77134,
+    "pid": 77134,
+    "port_free_after_stop": true,
+    "stop_end_utc": "2026-07-15T22:30:20.127918+00:00",
+    "stop_error": null,
+    "stop_start_utc": "2026-07-15T22:30:15.716810+00:00",
+    "stop_success": true,
+    "term_sent": true
+  },
+  "skipped_episode_ids": [],
+  "stabilization_status": "complete",
+  "start_utc": "2026-07-15T21:52:07.424272+00:00",
+  "state_label": "high"
+}

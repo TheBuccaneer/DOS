@@ -1,0 +1,68 @@
+Prefill-Screen Schedule Audit
+============================================================
+schema_version: 2
+design_version: prefill-screen-v1
+schedule_fingerprint: sha256:a2f3fa1ddb56c1a8e60fe008603514c1098cfadbf843818fbae5325e9cf59232
+seed: 20260716
+repeats per cell: 3
+models: llama
+total episodes (all models): 24
+
+--- llama: PASS ---
+total episodes: 24
+blocks: 6
+state sequence: low, high, high, low, low, high
+cell counts (offload_gb, concurrency, condition):
+  (0, 4, 'no_burst'): 3
+  (0, 4, 'prefill_burst'): 3
+  (0, 8, 'no_burst'): 3
+  (0, 8, 'prefill_burst'): 3
+  (12, 4, 'no_burst'): 3
+  (12, 4, 'prefill_burst'): 3
+  (12, 8, 'no_burst'): 3
+  (12, 8, 'prefill_burst'): 3
+block sequence (each entry implies a server restart before its first episode):
+  llama_block01_low (state=low)
+  llama_block02_high (state=high)
+  llama_block03_high (state=high)
+  llama_block04_low (state=low)
+  llama_block05_low (state=low)
+  llama_block06_high (state=high)
+
+============================================================
+--- global checks ---
+  episode_id uniqueness across merged models: PASS
+  episode_seed uniqueness across merged models: PASS
+  csv/json consistency: PASS
+
+--- stabilization protocol (documented for run_prefill_screen.py; not executed by this generator) ---
+regular episode count: 24
+stabilization episodes included in regular schedule: 0
+stabilization runs executed later per block: 1
+  abort_on_stability_drift: False
+  api_readiness_check_required: True
+  block_must_abort_on_request_failure: True
+  counted_repeat: False
+  enabled: True
+  excluded_from_analysis: True
+  generation_probe_requests: 0
+  record_relative_change: True
+  separate_output_required: True
+  stability_diagnostics_required: True
+  stability_primary_metric: median_tpot_ms
+  stability_secondary_metrics: ['median_ttft_ms', 'median_e2el_ms']
+  stability_windowing: first_half_vs_second_half
+  stabilization_concurrency: 4
+  stabilization_condition: no_burst
+  stabilization_input_len: 256
+  stabilization_output_len: 64
+  stabilization_request_count: 20
+  stabilization_runs_per_block: 1
+  stabilization_temperature: 0.0
+
+============================================================
+--- publication note ---
+The CSV, JSON, and this audit file are each replaced atomically on their own (one os.replace() per file), but the three os.replace() calls together are NOT one atomic transaction. If this process is interrupted or a later replace fails after an earlier one already succeeded, the output directory can end up with a mix of old and new files. Before use, run_prefill_screen.py must: (1) recompute the JSON's schedule_fingerprint from its own canonical payload and confirm it matches the stored schedule_fingerprint, (2) compare the CSV episodes against the JSON episodes, and (3) compare this audit report's schedule_fingerprint against the JSON's schedule_fingerprint. Any mismatch means the files were not produced by the same run and must be treated as invalid.
+
+============================================================
+OVERALL: PASS

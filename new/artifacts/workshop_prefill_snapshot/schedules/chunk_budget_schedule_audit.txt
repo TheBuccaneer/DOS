@@ -1,0 +1,110 @@
+Chunk-Budget-Screen Schedule Audit
+============================================================
+schema_version: 2
+design_version: chunk-budget-screen-v1
+schedule_fingerprint: sha256:3c35a72ee08e289258c254be6be9566d299b95ba8a2b38817be36bd4c79459cd
+seed: 20260716
+repeats per cell: 3
+models: llama
+total episodes (all models): 36
+
+--- llama: PASS ---
+total episodes: 36
+blocks: 18
+no_burst episodes: 18
+prefill_burst episodes: 18
+state sequence: low, high, low, high, low, high, high, low, high, low, high, low, low, high, low, high, low, high
+cell counts (offload_gb, max_num_batched_tokens, condition):
+  (0, 512, 'no_burst'): 3
+  (0, 512, 'prefill_burst'): 3
+  (0, 1024, 'no_burst'): 3
+  (0, 1024, 'prefill_burst'): 3
+  (0, 2048, 'no_burst'): 3
+  (0, 2048, 'prefill_burst'): 3
+  (12, 512, 'no_burst'): 3
+  (12, 512, 'prefill_burst'): 3
+  (12, 1024, 'no_burst'): 3
+  (12, 1024, 'prefill_burst'): 3
+  (12, 2048, 'no_burst'): 3
+  (12, 2048, 'prefill_burst'): 3
+episodes per (state, budget): 6
+blocks per (state, budget): 3
+episodes per block: 2
+condition-first balance overall: no_burst=9, prefill_burst=9
+condition-first balance per (state, budget):
+  state=high, budget=512: no_burst=1, prefill_burst=2
+  state=high, budget=1024: no_burst=2, prefill_burst=1
+  state=high, budget=2048: no_burst=2, prefill_burst=1
+  state=low, budget=512: no_burst=1, prefill_burst=2
+  state=low, budget=1024: no_burst=2, prefill_burst=1
+  state=low, budget=2048: no_burst=1, prefill_burst=2
+budget positions per (state, repeat) (within-repeat order):
+  repeat=1, state=low: [512, 1024, 2048]
+  repeat=1, state=high: [512, 1024, 2048]
+  repeat=2, state=low: [1024, 2048, 512]
+  repeat=2, state=high: [1024, 2048, 512]
+  repeat=3, state=low: [2048, 512, 1024]
+  repeat=3, state=high: [2048, 512, 1024]
+block sequence (each entry implies a server restart before its first episode):
+  llama_block01_low_budget512 (state=low, budget=512)
+  llama_block02_high_budget512 (state=high, budget=512)
+  llama_block03_low_budget1024 (state=low, budget=1024)
+  llama_block04_high_budget1024 (state=high, budget=1024)
+  llama_block05_low_budget2048 (state=low, budget=2048)
+  llama_block06_high_budget2048 (state=high, budget=2048)
+  llama_block07_high_budget1024 (state=high, budget=1024)
+  llama_block08_low_budget1024 (state=low, budget=1024)
+  llama_block09_high_budget2048 (state=high, budget=2048)
+  llama_block10_low_budget2048 (state=low, budget=2048)
+  llama_block11_high_budget512 (state=high, budget=512)
+  llama_block12_low_budget512 (state=low, budget=512)
+  llama_block13_low_budget2048 (state=low, budget=2048)
+  llama_block14_high_budget2048 (state=high, budget=2048)
+  llama_block15_low_budget512 (state=low, budget=512)
+  llama_block16_high_budget512 (state=high, budget=512)
+  llama_block17_low_budget1024 (state=low, budget=1024)
+  llama_block18_high_budget1024 (state=high, budget=1024)
+
+============================================================
+--- global checks ---
+  episode_id uniqueness across merged models: PASS
+  episode_seed uniqueness across merged models: PASS
+  csv/json consistency: PASS
+  total no_burst episodes: 18
+  total prefill_burst episodes: 18
+  budgets exactly {512, 1024, 2048}: PASS
+  offload exactly {0, 12}: PASS
+  concurrency exclusively 4: PASS
+
+--- stabilization protocol (documented for run_chunk_budget_screen.py; not executed by this generator) ---
+regular episode count: 36
+stabilization episodes included in regular schedule: 0
+stabilization runs executed later per block: 1
+  abort_on_stability_drift: False
+  api_readiness_check_required: True
+  block_must_abort_on_request_failure: True
+  chunked_prefill_log_verification_required: True
+  counted_repeat: False
+  enabled: True
+  excluded_from_analysis: True
+  generation_probe_requests: 0
+  record_relative_change: True
+  separate_output_required: True
+  stability_diagnostics_required: True
+  stability_primary_metric: median_tpot_ms
+  stability_secondary_metrics: ['median_ttft_ms', 'median_e2el_ms']
+  stability_windowing: first_half_vs_second_half
+  stabilization_concurrency: 4
+  stabilization_condition: no_burst
+  stabilization_input_len: 256
+  stabilization_output_len: 64
+  stabilization_request_count: 20
+  stabilization_runs_per_block: 1
+  stabilization_temperature: 0.0
+
+============================================================
+--- publication note ---
+The CSV, JSON, and this audit file are each replaced atomically on their own (one os.replace() per file), but the three os.replace() calls together are NOT one atomic transaction. If this process is interrupted or a later replace fails after an earlier one already succeeded, the output directory can end up with a mix of old and new files. Before use, run_chunk_budget_screen.py must: (1) recompute the JSON's schedule_fingerprint from its own canonical payload and confirm it matches the stored schedule_fingerprint, (2) compare the CSV episodes against the JSON episodes, and (3) compare this audit report's schedule_fingerprint against the JSON's schedule_fingerprint. Any mismatch means the files were not produced by the same run and must be treated as invalid.
+
+============================================================
+OVERALL: PASS

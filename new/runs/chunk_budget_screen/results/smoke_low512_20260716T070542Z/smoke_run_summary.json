@@ -1,0 +1,78 @@
+{
+  "chunked_prefill_log_check": {
+    "errors": [],
+    "expected_max_num_batched_tokens": 512,
+    "passed": true
+  },
+  "cooldown_s": 5.0,
+  "end_utc": "2026-07-16T07:07:15.440405+00:00",
+  "episode_statuses": {
+    "llama_off0_budget512_conc4_no_burst_rep1": "valid_complete",
+    "llama_off0_budget512_conc4_prefill_burst_rep1": "valid_complete"
+  },
+  "max_num_batched_tokens": 512,
+  "overall_status": "block_complete",
+  "readiness": {
+    "capability_summary": {
+      "available": true,
+      "has_completions_path": true,
+      "http_status": 200,
+      "note": "informational only -- the definitive capability check is the stabilization run",
+      "path_count": 21
+    },
+    "detected_model": "meta-llama/Llama-3.1-8B-Instruct",
+    "health_status": 200,
+    "last_health_status": 200,
+    "last_models_status": 200,
+    "last_transient_error_type": "ConnectError",
+    "models_response": {
+      "data": [
+        "meta-llama/Llama-3.1-8B-Instruct"
+      ]
+    },
+    "poll_count": 24,
+    "post_stabilization_health": {
+      "checked_utc": "2026-07-16T07:06:50.859929+00:00",
+      "error_type": null,
+      "http_status": 200,
+      "ok": true
+    },
+    "readiness_duration_s": 46.26170610700501,
+    "readiness_start_utc": "2026-07-16T07:05:55.605044+00:00",
+    "ready_utc": "2026-07-16T07:06:41.884064+00:00",
+    "server_start_utc": "2026-07-16T07:05:55.605031+00:00"
+  },
+  "result_schema_version": 2,
+  "run_mode": "smoke",
+  "runner_version": "run_chunk_budget_screen-v1",
+  "schedule_fingerprint": "sha256:3c35a72ee08e289258c254be6be9566d299b95ba8a2b38817be36bd4c79459cd",
+  "server_start": {
+    "cmd": [
+      "bash",
+      "/home/rock/projects/DOS/new/scripts/chunk_budget_screen/run_server.sh",
+      "llama",
+      "0",
+      "127.0.0.1",
+      "8000"
+    ],
+    "max_num_batched_tokens": 512,
+    "pgid": 101721,
+    "pid": 101721,
+    "start_utc": "2026-07-16T07:05:55.605031+00:00"
+  },
+  "server_stop": {
+    "alive_after_stop": false,
+    "forced_kill": false,
+    "pgid": 101721,
+    "pid": 101721,
+    "port_free_after_stop": true,
+    "stop_end_utc": "2026-07-16T07:07:15.436697+00:00",
+    "stop_error": null,
+    "stop_start_utc": "2026-07-16T07:07:15.035576+00:00",
+    "stop_success": true,
+    "term_sent": true
+  },
+  "smoke_block": "llama_block01_low_budget512",
+  "stabilization_status": "complete",
+  "start_utc": "2026-07-16T07:05:55.603525+00:00"
+}

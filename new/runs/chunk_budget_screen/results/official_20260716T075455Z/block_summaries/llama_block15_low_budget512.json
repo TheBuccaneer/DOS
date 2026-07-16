@@ -1,0 +1,65 @@
+{
+  "block_id": "llama_block15_low_budget512",
+  "chunked_prefill_log_check": {
+    "errors": [],
+    "expected_max_num_batched_tokens": 512,
+    "passed": true
+  },
+  "cooldown_s": 5.0,
+  "end_utc": "2026-07-16T11:17:07.928916+00:00",
+  "episode_statuses": {
+    "llama_off0_budget512_conc4_no_burst_rep3": "valid_complete",
+    "llama_off0_budget512_conc4_prefill_burst_rep3": "valid_complete"
+  },
+  "executed_episode_ids": [
+    "llama_off0_budget512_conc4_no_burst_rep3",
+    "llama_off0_budget512_conc4_prefill_burst_rep3"
+  ],
+  "max_num_batched_tokens": 512,
+  "model": "llama",
+  "offload_gb": 0,
+  "overall_status": "block_complete",
+  "planned_episode_ids": [
+    "llama_off0_budget512_conc4_no_burst_rep3",
+    "llama_off0_budget512_conc4_prefill_burst_rep3"
+  ],
+  "post_stabilization_health": {
+    "checked_utc": "2026-07-16T11:16:45.038762+00:00",
+    "error_type": null,
+    "http_status": 200,
+    "ok": true
+  },
+  "repeat": 3,
+  "run_mode": "official",
+  "schedule_fingerprint": "sha256:3c35a72ee08e289258c254be6be9566d299b95ba8a2b38817be36bd4c79459cd",
+  "server_start": {
+    "cmd": [
+      "bash",
+      "/home/rock/projects/DOS/new/scripts/chunk_budget_screen/run_server.sh",
+      "llama",
+      "0",
+      "127.0.0.1",
+      "8000"
+    ],
+    "max_num_batched_tokens": 512,
+    "pgid": 124084,
+    "pid": 124084,
+    "start_utc": "2026-07-16T11:16:04.196005+00:00"
+  },
+  "server_stop": {
+    "alive_after_stop": false,
+    "forced_kill": false,
+    "pgid": 124084,
+    "pid": 124084,
+    "port_free_after_stop": true,
+    "stop_end_utc": "2026-07-16T11:17:07.924157+00:00",
+    "stop_error": null,
+    "stop_start_utc": "2026-07-16T11:17:07.523266+00:00",
+    "stop_success": true,
+    "term_sent": true
+  },
+  "skipped_episode_ids": [],
+  "stabilization_status": "complete",
+  "start_utc": "2026-07-16T11:16:04.195082+00:00",
+  "state_label": "low"
+}

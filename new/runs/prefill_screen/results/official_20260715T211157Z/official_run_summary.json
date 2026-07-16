@@ -1,0 +1,27 @@
+{
+  "block_statuses": {
+    "llama_block01_low": "block_complete",
+    "llama_block02_high": "block_complete",
+    "llama_block03_high": "block_complete",
+    "llama_block04_low": "block_complete",
+    "llama_block05_low": "block_complete",
+    "llama_block06_high": "block_complete"
+  },
+  "completed_blocks": 6,
+  "end_utc": "2026-07-15T23:11:11.917194+00:00",
+  "environment_fingerprint": "sha256:95fb49a579217033c5b247833f1591018f6901f5b72dc062c3935934f6f83935",
+  "failed_block": null,
+  "interrupted_by": null,
+  "missing_episodes": 0,
+  "overall_status": "complete",
+  "pending_blocks": 0,
+  "planned_blocks": 6,
+  "planned_episodes": 24,
+  "result_schema_version": 2,
+  "run_mode": "official",
+  "runner_version": "run_prefill_screen-v1",
+  "schedule_fingerprint": "sha256:a2f3fa1ddb56c1a8e60fe008603514c1098cfadbf843818fbae5325e9cf59232",
+  "skipped_blocks": 0,
+  "start_utc": "2026-07-15T21:12:05.846228+00:00",
+  "valid_complete_episodes": 24
+}
