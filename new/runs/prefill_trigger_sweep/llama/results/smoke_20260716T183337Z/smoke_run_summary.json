@@ -1,0 +1,71 @@
+{
+  "cooldown_s": 5.0,
+  "end_utc": "2026-07-16T18:35:34.139163+00:00",
+  "episode_statuses": {
+    "llama_off0_conc4_trigger1_no_burst_rep1": "valid_complete",
+    "llama_off0_conc4_trigger1_prefill_burst_rep1": "valid_complete"
+  },
+  "overall_status": "block_complete",
+  "readiness": {
+    "capability_summary": {
+      "available": true,
+      "has_completions_path": true,
+      "http_status": 200,
+      "note": "informational only -- the definitive capability check is the stabilization run",
+      "path_count": 21
+    },
+    "detected_model": "meta-llama/Llama-3.1-8B-Instruct",
+    "health_status": 200,
+    "last_health_status": 200,
+    "last_models_status": 200,
+    "last_transient_error_type": "ConnectError",
+    "models_response": {
+      "data": [
+        "meta-llama/Llama-3.1-8B-Instruct"
+      ]
+    },
+    "poll_count": 22,
+    "post_stabilization_health": {
+      "checked_utc": "2026-07-16T18:35:10.344753+00:00",
+      "error_type": null,
+      "http_status": 200,
+      "ok": true
+    },
+    "readiness_duration_s": 42.271723734999796,
+    "readiness_start_utc": "2026-07-16T18:34:19.391902+00:00",
+    "ready_utc": "2026-07-16T18:35:01.685214+00:00",
+    "server_start_utc": "2026-07-16T18:34:19.391889+00:00"
+  },
+  "result_schema_version": 4,
+  "run_mode": "smoke",
+  "runner_version": "run_prefill_trigger_sweep-v1-audit2",
+  "schedule_fingerprint": "sha256:c1465aaf29bb35d483f7abd6a5d0dbfd76390c3e69c011eadb587e0efd7f1a2a",
+  "server_start": {
+    "cmd": [
+      "bash",
+      "/home/rock/projects/DOS/new/scripts/prefill_trigger_sweep/run_server.sh",
+      "llama",
+      "0",
+      "127.0.0.1",
+      "8000"
+    ],
+    "pgid": 14180,
+    "pid": 14180,
+    "start_utc": "2026-07-16T18:34:19.391889+00:00"
+  },
+  "server_stop": {
+    "alive_after_stop": false,
+    "forced_kill": false,
+    "pgid": 14180,
+    "pid": 14180,
+    "port_free_after_stop": true,
+    "stop_end_utc": "2026-07-16T18:35:34.134975+00:00",
+    "stop_error": null,
+    "stop_start_utc": "2026-07-16T18:35:33.533035+00:00",
+    "stop_success": true,
+    "term_sent": true
+  },
+  "smoke_block": "llama_block01_low_trigger1",
+  "stabilization_status": "complete",
+  "start_utc": "2026-07-16T18:34:19.390625+00:00"
+}

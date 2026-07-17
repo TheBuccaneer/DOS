@@ -1,0 +1,43 @@
+Prefill-Confirmation Runner Audit
+=================================
+
+Source basis:
+- audited Schema-5 timing runner
+- source SHA-256: 38db91af9120068ce1a0632fc94a499f08b84702cbf44358008a0d4be30d10da
+- source result schema: 5
+- source timing instrumentation: task_semaphore_dispatch_wave_v2, version 2
+
+Confirmation contract:
+- models: llama, qwen (separate bundles)
+- episodes per model: 96
+- blocks per model: 48
+- offload_gb: 0, 8, 12
+- concurrency: 4, 8
+- trigger_after_decode_tokens: 16
+- repeats: 1..8
+- conditions: no_burst, prefill_burst
+- Llama fingerprint: sha256:c0712c24bfc13e15721771f747679ee17b94737c71dcb8ead3f4f9b3d42b1b9d
+- Qwen fingerprint: sha256:f272736db61d70091fa7767a360e8759340a719227bf656dd667a64e0a836bfb
+
+Offline verification:
+- py_compile: PASS
+- bash -n wrapper/server: PASS
+- runner/contract/fake-smoke tests: 45/45 PASS
+- timing/queue/wave/trigger/resume mutations: 39/39 PASS
+- Llama dry-run against generated official bundle: PASS
+- Qwen dry-run against generated official bundle: PASS
+- fake Llama off12/conc8 paired smoke block: PASS
+- fake Qwen off12/conc8 paired smoke block: PASS
+
+AST equivalence against the audited Schema-5 source:
+- execute_completion_request: identical
+- victim/burst/stabilization request builders: identical
+- trigger callback/watcher: identical
+- aggregate metrics/result builder: identical
+- run_regular_episode: identical
+- run_stabilization: identical
+- shared block protocol: identical
+- smoke/official orchestration: identical
+- result classification and timing validation: identical
+
+No GPU, network, real vLLM server, smoke campaign, or official campaign was run.

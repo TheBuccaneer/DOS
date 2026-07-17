@@ -1,0 +1,33 @@
+{
+  "block_statuses": {
+    "llama_block01_low_trigger1": "block_complete",
+    "llama_block02_high_trigger1": "block_complete",
+    "llama_block03_low_trigger16": "block_complete",
+    "llama_block04_high_trigger16": "block_complete",
+    "llama_block05_low_trigger32": "block_complete",
+    "llama_block06_high_trigger32": "block_complete",
+    "llama_block07_low_trigger16": "block_complete",
+    "llama_block08_high_trigger16": "block_complete",
+    "llama_block09_low_trigger32": "block_complete",
+    "llama_block10_high_trigger32": "block_complete",
+    "llama_block11_low_trigger1": "block_complete",
+    "llama_block12_high_trigger1": "block_complete"
+  },
+  "completed_blocks": 12,
+  "end_utc": "2026-07-16T21:26:54.585118+00:00",
+  "environment_fingerprint": "sha256:dce32891bdf7990c4e2b07774c3feaec04d29b1b5c73a3ec85f94ec9ffe2aa5d",
+  "failed_block": null,
+  "interrupted_by": null,
+  "missing_episodes": 0,
+  "overall_status": "complete",
+  "pending_blocks": 0,
+  "planned_blocks": 12,
+  "planned_episodes": 24,
+  "result_schema_version": 4,
+  "run_mode": "official",
+  "runner_version": "run_prefill_trigger_sweep-v1-audit2",
+  "schedule_fingerprint": "sha256:c1465aaf29bb35d483f7abd6a5d0dbfd76390c3e69c011eadb587e0efd7f1a2a",
+  "skipped_blocks": 0,
+  "start_utc": "2026-07-16T18:40:23.654268+00:00",
+  "valid_complete_episodes": 24
+}

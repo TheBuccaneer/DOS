@@ -1,0 +1,84 @@
+Prefill-Trigger-Sweep Schedule Audit
+============================================================
+schema_version: 2
+design_version: prefill-trigger-sweep-v1
+schedule_fingerprint: sha256:c1465aaf29bb35d483f7abd6a5d0dbfd76390c3e69c011eadb587e0efd7f1a2a
+seed: 20260717
+model_key: llama
+model_id: meta-llama/Llama-3.1-8B-Instruct
+repeats per cell: 2
+total episodes: 24
+
+--- llama: PASS ---
+blocks: 12
+block (state/trigger) sequence: low/trigger1, high/trigger1, low/trigger16, high/trigger16, low/trigger32, high/trigger32, low/trigger16, high/trigger16, low/trigger32, high/trigger32, low/trigger1, high/trigger1
+cell counts (offload_gb, trigger_after_decode_tokens, condition):
+  (0, 1, 'no_burst'): 2
+  (0, 1, 'prefill_burst'): 2
+  (0, 16, 'no_burst'): 2
+  (0, 16, 'prefill_burst'): 2
+  (0, 32, 'no_burst'): 2
+  (0, 32, 'prefill_burst'): 2
+  (12, 1, 'no_burst'): 2
+  (12, 1, 'prefill_burst'): 2
+  (12, 16, 'no_burst'): 2
+  (12, 16, 'prefill_burst'): 2
+  (12, 32, 'no_burst'): 2
+  (12, 32, 'prefill_burst'): 2
+block sequence (each entry implies a server restart before its first episode):
+  llama_block01_low_trigger1 (state=low, trigger=1, condition_first=prefill_burst)
+  llama_block02_high_trigger1 (state=high, trigger=1, condition_first=prefill_burst)
+  llama_block03_low_trigger16 (state=low, trigger=16, condition_first=prefill_burst)
+  llama_block04_high_trigger16 (state=high, trigger=16, condition_first=no_burst)
+  llama_block05_low_trigger32 (state=low, trigger=32, condition_first=prefill_burst)
+  llama_block06_high_trigger32 (state=high, trigger=32, condition_first=no_burst)
+  llama_block07_low_trigger16 (state=low, trigger=16, condition_first=no_burst)
+  llama_block08_high_trigger16 (state=high, trigger=16, condition_first=prefill_burst)
+  llama_block09_low_trigger32 (state=low, trigger=32, condition_first=no_burst)
+  llama_block10_high_trigger32 (state=high, trigger=32, condition_first=prefill_burst)
+  llama_block11_low_trigger1 (state=low, trigger=1, condition_first=no_burst)
+  llama_block12_high_trigger1 (state=high, trigger=1, condition_first=no_burst)
+
+condition-first balance: no_burst_first=6, prefill_burst_first=6
+
+workload seeds by repeat:
+  repeat 1: victim_workload_seed=745837500, burst_workload_seed=56697315
+  repeat 2: victim_workload_seed=780598441, burst_workload_seed=1634800312
+
+============================================================
+--- global checks ---
+  episode_id uniqueness: PASS
+  episode_seed uniqueness: PASS
+  csv/json consistency: PASS
+
+--- stabilization protocol (documented for run_prefill_trigger_sweep.py; not executed by this generator; mechanically inherited from Prefill-Screen) ---
+regular episode count: 24
+stabilization episodes included in regular schedule: 0
+stabilization runs executed later per block: 1
+  abort_on_stability_drift: False
+  api_readiness_check_required: True
+  block_must_abort_on_request_failure: True
+  counted_repeat: False
+  enabled: True
+  excluded_from_analysis: True
+  generation_probe_requests: 0
+  record_relative_change: True
+  separate_output_required: True
+  stability_diagnostics_required: True
+  stability_primary_metric: median_tpot_ms
+  stability_secondary_metrics: ['median_ttft_ms', 'median_e2el_ms']
+  stability_windowing: first_half_vs_second_half
+  stabilization_concurrency: 4
+  stabilization_condition: no_burst
+  stabilization_input_len: 256
+  stabilization_output_len: 64
+  stabilization_request_count: 20
+  stabilization_runs_per_block: 1
+  stabilization_temperature: 0.0
+
+============================================================
+--- publication note ---
+The CSV, JSON, and this audit file are each replaced atomically on their own (one os.replace() per file), but the three os.replace() calls together are NOT one atomic transaction. If this process is interrupted or a later replace fails after an earlier one already succeeded, the output directory can end up with a mix of old and new files. Before use, run_prefill_trigger_sweep.py must: (1) recompute the JSON's schedule_fingerprint from its own canonical payload and confirm it matches the stored schedule_fingerprint, (2) compare the CSV episodes against the JSON episodes, and (3) compare this audit report's schedule_fingerprint against the JSON's schedule_fingerprint. Any mismatch means the files were not produced by the same run and must be treated as invalid.
+
+============================================================
+OVERALL: PASS

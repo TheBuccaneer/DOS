@@ -1,0 +1,44 @@
+Prefill-Confirmation Schedule Audit
+============================================================
+schema_version: 1
+design_version: prefill-confirmation-v1
+campaign_name: llama-prefill-confirmation
+seed: 20260718
+schedule_fingerprint: sha256:c0712c24bfc13e15721771f747679ee17b94737c71dcb8ead3f4f9b3d42b1b9d
+model_key: llama
+model: llama (meta-llama/Llama-3.1-8B-Instruct)
+offload values: [0, 8, 12]
+concurrency values: [4, 8]
+trigger positions: [16]
+conditions: ['no_burst', 'prefill_burst']
+initial repeats: 8
+planned checkpoints: [8, 12, 16]
+block count: 48
+episode count: 96
+
+============================================================
+--- explicit checks ---
+  [PASS] 96 episodes
+  [PASS] 48 blocks
+  [PASS] only this model's model_key/model_id
+  [PASS] 8 repeats, each with all 6 cells exactly once
+  [PASS] 6 cells per repeat round
+  [PASS] every block has exactly 2 episodes with both conditions
+  [PASS] every block has order_in_block == [1, 2]
+  [PASS] every block has restart sequence [1, 0]
+  [PASS] every cell has exactly 4 no_burst-first blocks
+  [PASS] every cell has exactly 4 prefill_burst-first blocks
+  [PASS] no duplicate episode_ids
+  [PASS] no duplicate episode_seeds
+  [PASS] correct seed derivation (episode/victim/burst)
+  [PASS] victim seed constant within each repeat
+  [PASS] burst seed constant within each repeat
+  [PASS] victim and burst seeds always distinct
+  [PASS] JSON/CSV consistency
+  [PASS] fingerprint correct
+  [PASS] no disallowed offload values
+  [PASS] no disallowed concurrency values
+  [PASS] only trigger 16
+
+============================================================
+OVERALL: PASS

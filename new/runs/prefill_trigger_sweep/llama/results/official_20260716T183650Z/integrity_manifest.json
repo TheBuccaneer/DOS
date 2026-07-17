@@ -1,0 +1,326 @@
+{
+  "block_summary_count": 12,
+  "environment_fingerprint": "sha256:dce32891bdf7990c4e2b07774c3feaec04d29b1b5c73a3ec85f94ec9ffe2aa5d",
+  "episode_file_count": 24,
+  "file_count": 63,
+  "files": [
+    {
+      "relative_path": ".prefill_trigger_sweep_run_mode",
+      "sha256": "6896191a14f6c66534bac457f50996b9330cd702cb6dbaae4c08d1d213e93d98",
+      "size_bytes": 8
+    },
+    {
+      "relative_path": "block_summaries/llama_block01_low_trigger1.json",
+      "sha256": "df3f8d3a8aeca0c6b4d936bc335800b368c3888841f0ecc21c22b0bf2458cd4f",
+      "size_bytes": 1718
+    },
+    {
+      "relative_path": "block_summaries/llama_block02_high_trigger1.json",
+      "sha256": "996c68be44c30a4521e397945c5973b7445918be32b919d3a8996b1fa5b67fb3",
+      "size_bytes": 1728
+    },
+    {
+      "relative_path": "block_summaries/llama_block03_low_trigger16.json",
+      "sha256": "6e270cb90a0d09b9bf0aee5defcf245c07b86c9de465e67ecddc0c85bfd925d3",
+      "size_bytes": 1726
+    },
+    {
+      "relative_path": "block_summaries/llama_block04_high_trigger16.json",
+      "sha256": "035c4c0978a291b4a0335681d0baad8ca2bb3ee1b194f5348cc0779a35915673",
+      "size_bytes": 1736
+    },
+    {
+      "relative_path": "block_summaries/llama_block05_low_trigger32.json",
+      "sha256": "3fe9aec86a4034bbbd3bd524b0069741affaad6acdfac35183499c6a1fc1f3bc",
+      "size_bytes": 1726
+    },
+    {
+      "relative_path": "block_summaries/llama_block06_high_trigger32.json",
+      "sha256": "73c4aab95b4ed959547ec9d97fc4d59def5e5b6e7be7a45cdd84d3fdcbcbf714",
+      "size_bytes": 1736
+    },
+    {
+      "relative_path": "block_summaries/llama_block07_low_trigger16.json",
+      "sha256": "0f00e3912b5e459e2415732b36f6f8d387e7acdcc8c159b910034ed1c0a39ad8",
+      "size_bytes": 1726
+    },
+    {
+      "relative_path": "block_summaries/llama_block08_high_trigger16.json",
+      "sha256": "9af2c1fdbf7a73c6e046bf3cc61800f3fcfaeeffcb888d2d9c1611ded30d4fd0",
+      "size_bytes": 1736
+    },
+    {
+      "relative_path": "block_summaries/llama_block09_low_trigger32.json",
+      "sha256": "2b4cad1543129a6ef7a3e0e467cd6316d60b61f4ff0f19eaf77be807762f6475",
+      "size_bytes": 1726
+    },
+    {
+      "relative_path": "block_summaries/llama_block10_high_trigger32.json",
+      "sha256": "24ec52b756f1c49e0c2baa8665819c7fb3d1c52a64adf2aa0563154069192b73",
+      "size_bytes": 1736
+    },
+    {
+      "relative_path": "block_summaries/llama_block11_low_trigger1.json",
+      "sha256": "8b4b017bcab6a9641a1975eeda384bf797bd536a77d297882a566e04dcc1b0cb",
+      "size_bytes": 1718
+    },
+    {
+      "relative_path": "block_summaries/llama_block12_high_trigger1.json",
+      "sha256": "ae8a3b991be3d0ecdef45e93fbc298d499d188b4c55036128c7585ae133c1cbd",
+      "size_bytes": 1728
+    },
+    {
+      "relative_path": "episodes/llama_off0_conc4_trigger16_no_burst_rep1.json",
+      "sha256": "79fa25cfc60aefaf59fd0b4af5d6b901f69babc1309632c7197bb1dd6c4fe5b1",
+      "size_bytes": 1279883
+    },
+    {
+      "relative_path": "episodes/llama_off0_conc4_trigger16_no_burst_rep2.json",
+      "sha256": "49ed5d7aebb444457df2ce3ee364f304d81968f71e9e87674f458af05289b7eb",
+      "size_bytes": 1286746
+    },
+    {
+      "relative_path": "episodes/llama_off0_conc4_trigger16_prefill_burst_rep1.json",
+      "sha256": "9f86d68682af1f59427293dca3dbbbe191b76f6f0433690254983492c4649f5f",
+      "size_bytes": 1792585
+    },
+    {
+      "relative_path": "episodes/llama_off0_conc4_trigger16_prefill_burst_rep2.json",
+      "sha256": "dd5303e9c020c96f785277f9e73b9ade8540833381fdb6bbe68db48221fc3a54",
+      "size_bytes": 1799338
+    },
+    {
+      "relative_path": "episodes/llama_off0_conc4_trigger1_no_burst_rep1.json",
+      "sha256": "16201db2fb0f6d11485421100e07d1714e4895536c263eb5ecd3bd04c8586906",
+      "size_bytes": 1279996
+    },
+    {
+      "relative_path": "episodes/llama_off0_conc4_trigger1_no_burst_rep2.json",
+      "sha256": "5319a77016b862ac8f39013c44c15fb266766a2b6328c491d6370b82157784dc",
+      "size_bytes": 1286839
+    },
+    {
+      "relative_path": "episodes/llama_off0_conc4_trigger1_prefill_burst_rep1.json",
+      "sha256": "4fc99607affc2ecb3329d0da0ec2ead313f1a03b3d881a37c698c4bb607c36ac",
+      "size_bytes": 1792433
+    },
+    {
+      "relative_path": "episodes/llama_off0_conc4_trigger1_prefill_burst_rep2.json",
+      "sha256": "6b64e6fcd4b1d02b3469df3e25732c04f123ee059e6abd4cfecb147ed97515c1",
+      "size_bytes": 1799529
+    },
+    {
+      "relative_path": "episodes/llama_off0_conc4_trigger32_no_burst_rep1.json",
+      "sha256": "f6a442d244f284a3a4326c9036aa0507ed09e41961932b50b741ee7d2c76ab63",
+      "size_bytes": 1280162
+    },
+    {
+      "relative_path": "episodes/llama_off0_conc4_trigger32_no_burst_rep2.json",
+      "sha256": "4fd68711f61612089a632625032fbc4ce65467db77cd7e45b2f82de4c422ca78",
+      "size_bytes": 1286844
+    },
+    {
+      "relative_path": "episodes/llama_off0_conc4_trigger32_prefill_burst_rep1.json",
+      "sha256": "aeb432c42dc1538ad7b458db87e64a50aa86060608b8578683fa4df9b7a15e8e",
+      "size_bytes": 1792782
+    },
+    {
+      "relative_path": "episodes/llama_off0_conc4_trigger32_prefill_burst_rep2.json",
+      "sha256": "61bded42e1852ccc5e66d870b041dbe7063f89a21db1186dbeb8deed78044536",
+      "size_bytes": 1799499
+    },
+    {
+      "relative_path": "episodes/llama_off12_conc4_trigger16_no_burst_rep1.json",
+      "sha256": "a8bada09c11e913a37a90ac08fa94768e0dfc78f94b3e221c6bed9db228db31d",
+      "size_bytes": 1284699
+    },
+    {
+      "relative_path": "episodes/llama_off12_conc4_trigger16_no_burst_rep2.json",
+      "sha256": "731932e09f98f756bd9a5fdf7d725721bb9c192e519bbcd57fc4d0066b1892ee",
+      "size_bytes": 1291445
+    },
+    {
+      "relative_path": "episodes/llama_off12_conc4_trigger16_prefill_burst_rep1.json",
+      "sha256": "0b423d5a9d284dc3182580cb767109479fa7ed027e80f95e44bf3428e246c9ed",
+      "size_bytes": 1797764
+    },
+    {
+      "relative_path": "episodes/llama_off12_conc4_trigger16_prefill_burst_rep2.json",
+      "sha256": "a4faf3d42af9f1945060984bc4e359cd982014a99dc0dd2b6b28b6c3b8b70216",
+      "size_bytes": 1804407
+    },
+    {
+      "relative_path": "episodes/llama_off12_conc4_trigger1_no_burst_rep1.json",
+      "sha256": "318182804c9c8bf406e1ceeb18d2f027046bc05cba4d07ad032f101632c0e095",
+      "size_bytes": 1284649
+    },
+    {
+      "relative_path": "episodes/llama_off12_conc4_trigger1_no_burst_rep2.json",
+      "sha256": "ec9d68fd34ceb830f99151644114f8a6ef4235954d7481a139b77fa202f7281c",
+      "size_bytes": 1291343
+    },
+    {
+      "relative_path": "episodes/llama_off12_conc4_trigger1_prefill_burst_rep1.json",
+      "sha256": "986c24fdfbcf625cd1a809f1eccf977e4844749766665588bf014cc540432088",
+      "size_bytes": 1797454
+    },
+    {
+      "relative_path": "episodes/llama_off12_conc4_trigger1_prefill_burst_rep2.json",
+      "sha256": "c24487cd65ea00010476bcb4cf3e49b3b8e16afdfaa7155084850374ed1c9dd3",
+      "size_bytes": 1802946
+    },
+    {
+      "relative_path": "episodes/llama_off12_conc4_trigger32_no_burst_rep1.json",
+      "sha256": "c8fd1048e2a871393d7c3de2713da2e8e1e5d9159711e4dd3507e1bbef5388ee",
+      "size_bytes": 1285203
+    },
+    {
+      "relative_path": "episodes/llama_off12_conc4_trigger32_no_burst_rep2.json",
+      "sha256": "1c5fd10fb9a77d9525834765fb7466f848aef766c11fdfdf7f47a63acbcb7a9f",
+      "size_bytes": 1291450
+    },
+    {
+      "relative_path": "episodes/llama_off12_conc4_trigger32_prefill_burst_rep1.json",
+      "sha256": "bf6aa9ded4afecefb887901fcce3b575de98e265fdc75feb4ee45320f5f61fd9",
+      "size_bytes": 1799027
+    },
+    {
+      "relative_path": "episodes/llama_off12_conc4_trigger32_prefill_burst_rep2.json",
+      "sha256": "271559af686d28eef72bfd671adcdf2c4378e9d7d3df98bae222a7d8567979a6",
+      "size_bytes": 1804368
+    },
+    {
+      "relative_path": "official_run_manifest.json",
+      "sha256": "1ec059a9783cfa9b6a1a45b0c90efa2cf7e2b50d4afdebae284c51d20c8c55ad",
+      "size_bytes": 2169
+    },
+    {
+      "relative_path": "official_run_summary.json",
+      "sha256": "78945f9ef9d4127daf02cacc1f06d116e242c64c6f63b2edfbc037743ba5b8b0",
+      "size_bytes": 1348
+    },
+    {
+      "relative_path": "server_logs/llama_block01_low_trigger1.log",
+      "sha256": "8584b07d2d1c24c1e202d6b0c7cdfceb3760ed4c5d8bdf56f3b1762c69ffcd88",
+      "size_bytes": 20411
+    },
+    {
+      "relative_path": "server_logs/llama_block02_high_trigger1.log",
+      "sha256": "b42297e41821988b47f515aaf9c6bbf7f3418a71b0316e8de34dfd939899ccd1",
+      "size_bytes": 58036
+    },
+    {
+      "relative_path": "server_logs/llama_block03_low_trigger16.log",
+      "sha256": "d6ed4675faca93345578744a4dcd7ac311846b2e72b0ee22416e5b6a941d6055",
+      "size_bytes": 20411
+    },
+    {
+      "relative_path": "server_logs/llama_block04_high_trigger16.log",
+      "sha256": "5ac47179d9d51176097556dfb90c838e7ba481a85d7ed2137335c49c56674de7",
+      "size_bytes": 58273
+    },
+    {
+      "relative_path": "server_logs/llama_block05_low_trigger32.log",
+      "sha256": "cd87df44fbf311555b8fa564b9f5ed6220a260dd889d1c3374e3e85d96fb208c",
+      "size_bytes": 20411
+    },
+    {
+      "relative_path": "server_logs/llama_block06_high_trigger32.log",
+      "sha256": "6da735d699940d5ddbf335f184adeff663d9386f34f40fa7646fd9fff3fe9e05",
+      "size_bytes": 57561
+    },
+    {
+      "relative_path": "server_logs/llama_block07_low_trigger16.log",
+      "sha256": "6607b74934bbce7d4c14e868f8e9f3ea5f1b725e0929626e165dc738c755af1a",
+      "size_bytes": 20412
+    },
+    {
+      "relative_path": "server_logs/llama_block08_high_trigger16.log",
+      "sha256": "c9377357fac0bffd1b0892de0312f988f065c553982c6bee1695dbcafbcfb3a1",
+      "size_bytes": 57799
+    },
+    {
+      "relative_path": "server_logs/llama_block09_low_trigger32.log",
+      "sha256": "cb19becf8b374eba20a2dc6987585710cb0763e4ae66096a6b4912a3c57ed699",
+      "size_bytes": 20412
+    },
+    {
+      "relative_path": "server_logs/llama_block10_high_trigger32.log",
+      "sha256": "e3148e7397eaeabcc82a71ae5647d0d4fbf461126000f87913845e62871fab8c",
+      "size_bytes": 57562
+    },
+    {
+      "relative_path": "server_logs/llama_block11_low_trigger1.log",
+      "sha256": "ea5a58f85168b0edda6181ebe4784304efef40701b1353c53dbf7501c512337a",
+      "size_bytes": 20412
+    },
+    {
+      "relative_path": "server_logs/llama_block12_high_trigger1.log",
+      "sha256": "7e38cfae19d2f669c2c9be3ea9276c08ba81dd7e20213df921942b81210aada7",
+      "size_bytes": 57562
+    },
+    {
+      "relative_path": "stabilization/llama_block01_low_trigger1.json",
+      "sha256": "f3510d1fd6007b57de2b9c83ba6af62e749c2ac2ba0e4cfd238307e6858a5d96",
+      "size_bytes": 1275472
+    },
+    {
+      "relative_path": "stabilization/llama_block02_high_trigger1.json",
+      "sha256": "ae459ba9f92e419041d56cbe63353deeaa2aa717176f2c65444564a0f45b0f8c",
+      "size_bytes": 1282511
+    },
+    {
+      "relative_path": "stabilization/llama_block03_low_trigger16.json",
+      "sha256": "a389fd7381775c6f0a9372652ef842db1f20dc75c2957face275225a8dee2f3e",
+      "size_bytes": 1280263
+    },
+    {
+      "relative_path": "stabilization/llama_block04_high_trigger16.json",
+      "sha256": "c5c12e0b97af692050dd1416e951ab410363bc54abe83d7d95b9093c86f2e3f5",
+      "size_bytes": 1281332
+    },
+    {
+      "relative_path": "stabilization/llama_block05_low_trigger32.json",
+      "sha256": "f8aec9770ff083d14f119ca7e13cd7e1fe42c18c69fab0aedee4fd255913e21b",
+      "size_bytes": 1278108
+    },
+    {
+      "relative_path": "stabilization/llama_block06_high_trigger32.json",
+      "sha256": "00c148df1e4be4eec6f16f4817daf459cc28d9c8dc190ae0e01b342eafcbd3f8",
+      "size_bytes": 1293774
+    },
+    {
+      "relative_path": "stabilization/llama_block07_low_trigger16.json",
+      "sha256": "12eb79a2e69dae5d7ac4720572c227c2f17b50c81a0a6de878c72c7518d61565",
+      "size_bytes": 1276290
+    },
+    {
+      "relative_path": "stabilization/llama_block08_high_trigger16.json",
+      "sha256": "0045e4f9bfa932fc89ded4524766a18f46e62c5672eb578070d0adc99ab5f00e",
+      "size_bytes": 1283989
+    },
+    {
+      "relative_path": "stabilization/llama_block09_low_trigger32.json",
+      "sha256": "91ee590a594e3ec509047f49d13e05cbbac703ae34105f7a0366f5813638b1a8",
+      "size_bytes": 1279957
+    },
+    {
+      "relative_path": "stabilization/llama_block10_high_trigger32.json",
+      "sha256": "5aa24477e8ee6d5e84e68e3c109cb1545f60859e4dc6987082e8f65ac74d3eba",
+      "size_bytes": 1286619
+    },
+    {
+      "relative_path": "stabilization/llama_block11_low_trigger1.json",
+      "sha256": "ff15f867a12a8e5489b5f53948215a88a28c2a7c68a8b63eed8ab3871813f076",
+      "size_bytes": 1280301
+    },
+    {
+      "relative_path": "stabilization/llama_block12_high_trigger1.json",
+      "sha256": "969d62bfd5c9353f2b4a6be1e2e790106075cf4fa13b9bcb180cfa1365dcd6c1",
+      "size_bytes": 1283032
+    }
+  ],
+  "generated_utc": "2026-07-16T21:26:54.625957+00:00",
+  "schedule_fingerprint": "sha256:c1465aaf29bb35d483f7abd6a5d0dbfd76390c3e69c011eadb587e0efd7f1a2a",
+  "stabilization_file_count": 12
+}
