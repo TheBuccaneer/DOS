@@ -1,0 +1,59 @@
+{
+  "block_id": "llama_off0_conc8_rep03",
+  "cooldown_s": 5.0,
+  "end_utc": "2026-07-17T11:37:07.738945+00:00",
+  "episode_statuses": {
+    "llama_off0_conc8_trigger16_no_burst_rep03": "valid_complete",
+    "llama_off0_conc8_trigger16_prefill_burst_rep03": "valid_complete"
+  },
+  "executed_episode_ids": [
+    "llama_off0_conc8_trigger16_prefill_burst_rep03",
+    "llama_off0_conc8_trigger16_no_burst_rep03"
+  ],
+  "model": "llama",
+  "offload_gb": 0,
+  "overall_status": "block_complete",
+  "planned_episode_ids": [
+    "llama_off0_conc8_trigger16_prefill_burst_rep03",
+    "llama_off0_conc8_trigger16_no_burst_rep03"
+  ],
+  "post_stabilization_health": {
+    "checked_utc": "2026-07-17T11:36:50.211079+00:00",
+    "error_type": null,
+    "http_status": 200,
+    "ok": true
+  },
+  "repeat": 3,
+  "run_mode": "official",
+  "schedule_fingerprint": "sha256:c0712c24bfc13e15721771f747679ee17b94737c71dcb8ead3f4f9b3d42b1b9d",
+  "server_start": {
+    "cmd": [
+      "bash",
+      "/home/rock/projects/DOS/new/scripts/prefill_confirmation/run_server.sh",
+      "llama",
+      "0",
+      "127.0.0.1",
+      "8000"
+    ],
+    "pgid": 47287,
+    "pid": 47287,
+    "start_utc": "2026-07-17T11:36:17.810733+00:00"
+  },
+  "server_stop": {
+    "alive_after_stop": false,
+    "forced_kill": false,
+    "pgid": 47287,
+    "pid": 47287,
+    "port_free_after_stop": true,
+    "stop_end_utc": "2026-07-17T11:37:07.735867+00:00",
+    "stop_error": null,
+    "stop_start_utc": "2026-07-17T11:37:07.334610+00:00",
+    "stop_success": true,
+    "term_sent": true
+  },
+  "skipped_episode_ids": [],
+  "stabilization_status": "complete",
+  "start_utc": "2026-07-17T11:36:17.809789+00:00",
+  "state_label": "low",
+  "trigger_after_decode_tokens": 16
+}

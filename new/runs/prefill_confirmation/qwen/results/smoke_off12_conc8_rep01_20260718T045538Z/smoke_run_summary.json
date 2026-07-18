@@ -1,0 +1,71 @@
+{
+  "cooldown_s": 5.0,
+  "end_utc": "2026-07-18T05:18:33.233689+00:00",
+  "episode_statuses": {
+    "qwen_off12_conc8_trigger16_no_burst_rep01": "valid_complete",
+    "qwen_off12_conc8_trigger16_prefill_burst_rep01": "valid_complete"
+  },
+  "overall_status": "block_complete",
+  "readiness": {
+    "capability_summary": {
+      "available": true,
+      "has_completions_path": true,
+      "http_status": 200,
+      "note": "informational only -- the definitive capability check is the stabilization run",
+      "path_count": 21
+    },
+    "detected_model": "Qwen/Qwen2.5-7B-Instruct",
+    "health_status": 200,
+    "last_health_status": 200,
+    "last_models_status": 200,
+    "last_transient_error_type": "ConnectError",
+    "models_response": {
+      "data": [
+        "Qwen/Qwen2.5-7B-Instruct"
+      ]
+    },
+    "poll_count": 53,
+    "post_stabilization_health": {
+      "checked_utc": "2026-07-18T05:06:42.875251+00:00",
+      "error_type": null,
+      "http_status": 200,
+      "ok": true
+    },
+    "readiness_duration_s": 104.59136096900329,
+    "readiness_start_utc": "2026-07-18T04:56:04.869091+00:00",
+    "ready_utc": "2026-07-18T04:57:49.476987+00:00",
+    "server_start_utc": "2026-07-18T04:56:04.869078+00:00"
+  },
+  "result_schema_version": 5,
+  "run_mode": "smoke",
+  "runner_version": "run_prefill_confirmation-v1-timing1",
+  "schedule_fingerprint": "sha256:f272736db61d70091fa7767a360e8759340a719227bf656dd667a64e0a836bfb",
+  "server_start": {
+    "cmd": [
+      "bash",
+      "/home/rock/projects/DOS/new/scripts/prefill_confirmation/run_server.sh",
+      "qwen",
+      "12",
+      "127.0.0.1",
+      "8000"
+    ],
+    "pgid": 71824,
+    "pid": 71824,
+    "start_utc": "2026-07-18T04:56:04.869078+00:00"
+  },
+  "server_stop": {
+    "alive_after_stop": false,
+    "forced_kill": false,
+    "pgid": 71824,
+    "pid": 71824,
+    "port_free_after_stop": true,
+    "stop_end_utc": "2026-07-18T05:18:33.229243+00:00",
+    "stop_error": null,
+    "stop_start_utc": "2026-07-18T05:18:26.015359+00:00",
+    "stop_success": true,
+    "term_sent": true
+  },
+  "smoke_block": "qwen_off12_conc8_rep01",
+  "stabilization_status": "complete",
+  "start_utc": "2026-07-18T04:56:04.867799+00:00"
+}

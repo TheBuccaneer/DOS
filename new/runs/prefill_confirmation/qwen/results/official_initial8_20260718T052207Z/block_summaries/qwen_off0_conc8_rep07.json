@@ -1,0 +1,59 @@
+{
+  "block_id": "qwen_off0_conc8_rep07",
+  "cooldown_s": 5.0,
+  "end_utc": "2026-07-18T14:28:02.707626+00:00",
+  "episode_statuses": {
+    "qwen_off0_conc8_trigger16_no_burst_rep07": "valid_complete",
+    "qwen_off0_conc8_trigger16_prefill_burst_rep07": "valid_complete"
+  },
+  "executed_episode_ids": [
+    "qwen_off0_conc8_trigger16_no_burst_rep07",
+    "qwen_off0_conc8_trigger16_prefill_burst_rep07"
+  ],
+  "model": "qwen",
+  "offload_gb": 0,
+  "overall_status": "block_complete",
+  "planned_episode_ids": [
+    "qwen_off0_conc8_trigger16_no_burst_rep07",
+    "qwen_off0_conc8_trigger16_prefill_burst_rep07"
+  ],
+  "post_stabilization_health": {
+    "checked_utc": "2026-07-18T14:27:45.875595+00:00",
+    "error_type": null,
+    "http_status": 200,
+    "ok": true
+  },
+  "repeat": 7,
+  "run_mode": "official",
+  "schedule_fingerprint": "sha256:f272736db61d70091fa7767a360e8759340a719227bf656dd667a64e0a836bfb",
+  "server_start": {
+    "cmd": [
+      "bash",
+      "/home/rock/projects/DOS/new/scripts/prefill_confirmation/run_server.sh",
+      "qwen",
+      "0",
+      "127.0.0.1",
+      "8000"
+    ],
+    "pgid": 96566,
+    "pid": 96566,
+    "start_utc": "2026-07-18T14:27:13.905846+00:00"
+  },
+  "server_stop": {
+    "alive_after_stop": false,
+    "forced_kill": false,
+    "pgid": 96566,
+    "pid": 96566,
+    "port_free_after_stop": true,
+    "stop_end_utc": "2026-07-18T14:28:02.704106+00:00",
+    "stop_error": null,
+    "stop_start_utc": "2026-07-18T14:28:02.302838+00:00",
+    "stop_success": true,
+    "term_sent": true
+  },
+  "skipped_episode_ids": [],
+  "stabilization_status": "complete",
+  "start_utc": "2026-07-18T14:27:13.905007+00:00",
+  "state_label": "low",
+  "trigger_after_decode_tokens": 16
+}
