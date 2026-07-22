@@ -1,0 +1,40 @@
+Server-Waiting-Confirmation Schedule Audit
+============================================================
+schema_version: 1
+design_version: server-waiting-confirmation-v1
+campaign_name: qwen-server-waiting-confirmation
+seed: 20260720
+seed_namespace_tag: server-waiting-confirmation
+schedule_fingerprint: sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557
+model_key: qwen
+model: qwen (Qwen/Qwen2.5-7B-Instruct)
+offload values: [0, 12]
+server_max_num_seqs values: [4, 8]
+trigger positions: [16]
+conditions: ['no_burst', 'prefill_burst']
+initial repeats: 4
+block count: 16
+episode count: 32
+
+============================================================
+--- explicit checks ---
+  [PASS] 32 episodes
+  [PASS] 16 blocks
+  [PASS] only Qwen model_key/model_id
+  [PASS] 4 repeats, each with all 4 cells exactly once
+  [PASS] every block has exactly 2 episodes with both conditions
+  [PASS] every block has order_in_block == [1, 2]
+  [PASS] every block has restart sequence [1, 0]
+  [PASS] every cell has exactly 2 no_burst-first blocks
+  [PASS] every cell has exactly 2 prefill_burst-first blocks
+  [PASS] no duplicate episode_ids
+  [PASS] no duplicate episode_seeds
+  [PASS] correct seed derivation (episode/victim/burst)
+  [PASS] JSON/CSV consistency
+  [PASS] fingerprint correct
+  [PASS] no disallowed offload values
+  [PASS] no disallowed server_max_num_seqs values
+  [PASS] only trigger 16
+
+============================================================
+OVERALL: PASS

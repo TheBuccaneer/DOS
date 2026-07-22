@@ -1,0 +1,14 @@
+SERVER-WAITING RAW-TRACE AUDITOR V1 — FINAL PATCH RESULTS
+Date: 2026-07-21
+
+Python compilation: PASS
+Shell syntax: PASS
+_active_cohort.py: 19/19 PASS
+Runner self-test: 20/20 PASS
+Schedule suite: 44/44 PASS
+Trigger/timing suite: 38/38 PASS
+Runner/fake integration: 342/342 PASS
+Raw-trace auditor suite: 21/21 PASS
+unittest discover: 24 tests, OK
+Protected base runner SHA-256: 981aba99aff820ea8fea3bef6df0e1e8bfb127df059695d4736d7702ef300b75
+No real GPU/vLLM/network run was started.
