@@ -1,0 +1,20 @@
+=== DIESEN BLOCK AN CHATGPT SENDEN ===
+COMPLETENESS_PASS=true
+RAW_RECONSTRUCTION_PASS=true
+NO_D_CLASSIFICATIONS=true
+SCIENTIFIC_SUMMARY_READY=true
+OUTER_MANIFEST_STATUS=PASS
+INNER_MANIFEST_STATUS=KNOWN_FINALIZATION_GAP
+classification_counts={'B': 8, 'C': 8}
+raw_token_classification_counts={'B': 8, 'C': 8}
+requests_reconstructed=704
+raw_sse_events_reconstructed=43392
+metrics_corroborated=32/32
+blocks_with_different_active_indices=16/16 ['qwen_off0_k4_rep01', 'qwen_off0_k4_rep02', 'qwen_off0_k4_rep03', 'qwen_off0_k4_rep04', 'qwen_off0_k8_rep01', 'qwen_off0_k8_rep02', 'qwen_off0_k8_rep03', 'qwen_off0_k8_rep04', 'qwen_off12_k4_rep01', 'qwen_off12_k4_rep02', 'qwen_off12_k4_rep03', 'qwen_off12_k4_rep04', 'qwen_off12_k8_rep01', 'qwen_off12_k8_rep02', 'qwen_off12_k8_rep03', 'qwen_off12_k8_rep04']
+cell offload=0 k=4: classes={'C': 4}, TPOT_med=1.000854, ITL_med=1.033812, Completion_delta_med_ms=3.50, TTFT_delta_med_ms=1.62, TokenSpan_delta_med_ms=1.04, Tail_delta_med_ms=0.06, after_active_med_s=6.23, remaining_all_med_s=-0.40
+cell offload=0 k=8: classes={'B': 4}, TPOT_med=0.999859, ITL_med=0.986806, Completion_delta_med_ms=-3.50, TTFT_delta_med_ms=-3.36, TokenSpan_delta_med_ms=-0.18, Tail_delta_med_ms=-0.06, after_active_med_s=2.57, remaining_all_med_s=2.17
+cell offload=12 k=4: classes={'C': 4}, TPOT_med=1.000029, ITL_med=1.000455, Completion_delta_med_ms=4.03, TTFT_delta_med_ms=-3.78, TokenSpan_delta_med_ms=2.68, Tail_delta_med_ms=-0.06, after_active_med_s=433.97, remaining_all_med_s=-12.68
+cell offload=12 k=8: classes={'B': 4}, TPOT_med=1.000016, ITL_med=1.000556, Completion_delta_med_ms=8.81, TTFT_delta_med_ms=3.65, TokenSpan_delta_med_ms=1.47, Tail_delta_med_ms=-0.02, after_active_med_s=141.93, remaining_all_med_s=121.35
+outlier_blocks=['qwen_off12_k8_rep01']
+outlier qwen_off12_k8_rep01: completion_delta_ms=2083.104, ttft_delta_ms=2080.476, token_span_delta_ms=2.157, tail_delta_ms=0.007, attribution=['TTFT/Startphase'], same_active_set=False, active_overlap=6/10
+scope=client-visible output only; no internal admission/prefill claim

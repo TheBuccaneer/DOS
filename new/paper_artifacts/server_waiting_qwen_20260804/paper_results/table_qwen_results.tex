@@ -1,0 +1,15 @@
+\begin{table}[t]
+\centering
+\caption{Client-visible burst-output regimes and active-cohort effects for Qwen2.5-7B-Instruct. Values are medians across four paired episodes per cell.}
+\label{tab:qwen-server-waiting}
+\begin{tabular}{rrlrrrr}
+\toprule
+Offload & $k$ & Class & TPOT ratio & Max-ITL ratio & Burst after active (s) & Remaining to all (s) \\
+\midrule
+0 & 4 & C4 & 1.000854 & 1.033812 & 6.23 & -0.40 \\
+0 & 8 & B4 & 0.999859 & 0.986806 & 2.57 & 2.17 \\
+12 & 4 & C4 & 1.000029 & 1.000455 & 433.97 & -12.68 \\
+12 & 8 & B4 & 1.000016 & 1.000556 & 141.93 & 121.35 \\
+\bottomrule
+\end{tabular}
+\end{table}

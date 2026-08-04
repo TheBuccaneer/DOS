@@ -1,0 +1,52 @@
+{
+  "CUDA_VISIBLE_DEVICES": "0",
+  "created_utc": "2026-08-03T18:30:43.848616+00:00",
+  "design_version": "server-waiting-confirmation-v1",
+  "environment_fingerprint": "sha256:089fafc2a7071a10e227c980e6e1f8d408b78072dc7e71f95cc0d476fbfe6015",
+  "file_hashes": {
+    "_active_cohort.py": "57c88a8410a16d7a85432b3a3684842e813d75b4f9388392279e9bacfbc26c8e",
+    "run_prefill_confirmation.py": "981aba99aff820ea8fea3bef6df0e1e8bfb127df059695d4736d7702ef300b75",
+    "run_server_waiting_confirmation.py": "007e7dda17ad7f6356d391b33c0efed06ce1478e65aca67e7c18189a37b3a44e",
+    "run_server_waiting_confirmation.sh": "06eeb038da93a37f0a29207911e835547986c566ade8edafe48a764e58e1eb25",
+    "run_server_waiting_server.sh": "a0bf0faa3f67052ce43534570a67c5c6069eb452f64e5cdca5667b25f2bac19e",
+    "server_waiting_confirmation_schedule.csv": "aefec3aae9f699aafbd0e42b8e2b712649d4b5b86a93c4f344f004278bbedf5b",
+    "server_waiting_confirmation_schedule.json": "d6de1db1471fc530bf53cb46cdd73cf53c951382db9afd94881b0c5dcef762c7",
+    "server_waiting_confirmation_schedule_audit.txt": "3211ff2f7dc281fbfc0ba330561beb5ec1ffb47b171c8249c5650352cbf34a15"
+  },
+  "git_commit": "47fd0c91f29b34cd6c8a61b8c4375a4081fc241a",
+  "git_dirty": false,
+  "gpu_list": [
+    {
+      "driver_version": "580.173.02",
+      "index": "0",
+      "memory_total": "24576 MiB",
+      "name": "NVIDIA GeForce RTX 3090",
+      "uuid": "GPU-5be23054-752f-101a-2506-deb2685e834c"
+    }
+  ],
+  "host": "127.0.0.1",
+  "hostname": "rock-tobefilledbyoem",
+  "httpx_version": "0.28.1",
+  "kernel": "7.0.0-28-generic",
+  "manifest_schema_version": 1,
+  "output_dir": "/home/rock/projects/DOS/new/runs/server_waiting_confirmation/qwen/official_campaign_fixed_20260803T183032Z",
+  "platform": "Linux-7.0.0-28-generic-x86_64-with-glibc2.43",
+  "port": 8000,
+  "python_executable": "/home/rock/projects/porto/.venv-py313-repair/bin/python3",
+  "python_version": "3.13.7",
+  "resolved_gpu": {
+    "driver_version": "580.173.02",
+    "index": "0",
+    "memory_total": "24576 MiB",
+    "name": "NVIDIA GeForce RTX 3090",
+    "uuid": "GPU-5be23054-752f-101a-2506-deb2685e834c"
+  },
+  "result_schema_version": 6,
+  "run_mode": "official",
+  "runner_version": "run_server_waiting_confirmation-v4",
+  "schedule_fingerprint": "sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557",
+  "schedule_seed": 20260720,
+  "torch_version": "2.10.0",
+  "transformers_version": "4.57.6",
+  "vllm_version": "0.17.1"
+}

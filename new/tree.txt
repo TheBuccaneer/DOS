@@ -1,0 +1,2590 @@
+.
+├── analysis
+├── artifacts
+│   └── workshop_prefill_snapshot
+│       ├── audits
+│       │   ├── chunk_budget_LAST_OFFICIAL_OUTPUT.txt
+│       │   └── chunked_prefill_audit.txt
+│       ├── examples
+│       │   └── episode_prefill_burst_example.json
+│       ├── README.md
+│       ├── runner
+│       │   ├── make_chunk_budget_schedule.py
+│       │   ├── run_chunk_budget_screen.py
+│       │   ├── run_chunk_budget_screen.sh
+│       │   └── run_server.sh
+│       ├── schedules
+│       │   ├── chunk_budget_schedule_audit.txt
+│       │   ├── chunk_budget_schedule.csv
+│       │   ├── chunk_budget_schedule.json
+│       │   ├── prefill_screen_schedule_audit.txt
+│       │   ├── prefill_screen_schedule.csv
+│       │   └── prefill_screen_schedule.json
+│       └── SHA256SUMS.txt
+├── logs
+│   ├── chunk_budget_screen
+│   │   ├── run_chunk_budget_screen_20260716T070550Z_pid101358.log
+│   │   ├── run_chunk_budget_screen_20260716T070911Z_pid102759.log
+│   │   ├── run_chunk_budget_screen_20260716T075518Z_pid109344.log
+│   │   ├── run_chunk_budget_screen_20260716T075906Z_pid111265.log
+│   │   └── server
+│   │       ├── server_llama_offload0_budget1024_20260716T082747Z.log
+│   │       ├── server_llama_offload0_budget1024_20260716T095118Z.log
+│   │       ├── server_llama_offload0_budget1024_20260716T114406Z.log
+│   │       ├── server_llama_offload0_budget2048_20260716T085549Z.log
+│   │       ├── server_llama_offload0_budget2048_20260716T101926Z.log
+│   │       ├── server_llama_offload0_budget2048_20260716T104821Z.log
+│   │       ├── server_llama_offload0_budget512_20260716T070604Z.log
+│   │       ├── server_llama_offload0_budget512_20260716T075918Z.log
+│   │       ├── server_llama_offload0_budget512_20260716T104718Z.log
+│   │       ├── server_llama_offload0_budget512_20260716T111611Z.log
+│   │       ├── server_llama_offload12_budget1024_20260716T082858Z.log
+│   │       ├── server_llama_offload12_budget1024_20260716T092413Z.log
+│   │       ├── server_llama_offload12_budget1024_20260716T114509Z.log
+│   │       ├── server_llama_offload12_budget2048_20260716T085656Z.log
+│   │       ├── server_llama_offload12_budget2048_20260716T095222Z.log
+│   │       ├── server_llama_offload12_budget2048_20260716T104924Z.log
+│   │       ├── server_llama_offload12_budget512_20260716T070925Z.log
+│   │       ├── server_llama_offload12_budget512_20260716T080028Z.log
+│   │       ├── server_llama_offload12_budget512_20260716T102030Z.log
+│   │       └── server_llama_offload12_budget512_20260716T111715Z.log
+│   ├── client
+│   │   ├── client_llama_offload0_20260704_082226.log
+│   │   ├── client_llama_offload0_20260704_082344.log
+│   │   ├── client_llama_offload12_20260705_074727.log
+│   │   ├── client_llama_offload12_20260705_081011.log
+│   │   ├── client_llama_offload16_20260706_052751.log
+│   │   ├── client_llama_offload16_20260706_054524.log
+│   │   ├── client_llama_offload16_20260706_101354.log
+│   │   ├── client_llama_offload16_20260707_082004.log
+│   │   ├── client_llama_offload16_20260707_083402.log
+│   │   ├── client_llama_offload2_20260704_085752.log
+│   │   ├── client_llama_offload2_20260704_090623.log
+│   │   ├── client_llama_offload4_20260704_120006.log
+│   │   ├── client_llama_offload4_20260704_122006.log
+│   │   ├── client_llama_offload8_20260704_174323.log
+│   │   ├── client_llama_offload8_20260704_175609.log
+│   │   ├── client_qwen_offload0_20260710_173359.log
+│   │   ├── client_qwen_offload0_20260710_173500.log
+│   │   ├── client_qwen_offload12_20260708_192350.log
+│   │   ├── client_qwen_offload12_20260708_200540.log
+│   │   ├── client_qwen_offload16_20260707_212618.log
+│   │   ├── client_qwen_offload16_20260708_054512.log
+│   │   ├── client_qwen_offload16_20260710_182436.log
+│   │   ├── client_qwen_offload16_20260710_185813.log
+│   │   ├── client_qwen_offload2_20260711_070559.log
+│   │   ├── client_qwen_offload2_20260711_071345.log
+│   │   ├── client_qwen_offload4_20260710_220734.log
+│   │   ├── client_qwen_offload4_20260710_222226.log
+│   │   ├── client_qwen_offload8_20260709_192924.log
+│   │   └── client_qwen_offload8_20260709_200458.log
+│   ├── phase_a
+│   │   ├── run_phase_a_20260713T174019Z_pid8628.log
+│   │   ├── run_phase_a_20260714T151153Z_pid160489.log
+│   │   ├── run_phase_a_20260714T153252Z_pid164956.log
+│   │   ├── run_phase_a_20260714T154136Z_pid166930.log
+│   │   ├── run_phase_a_20260715T065136Z_pid24082.log
+│   │   ├── run_phase_a_20260715T073627Z_pid27792.log
+│   │   ├── run_phase_a_20260715T073945Z_pid29122.log
+│   │   ├── run_phase_a_20260715T084700Z_pid37486.log
+│   │   └── run_phase_a_20260715T095759Z_pid47085.log
+│   ├── prefill_confirmation
+│   │   ├── run_prefill_confirmation_20260717T075646Z_pid34145.log
+│   │   ├── run_prefill_confirmation_20260717T075735Z_pid34220.log
+│   │   ├── run_prefill_confirmation_20260717T080442Z_pid34834.log
+│   │   ├── run_prefill_confirmation_20260717T083059Z_pid39046.log
+│   │   ├── run_prefill_confirmation_20260718T045553Z_pid71484.log
+│   │   ├── run_prefill_confirmation_20260718T052221Z_pid72728.log
+│   │   └── server
+│   │       ├── server_llama_offload0_20260717T093307Z.log
+│   │       ├── server_llama_offload0_20260717T093401Z.log
+│   │       ├── server_llama_offload0_20260717T102006Z.log
+│   │       ├── server_llama_offload0_20260717T111427Z.log
+│   │       ├── server_llama_offload0_20260717T113617Z.log
+│   │       ├── server_llama_offload0_20260717T113707Z.log
+│   │       ├── server_llama_offload0_20260717T130930Z.log
+│   │       ├── server_llama_offload0_20260717T133119Z.log
+│   │       ├── server_llama_offload0_20260717T135900Z.log
+│   │       ├── server_llama_offload0_20260717T152014Z.log
+│   │       ├── server_llama_offload0_20260717T162702Z.log
+│   │       ├── server_llama_offload0_20260717T164203Z.log
+│   │       ├── server_llama_offload0_20260717T165706Z.log
+│   │       ├── server_llama_offload0_20260717T174256Z.log
+│   │       ├── server_llama_offload0_20260717T180434Z.log
+│   │       ├── server_llama_offload0_20260717T184421Z.log
+│   │       ├── server_llama_offload12_20260717T080458Z.log
+│   │       ├── server_llama_offload12_20260717T083111Z.log
+│   │       ├── server_llama_offload12_20260717T090600Z.log
+│   │       ├── server_llama_offload12_20260717T095313Z.log
+│   │       ├── server_llama_offload12_20260717T103915Z.log
+│   │       ├── server_llama_offload12_20260717T111523Z.log
+│   │       ├── server_llama_offload12_20260717T115612Z.log
+│   │       ├── server_llama_offload12_20260717T131020Z.log
+│   │       ├── server_llama_offload12_20260717T133215Z.log
+│   │       ├── server_llama_offload12_20260717T141406Z.log
+│   │       ├── server_llama_offload12_20260717T145259Z.log
+│   │       ├── server_llama_offload12_20260717T152106Z.log
+│   │       ├── server_llama_offload12_20260717T154208Z.log
+│   │       ├── server_llama_offload12_20260717T171607Z.log
+│   │       ├── server_llama_offload12_20260717T174346Z.log
+│   │       ├── server_llama_offload12_20260717T182334Z.log
+│   │       ├── server_llama_offload12_20260717T185918Z.log
+│   │       ├── server_llama_offload8_20260717T085146Z.log
+│   │       ├── server_llama_offload8_20260717T093459Z.log
+│   │       ├── server_llama_offload8_20260717T102056Z.log
+│   │       ├── server_llama_offload8_20260717T110015Z.log
+│   │       ├── server_llama_offload8_20260717T113802Z.log
+│   │       ├── server_llama_offload8_20260717T122307Z.log
+│   │       ├── server_llama_offload8_20260717T123717Z.log
+│   │       ├── server_llama_offload8_20260717T125525Z.log
+│   │       ├── server_llama_offload8_20260717T135955Z.log
+│   │       ├── server_llama_offload8_20260717T143453Z.log
+│   │       ├── server_llama_offload8_20260717T160854Z.log
+│   │       ├── server_llama_offload8_20260717T162752Z.log
+│   │       ├── server_llama_offload8_20260717T164258Z.log
+│   │       ├── server_llama_offload8_20260717T165803Z.log
+│   │       ├── server_llama_offload8_20260717T180524Z.log
+│   │       ├── server_llama_offload8_20260717T184516Z.log
+│   │       ├── server_qwen_offload0_20260718T052233Z.log
+│   │       ├── server_qwen_offload0_20260718T064903Z.log
+│   │       ├── server_qwen_offload0_20260718T064956Z.log
+│   │       ├── server_qwen_offload0_20260718T073238Z.log
+│   │       ├── server_qwen_offload0_20260718T092743Z.log
+│   │       ├── server_qwen_offload0_20260718T094350Z.log
+│   │       ├── server_qwen_offload0_20260718T100430Z.log
+│   │       ├── server_qwen_offload0_20260718T104243Z.log
+│   │       ├── server_qwen_offload0_20260718T120011Z.log
+│   │       ├── server_qwen_offload0_20260718T123831Z.log
+│   │       ├── server_qwen_offload0_20260718T134507Z.log
+│   │       ├── server_qwen_offload0_20260718T134601Z.log
+│   │       ├── server_qwen_offload0_20260718T142620Z.log
+│   │       ├── server_qwen_offload0_20260718T142713Z.log
+│   │       ├── server_qwen_offload0_20260718T155328Z.log
+│   │       ├── server_qwen_offload0_20260718T163801Z.log
+│   │       ├── server_qwen_offload12_20260718T045604Z.log
+│   │       ├── server_qwen_offload12_20260718T054317Z.log
+│   │       ├── server_qwen_offload12_20260718T060522Z.log
+│   │       ├── server_qwen_offload12_20260718T071030Z.log
+│   │       ├── server_qwen_offload12_20260718T074840Z.log
+│   │       ├── server_qwen_offload12_20260718T083700Z.log
+│   │       ├── server_qwen_offload12_20260718T090535Z.log
+│   │       ├── server_qwen_offload12_20260718T102039Z.log
+│   │       ├── server_qwen_offload12_20260718T104332Z.log
+│   │       ├── server_qwen_offload12_20260718T113141Z.log
+│   │       ├── server_qwen_offload12_20260718T120105Z.log
+│   │       ├── server_qwen_offload12_20260718T123920Z.log
+│   │       ├── server_qwen_offload12_20260718T130756Z.log
+│   │       ├── server_qwen_offload12_20260718T142802Z.log
+│   │       ├── server_qwen_offload12_20260718T150512Z.log
+│   │       ├── server_qwen_offload12_20260718T160937Z.log
+│   │       ├── server_qwen_offload12_20260718T163850Z.log
+│   │       ├── server_qwen_offload8_20260718T052325Z.log
+│   │       ├── server_qwen_offload8_20260718T063352Z.log
+│   │       ├── server_qwen_offload8_20260718T065045Z.log
+│   │       ├── server_qwen_offload8_20260718T073332Z.log
+│   │       ├── server_qwen_offload8_20260718T081717Z.log
+│   │       ├── server_qwen_offload8_20260718T092832Z.log
+│   │       ├── server_qwen_offload8_20260718T094444Z.log
+│   │       ├── server_qwen_offload8_20260718T100524Z.log
+│   │       ├── server_qwen_offload8_20260718T111159Z.log
+│   │       ├── server_qwen_offload8_20260718T122318Z.log
+│   │       ├── server_qwen_offload8_20260718T132959Z.log
+│   │       ├── server_qwen_offload8_20260718T134650Z.log
+│   │       ├── server_qwen_offload8_20260718T140632Z.log
+│   │       ├── server_qwen_offload8_20260718T144957Z.log
+│   │       ├── server_qwen_offload8_20260718T153337Z.log
+│   │       └── server_qwen_offload8_20260718T155421Z.log
+│   ├── prefill_screen
+│   │   ├── run_prefill_screen_20260715T202502Z_pid72033.log
+│   │   ├── run_prefill_screen_20260715T202850Z_pid73252.log
+│   │   ├── run_prefill_screen_20260715T211205Z_pid75121.log
+│   │   └── server
+│   │       ├── server_llama_offload0_20260715T202515Z.log
+│   │       ├── server_llama_offload0_20260715T211218Z.log
+│   │       ├── server_llama_offload0_20260715T223027Z.log
+│   │       ├── server_llama_offload0_20260715T223147Z.log
+│   │       ├── server_llama_offload12_20260715T202902Z.log
+│   │       ├── server_llama_offload12_20260715T211339Z.log
+│   │       ├── server_llama_offload12_20260715T215215Z.log
+│   │       └── server_llama_offload12_20260715T223306Z.log
+│   ├── prefill_trigger_sweep
+│   │   ├── run_prefill_trigger_sweep_20260716T183407Z_pid13832.log
+│   │   ├── run_prefill_trigger_sweep_20260716T184015Z_pid17363.log
+│   │   └── server
+│   │       ├── server_llama_offload0_20260716T183419Z.log
+│   │       ├── server_llama_offload0_20260716T184027Z.log
+│   │       ├── server_llama_offload0_20260716T190820Z.log
+│   │       ├── server_llama_offload0_20260716T193625Z.log
+│   │       ├── server_llama_offload0_20260716T200358Z.log
+│   │       ├── server_llama_offload0_20260716T203144Z.log
+│   │       ├── server_llama_offload0_20260716T205919Z.log
+│   │       ├── server_llama_offload12_20260716T184122Z.log
+│   │       ├── server_llama_offload12_20260716T190915Z.log
+│   │       ├── server_llama_offload12_20260716T193720Z.log
+│   │       ├── server_llama_offload12_20260716T200453Z.log
+│   │       ├── server_llama_offload12_20260716T203239Z.log
+│   │       └── server_llama_offload12_20260716T210014Z.log
+│   └── server
+│       ├── server_llama_offload0_20260704_082108.log
+│       ├── server_llama_offload0_20260714T151206Z.log
+│       ├── server_llama_offload0_20260714T153305Z.log
+│       ├── server_llama_offload0_20260714T154149Z.log
+│       ├── server_llama_offload0_20260715T095811Z.log
+│       ├── server_llama_offload0_20260715T111629Z.log
+│       ├── server_llama_offload0_20260715T111748Z.log
+│       ├── server_llama_offload0_20260715T123638Z.log
+│       ├── server_llama_offload0_20260715T123756Z.log
+│       ├── server_llama_offload12_20260705_074049.log
+│       ├── server_llama_offload12_20260715T065149Z.log
+│       ├── server_llama_offload12_20260715T095929Z.log
+│       ├── server_llama_offload12_20260715T103753Z.log
+│       ├── server_llama_offload12_20260715T111906Z.log
+│       ├── server_llama_offload12_20260715T115755Z.log
+│       ├── server_llama_offload12_20260715T123915Z.log
+│       ├── server_llama_offload16_20260706_052025.log
+│       ├── server_llama_offload16_20260707_081231.log
+│       ├── server_llama_offload2_20260704_085629.log
+│       ├── server_llama_offload4_20260704_115738.log
+│       ├── server_llama_offload8_20260704_173353.log
+│       ├── server_qwen_offload0_20260710_173318.log
+│       ├── server_qwen_offload0_20260715T073640Z.log
+│       ├── server_qwen_offload0_20260715T131802Z.log
+│       ├── server_qwen_offload0_20260715T144121Z.log
+│       ├── server_qwen_offload0_20260715T144237Z.log
+│       ├── server_qwen_offload0_20260715T160607Z.log
+│       ├── server_qwen_offload0_20260715T160722Z.log
+│       ├── server_qwen_offload12_20260708_191839.log
+│       ├── server_qwen_offload12_20260713T131036Z.log
+│       ├── server_qwen_offload12_20260715T073958Z.log
+│       ├── server_qwen_offload12_20260715T084713Z.log
+│       ├── server_qwen_offload12_20260715T131918Z.log
+│       ├── server_qwen_offload12_20260715T140011Z.log
+│       ├── server_qwen_offload12_20260715T144353Z.log
+│       ├── server_qwen_offload12_20260715T152458Z.log
+│       ├── server_qwen_offload12_20260715T160838Z.log
+│       ├── server_qwen_offload16_20260707_212042.log
+│       ├── server_qwen_offload16_20260710_181540.log
+│       ├── server_qwen_offload2_20260711_070343.log
+│       ├── server_qwen_offload4_20260710_220513.log
+│       └── server_qwen_offload8_20260709_192518.log
+├── README.md
+├── runs
+│   ├── audits
+│   │   └── phase_a_audit_report.json
+│   ├── chunk_budget_screen
+│   │   ├── chunk_budget_schedule_audit.txt
+│   │   ├── chunk_budget_schedule.csv
+│   │   ├── chunk_budget_schedule.json
+│   │   ├── LAST_OFFICIAL_OUTPUT.txt
+│   │   └── results
+│   │       ├── official_20260716T075455Z
+│   │       │   ├── Archive.zip
+│   │       │   ├── block_summaries
+│   │       │   │   ├── llama_block01_low_budget512.json
+│   │       │   │   ├── llama_block02_high_budget512.json
+│   │       │   │   ├── llama_block03_low_budget1024.json
+│   │       │   │   ├── llama_block04_high_budget1024.json
+│   │       │   │   ├── llama_block05_low_budget2048.json
+│   │       │   │   ├── llama_block06_high_budget2048.json
+│   │       │   │   ├── llama_block07_high_budget1024.json
+│   │       │   │   ├── llama_block08_low_budget1024.json
+│   │       │   │   ├── llama_block09_high_budget2048.json
+│   │       │   │   ├── llama_block10_low_budget2048.json
+│   │       │   │   ├── llama_block11_high_budget512.json
+│   │       │   │   ├── llama_block12_low_budget512.json
+│   │       │   │   ├── llama_block13_low_budget2048.json
+│   │       │   │   ├── llama_block14_high_budget2048.json
+│   │       │   │   ├── llama_block15_low_budget512.json
+│   │       │   │   ├── llama_block16_high_budget512.json
+│   │       │   │   ├── llama_block17_low_budget1024.json
+│   │       │   │   └── llama_block18_high_budget1024.json
+│   │       │   ├── episodes
+│   │       │   │   ├── llama_off0_budget1024_conc4_no_burst_rep1.json
+│   │       │   │   ├── llama_off0_budget1024_conc4_no_burst_rep2.json
+│   │       │   │   ├── llama_off0_budget1024_conc4_no_burst_rep3.json
+│   │       │   │   ├── llama_off0_budget1024_conc4_prefill_burst_rep1.json
+│   │       │   │   ├── llama_off0_budget1024_conc4_prefill_burst_rep2.json
+│   │       │   │   ├── llama_off0_budget1024_conc4_prefill_burst_rep3.json
+│   │       │   │   ├── llama_off0_budget2048_conc4_no_burst_rep1.json
+│   │       │   │   ├── llama_off0_budget2048_conc4_no_burst_rep2.json
+│   │       │   │   ├── llama_off0_budget2048_conc4_no_burst_rep3.json
+│   │       │   │   ├── llama_off0_budget2048_conc4_prefill_burst_rep1.json
+│   │       │   │   ├── llama_off0_budget2048_conc4_prefill_burst_rep2.json
+│   │       │   │   ├── llama_off0_budget2048_conc4_prefill_burst_rep3.json
+│   │       │   │   ├── llama_off0_budget512_conc4_no_burst_rep1.json
+│   │       │   │   ├── llama_off0_budget512_conc4_no_burst_rep2.json
+│   │       │   │   ├── llama_off0_budget512_conc4_no_burst_rep3.json
+│   │       │   │   ├── llama_off0_budget512_conc4_prefill_burst_rep1.json
+│   │       │   │   ├── llama_off0_budget512_conc4_prefill_burst_rep2.json
+│   │       │   │   ├── llama_off0_budget512_conc4_prefill_burst_rep3.json
+│   │       │   │   ├── llama_off12_budget1024_conc4_no_burst_rep1.json
+│   │       │   │   ├── llama_off12_budget1024_conc4_no_burst_rep2.json
+│   │       │   │   ├── llama_off12_budget1024_conc4_no_burst_rep3.json
+│   │       │   │   ├── llama_off12_budget1024_conc4_prefill_burst_rep1.json
+│   │       │   │   ├── llama_off12_budget1024_conc4_prefill_burst_rep2.json
+│   │       │   │   ├── llama_off12_budget1024_conc4_prefill_burst_rep3.json
+│   │       │   │   ├── llama_off12_budget2048_conc4_no_burst_rep1.json
+│   │       │   │   ├── llama_off12_budget2048_conc4_no_burst_rep2.json
+│   │       │   │   ├── llama_off12_budget2048_conc4_no_burst_rep3.json
+│   │       │   │   ├── llama_off12_budget2048_conc4_prefill_burst_rep1.json
+│   │       │   │   ├── llama_off12_budget2048_conc4_prefill_burst_rep2.json
+│   │       │   │   ├── llama_off12_budget2048_conc4_prefill_burst_rep3.json
+│   │       │   │   ├── llama_off12_budget512_conc4_no_burst_rep1.json
+│   │       │   │   ├── llama_off12_budget512_conc4_no_burst_rep2.json
+│   │       │   │   ├── llama_off12_budget512_conc4_no_burst_rep3.json
+│   │       │   │   ├── llama_off12_budget512_conc4_prefill_burst_rep1.json
+│   │       │   │   ├── llama_off12_budget512_conc4_prefill_burst_rep2.json
+│   │       │   │   └── llama_off12_budget512_conc4_prefill_burst_rep3.json
+│   │       │   ├── integrity_manifest.json
+│   │       │   ├── official_run_manifest.json
+│   │       │   ├── official_run_summary.json
+│   │       │   ├── server_logs
+│   │       │   │   ├── llama_block01_low_budget512.log
+│   │       │   │   ├── llama_block02_high_budget512.log
+│   │       │   │   ├── llama_block03_low_budget1024.log
+│   │       │   │   ├── llama_block04_high_budget1024.log
+│   │       │   │   ├── llama_block05_low_budget2048.log
+│   │       │   │   ├── llama_block06_high_budget2048.log
+│   │       │   │   ├── llama_block07_high_budget1024.log
+│   │       │   │   ├── llama_block08_low_budget1024.log
+│   │       │   │   ├── llama_block09_high_budget2048.log
+│   │       │   │   ├── llama_block10_low_budget2048.log
+│   │       │   │   ├── llama_block11_high_budget512.log
+│   │       │   │   ├── llama_block12_low_budget512.log
+│   │       │   │   ├── llama_block13_low_budget2048.log
+│   │       │   │   ├── llama_block14_high_budget2048.log
+│   │       │   │   ├── llama_block15_low_budget512.log
+│   │       │   │   ├── llama_block16_high_budget512.log
+│   │       │   │   ├── llama_block17_low_budget1024.log
+│   │       │   │   └── llama_block18_high_budget1024.log
+│   │       │   └── stabilization
+│   │       │       ├── llama_block01_low_budget512.json
+│   │       │       ├── llama_block02_high_budget512.json
+│   │       │       ├── llama_block03_low_budget1024.json
+│   │       │       ├── llama_block04_high_budget1024.json
+│   │       │       ├── llama_block05_low_budget2048.json
+│   │       │       ├── llama_block06_high_budget2048.json
+│   │       │       ├── llama_block07_high_budget1024.json
+│   │       │       ├── llama_block08_low_budget1024.json
+│   │       │       ├── llama_block09_high_budget2048.json
+│   │       │       ├── llama_block10_low_budget2048.json
+│   │       │       ├── llama_block11_high_budget512.json
+│   │       │       ├── llama_block12_low_budget512.json
+│   │       │       ├── llama_block13_low_budget2048.json
+│   │       │       ├── llama_block14_high_budget2048.json
+│   │       │       ├── llama_block15_low_budget512.json
+│   │       │       ├── llama_block16_high_budget512.json
+│   │       │       ├── llama_block17_low_budget1024.json
+│   │       │       └── llama_block18_high_budget1024.json
+│   │       ├── smoke_high512_20260716T070902Z
+│   │       │   ├── episodes
+│   │       │   │   ├── llama_off12_budget512_conc4_no_burst_rep1.json
+│   │       │   │   └── llama_off12_budget512_conc4_prefill_burst_rep1.json
+│   │       │   ├── server_logs
+│   │       │   │   └── llama_block02_high_budget512.log
+│   │       │   ├── smoke_run_summary.json
+│   │       │   └── stabilization
+│   │       │       └── llama_block02_high_budget512.json
+│   │       └── smoke_low512_20260716T070542Z
+│   │           ├── episodes
+│   │           │   ├── llama_off0_budget512_conc4_no_burst_rep1.json
+│   │           │   └── llama_off0_budget512_conc4_prefill_burst_rep1.json
+│   │           ├── server_logs
+│   │           │   └── llama_block01_low_budget512.log
+│   │           ├── smoke_run_summary.json
+│   │           └── stabilization
+│   │               └── llama_block01_low_budget512.json
+│   ├── phase_a
+│   │   ├── analysis
+│   │   │   └── official_20260715_115057
+│   │   │       ├── additive_did_results.csv
+│   │   │       ├── analysis_report.json
+│   │   │       ├── cell_summary.csv
+│   │   │       ├── episode_metrics.csv
+│   │   │       ├── leave_one_repeat_out.csv
+│   │   │       ├── log_did_results.csv
+│   │   │       └── model_level_log_did.csv
+│   │   ├── audits
+│   │   │   └── phase_a_audit_report.json
+│   │   ├── phase_a_schedule_audit.txt
+│   │   ├── phase_a_schedule.csv
+│   │   ├── phase_a_schedule.json
+│   │   └── results
+│   │       ├── official_20260715_115057
+│   │       │   ├── block_summaries
+│   │       │   │   ├── llama_block01_low.json
+│   │       │   │   ├── llama_block02_high.json
+│   │       │   │   ├── llama_block03_high.json
+│   │       │   │   ├── llama_block04_low.json
+│   │       │   │   ├── llama_block05_low.json
+│   │       │   │   ├── llama_block06_high.json
+│   │       │   │   ├── llama_block07_high.json
+│   │       │   │   ├── llama_block08_low.json
+│   │       │   │   ├── llama_block09_low.json
+│   │       │   │   ├── llama_block10_high.json
+│   │       │   │   ├── qwen_block01_low.json
+│   │       │   │   ├── qwen_block02_high.json
+│   │       │   │   ├── qwen_block03_high.json
+│   │       │   │   ├── qwen_block04_low.json
+│   │       │   │   ├── qwen_block05_low.json
+│   │       │   │   ├── qwen_block06_high.json
+│   │       │   │   ├── qwen_block07_high.json
+│   │       │   │   ├── qwen_block08_low.json
+│   │       │   │   ├── qwen_block09_low.json
+│   │       │   │   └── qwen_block10_high.json
+│   │       │   ├── episodes
+│   │       │   │   ├── llama_off0_conc4_fixed_burst_rep1.json
+│   │       │   │   ├── llama_off0_conc4_fixed_burst_rep2.json
+│   │       │   │   ├── llama_off0_conc4_fixed_burst_rep3.json
+│   │       │   │   ├── llama_off0_conc4_fixed_burst_rep4.json
+│   │       │   │   ├── llama_off0_conc4_fixed_burst_rep5.json
+│   │       │   │   ├── llama_off0_conc4_no_burst_rep1.json
+│   │       │   │   ├── llama_off0_conc4_no_burst_rep2.json
+│   │       │   │   ├── llama_off0_conc4_no_burst_rep3.json
+│   │       │   │   ├── llama_off0_conc4_no_burst_rep4.json
+│   │       │   │   ├── llama_off0_conc4_no_burst_rep5.json
+│   │       │   │   ├── llama_off0_conc8_fixed_burst_rep1.json
+│   │       │   │   ├── llama_off0_conc8_fixed_burst_rep2.json
+│   │       │   │   ├── llama_off0_conc8_fixed_burst_rep3.json
+│   │       │   │   ├── llama_off0_conc8_fixed_burst_rep4.json
+│   │       │   │   ├── llama_off0_conc8_fixed_burst_rep5.json
+│   │       │   │   ├── llama_off0_conc8_no_burst_rep1.json
+│   │       │   │   ├── llama_off0_conc8_no_burst_rep2.json
+│   │       │   │   ├── llama_off0_conc8_no_burst_rep3.json
+│   │       │   │   ├── llama_off0_conc8_no_burst_rep4.json
+│   │       │   │   ├── llama_off0_conc8_no_burst_rep5.json
+│   │       │   │   ├── llama_off12_conc4_fixed_burst_rep1.json
+│   │       │   │   ├── llama_off12_conc4_fixed_burst_rep2.json
+│   │       │   │   ├── llama_off12_conc4_fixed_burst_rep3.json
+│   │       │   │   ├── llama_off12_conc4_fixed_burst_rep4.json
+│   │       │   │   ├── llama_off12_conc4_fixed_burst_rep5.json
+│   │       │   │   ├── llama_off12_conc4_no_burst_rep1.json
+│   │       │   │   ├── llama_off12_conc4_no_burst_rep2.json
+│   │       │   │   ├── llama_off12_conc4_no_burst_rep3.json
+│   │       │   │   ├── llama_off12_conc4_no_burst_rep4.json
+│   │       │   │   ├── llama_off12_conc4_no_burst_rep5.json
+│   │       │   │   ├── llama_off12_conc8_fixed_burst_rep1.json
+│   │       │   │   ├── llama_off12_conc8_fixed_burst_rep2.json
+│   │       │   │   ├── llama_off12_conc8_fixed_burst_rep3.json
+│   │       │   │   ├── llama_off12_conc8_fixed_burst_rep4.json
+│   │       │   │   ├── llama_off12_conc8_fixed_burst_rep5.json
+│   │       │   │   ├── llama_off12_conc8_no_burst_rep1.json
+│   │       │   │   ├── llama_off12_conc8_no_burst_rep2.json
+│   │       │   │   ├── llama_off12_conc8_no_burst_rep3.json
+│   │       │   │   ├── llama_off12_conc8_no_burst_rep4.json
+│   │       │   │   ├── llama_off12_conc8_no_burst_rep5.json
+│   │       │   │   ├── qwen_off0_conc4_fixed_burst_rep1.json
+│   │       │   │   ├── qwen_off0_conc4_fixed_burst_rep2.json
+│   │       │   │   ├── qwen_off0_conc4_fixed_burst_rep3.json
+│   │       │   │   ├── qwen_off0_conc4_fixed_burst_rep4.json
+│   │       │   │   ├── qwen_off0_conc4_fixed_burst_rep5.json
+│   │       │   │   ├── qwen_off0_conc4_no_burst_rep1.json
+│   │       │   │   ├── qwen_off0_conc4_no_burst_rep2.json
+│   │       │   │   ├── qwen_off0_conc4_no_burst_rep3.json
+│   │       │   │   ├── qwen_off0_conc4_no_burst_rep4.json
+│   │       │   │   ├── qwen_off0_conc4_no_burst_rep5.json
+│   │       │   │   ├── qwen_off0_conc8_fixed_burst_rep1.json
+│   │       │   │   ├── qwen_off0_conc8_fixed_burst_rep2.json
+│   │       │   │   ├── qwen_off0_conc8_fixed_burst_rep3.json
+│   │       │   │   ├── qwen_off0_conc8_fixed_burst_rep4.json
+│   │       │   │   ├── qwen_off0_conc8_fixed_burst_rep5.json
+│   │       │   │   ├── qwen_off0_conc8_no_burst_rep1.json
+│   │       │   │   ├── qwen_off0_conc8_no_burst_rep2.json
+│   │       │   │   ├── qwen_off0_conc8_no_burst_rep3.json
+│   │       │   │   ├── qwen_off0_conc8_no_burst_rep4.json
+│   │       │   │   ├── qwen_off0_conc8_no_burst_rep5.json
+│   │       │   │   ├── qwen_off12_conc4_fixed_burst_rep1.json
+│   │       │   │   ├── qwen_off12_conc4_fixed_burst_rep2.json
+│   │       │   │   ├── qwen_off12_conc4_fixed_burst_rep3.json
+│   │       │   │   ├── qwen_off12_conc4_fixed_burst_rep4.json
+│   │       │   │   ├── qwen_off12_conc4_fixed_burst_rep5.json
+│   │       │   │   ├── qwen_off12_conc4_no_burst_rep1.json
+│   │       │   │   ├── qwen_off12_conc4_no_burst_rep2.json
+│   │       │   │   ├── qwen_off12_conc4_no_burst_rep3.json
+│   │       │   │   ├── qwen_off12_conc4_no_burst_rep4.json
+│   │       │   │   ├── qwen_off12_conc4_no_burst_rep5.json
+│   │       │   │   ├── qwen_off12_conc8_fixed_burst_rep1.json
+│   │       │   │   ├── qwen_off12_conc8_fixed_burst_rep2.json
+│   │       │   │   ├── qwen_off12_conc8_fixed_burst_rep3.json
+│   │       │   │   ├── qwen_off12_conc8_fixed_burst_rep4.json
+│   │       │   │   ├── qwen_off12_conc8_fixed_burst_rep5.json
+│   │       │   │   ├── qwen_off12_conc8_no_burst_rep1.json
+│   │       │   │   ├── qwen_off12_conc8_no_burst_rep2.json
+│   │       │   │   ├── qwen_off12_conc8_no_burst_rep3.json
+│   │       │   │   ├── qwen_off12_conc8_no_burst_rep4.json
+│   │       │   │   └── qwen_off12_conc8_no_burst_rep5.json
+│   │       │   ├── integrity_manifest.json
+│   │       │   ├── official_run_manifest.json
+│   │       │   ├── official_run_summary.json
+│   │       │   ├── server_logs
+│   │       │   │   ├── llama_block01_low.log
+│   │       │   │   ├── llama_block02_high.log
+│   │       │   │   ├── llama_block03_high.log
+│   │       │   │   ├── llama_block04_low.log
+│   │       │   │   ├── llama_block05_low.log
+│   │       │   │   ├── llama_block06_high.log
+│   │       │   │   ├── llama_block07_high.log
+│   │       │   │   ├── llama_block08_low.log
+│   │       │   │   ├── llama_block09_low.log
+│   │       │   │   ├── llama_block10_high.log
+│   │       │   │   ├── qwen_block01_low.log
+│   │       │   │   ├── qwen_block02_high.log
+│   │       │   │   ├── qwen_block03_high.log
+│   │       │   │   ├── qwen_block04_low.log
+│   │       │   │   ├── qwen_block05_low.log
+│   │       │   │   ├── qwen_block06_high.log
+│   │       │   │   ├── qwen_block07_high.log
+│   │       │   │   ├── qwen_block08_low.log
+│   │       │   │   ├── qwen_block09_low.log
+│   │       │   │   └── qwen_block10_high.log
+│   │       │   └── stabilization
+│   │       │       ├── llama_block01_low.json
+│   │       │       ├── llama_block02_high.json
+│   │       │       ├── llama_block03_high.json
+│   │       │       ├── llama_block04_low.json
+│   │       │       ├── llama_block05_low.json
+│   │       │       ├── llama_block06_high.json
+│   │       │       ├── llama_block07_high.json
+│   │       │       ├── llama_block08_low.json
+│   │       │       ├── llama_block09_low.json
+│   │       │       ├── llama_block10_high.json
+│   │       │       ├── qwen_block01_low.json
+│   │       │       ├── qwen_block02_high.json
+│   │       │       ├── qwen_block03_high.json
+│   │       │       ├── qwen_block04_low.json
+│   │       │       ├── qwen_block05_low.json
+│   │       │       ├── qwen_block06_high.json
+│   │       │       ├── qwen_block07_high.json
+│   │       │       ├── qwen_block08_low.json
+│   │       │       ├── qwen_block09_low.json
+│   │       │       └── qwen_block10_high.json
+│   │       ├── official_20260715_115057.zip
+│   │       ├── smoke_llama_high_20260715_085109
+│   │       │   ├── episodes
+│   │       │   │   ├── llama_off12_conc4_fixed_burst_rep1.json
+│   │       │   │   ├── llama_off12_conc4_no_burst_rep1.json
+│   │       │   │   ├── llama_off12_conc8_fixed_burst_rep1.json
+│   │       │   │   └── llama_off12_conc8_no_burst_rep1.json
+│   │       │   ├── server_logs
+│   │       │   │   └── llama_block02_high.log
+│   │       │   ├── smoke_run_summary.json
+│   │       │   └── stabilization
+│   │       │       └── llama_block02_high.json
+│   │       ├── smoke_llama_low_20260714_171133
+│   │       │   ├── server_logs
+│   │       │   │   └── llama_block01_low.log
+│   │       │   ├── smoke_run_summary.json
+│   │       │   └── stabilization
+│   │       │       └── llama_block01_low.json
+│   │       ├── smoke_llama_low_20260714_173234
+│   │       │   ├── server_logs
+│   │       │   │   └── llama_block01_low.log
+│   │       │   └── smoke_run_summary.json
+│   │       ├── smoke_llama_low_20260714_174117
+│   │       │   ├── episodes
+│   │       │   │   ├── llama_off0_conc4_fixed_burst_rep1.json
+│   │       │   │   ├── llama_off0_conc4_no_burst_rep1.json
+│   │       │   │   ├── llama_off0_conc8_fixed_burst_rep1.json
+│   │       │   │   └── llama_off0_conc8_no_burst_rep1.json
+│   │       │   ├── server_logs
+│   │       │   │   └── llama_block01_low.log
+│   │       │   ├── smoke_run_summary.json
+│   │       │   └── stabilization
+│   │       │       └── llama_block01_low.json
+│   │       ├── smoke_llama_low_20260714_174117.tar.gz
+│   │       ├── smoke_llama_low_20260714_174117.tar.gz.sha256
+│   │       ├── smoke_qwen_high_20260715_093929
+│   │       │   ├── episodes
+│   │       │   │   ├── qwen_off12_conc4_fixed_burst_rep1.json
+│   │       │   │   ├── qwen_off12_conc4_no_burst_rep1.json
+│   │       │   │   ├── qwen_off12_conc8_fixed_burst_rep1.json
+│   │       │   │   └── qwen_off12_conc8_no_burst_rep1.json
+│   │       │   ├── server_logs
+│   │       │   │   └── qwen_block02_high.log
+│   │       │   ├── smoke_run_summary.json
+│   │       │   └── stabilization
+│   │       │       └── qwen_block02_high.json
+│   │       ├── smoke_qwen_high_portwait30_20260715_104638
+│   │       │   ├── episodes
+│   │       │   │   ├── qwen_off12_conc4_fixed_burst_rep1.json
+│   │       │   │   ├── qwen_off12_conc4_no_burst_rep1.json
+│   │       │   │   ├── qwen_off12_conc8_fixed_burst_rep1.json
+│   │       │   │   └── qwen_off12_conc8_no_burst_rep1.json
+│   │       │   ├── server_logs
+│   │       │   │   └── qwen_block02_high.log
+│   │       │   ├── smoke_run_summary.json
+│   │       │   └── stabilization
+│   │       │       └── qwen_block02_high.json
+│   │       └── smoke_qwen_low_20260715_093607
+│   │           ├── episodes
+│   │           │   ├── qwen_off0_conc4_fixed_burst_rep1.json
+│   │           │   ├── qwen_off0_conc4_no_burst_rep1.json
+│   │           │   ├── qwen_off0_conc8_fixed_burst_rep1.json
+│   │           │   └── qwen_off0_conc8_no_burst_rep1.json
+│   │           ├── server_logs
+│   │           │   └── qwen_block01_low.log
+│   │           ├── smoke_run_summary.json
+│   │           └── stabilization
+│   │               └── qwen_block01_low.json
+│   ├── prefill_confirmation
+│   │   ├── analysis_export_20260718T175448Z
+│   │   │   ├── block_summaries.csv
+│   │   │   ├── cell_summaries.csv
+│   │   │   ├── episodes.csv
+│   │   │   ├── exposure_group_episode_summaries.csv
+│   │   │   ├── exposure_group_paired_effects.csv
+│   │   │   ├── interaction_contrasts_detail.csv
+│   │   │   ├── interaction_summaries.csv
+│   │   │   ├── metadata
+│   │   │   │   ├── llama
+│   │   │   │   │   ├── integrity_manifest.json
+│   │   │   │   │   ├── official_run_manifest.json
+│   │   │   │   │   └── official_run_summary.json
+│   │   │   │   └── qwen
+│   │   │   │       ├── integrity_manifest.json
+│   │   │   │       ├── official_run_manifest.json
+│   │   │   │       └── official_run_summary.json
+│   │   │   ├── model_comparison_unpaired.csv
+│   │   │   ├── paired_effects.csv
+│   │   │   ├── README.txt
+│   │   │   ├── REPORT.txt
+│   │   │   ├── stabilization.csv
+│   │   │   ├── validation.json
+│   │   │   └── victim_requests.csv
+│   │   ├── llama
+│   │   │   ├── prefill_confirmation_schedule_audit.txt
+│   │   │   ├── prefill_confirmation_schedule.csv
+│   │   │   ├── prefill_confirmation_schedule.json
+│   │   │   └── results
+│   │   │       ├── official_initial8_20260717T083031Z
+│   │   │       │   ├── block_summaries
+│   │   │       │   │   ├── llama_off0_conc4_rep01.json
+│   │   │       │   │   ├── llama_off0_conc4_rep02.json
+│   │   │       │   │   ├── llama_off0_conc4_rep03.json
+│   │   │       │   │   ├── llama_off0_conc4_rep04.json
+│   │   │       │   │   ├── llama_off0_conc4_rep05.json
+│   │   │       │   │   ├── llama_off0_conc4_rep06.json
+│   │   │       │   │   ├── llama_off0_conc4_rep07.json
+│   │   │       │   │   ├── llama_off0_conc4_rep08.json
+│   │   │       │   │   ├── llama_off0_conc8_rep01.json
+│   │   │       │   │   ├── llama_off0_conc8_rep02.json
+│   │   │       │   │   ├── llama_off0_conc8_rep03.json
+│   │   │       │   │   ├── llama_off0_conc8_rep04.json
+│   │   │       │   │   ├── llama_off0_conc8_rep05.json
+│   │   │       │   │   ├── llama_off0_conc8_rep06.json
+│   │   │       │   │   ├── llama_off0_conc8_rep07.json
+│   │   │       │   │   ├── llama_off0_conc8_rep08.json
+│   │   │       │   │   ├── llama_off12_conc4_rep01.json
+│   │   │       │   │   ├── llama_off12_conc4_rep02.json
+│   │   │       │   │   ├── llama_off12_conc4_rep03.json
+│   │   │       │   │   ├── llama_off12_conc4_rep04.json
+│   │   │       │   │   ├── llama_off12_conc4_rep05.json
+│   │   │       │   │   ├── llama_off12_conc4_rep06.json
+│   │   │       │   │   ├── llama_off12_conc4_rep07.json
+│   │   │       │   │   ├── llama_off12_conc4_rep08.json
+│   │   │       │   │   ├── llama_off12_conc8_rep01.json
+│   │   │       │   │   ├── llama_off12_conc8_rep02.json
+│   │   │       │   │   ├── llama_off12_conc8_rep03.json
+│   │   │       │   │   ├── llama_off12_conc8_rep04.json
+│   │   │       │   │   ├── llama_off12_conc8_rep05.json
+│   │   │       │   │   ├── llama_off12_conc8_rep06.json
+│   │   │       │   │   ├── llama_off12_conc8_rep07.json
+│   │   │       │   │   ├── llama_off12_conc8_rep08.json
+│   │   │       │   │   ├── llama_off8_conc4_rep01.json
+│   │   │       │   │   ├── llama_off8_conc4_rep02.json
+│   │   │       │   │   ├── llama_off8_conc4_rep03.json
+│   │   │       │   │   ├── llama_off8_conc4_rep04.json
+│   │   │       │   │   ├── llama_off8_conc4_rep05.json
+│   │   │       │   │   ├── llama_off8_conc4_rep06.json
+│   │   │       │   │   ├── llama_off8_conc4_rep07.json
+│   │   │       │   │   ├── llama_off8_conc4_rep08.json
+│   │   │       │   │   ├── llama_off8_conc8_rep01.json
+│   │   │       │   │   ├── llama_off8_conc8_rep02.json
+│   │   │       │   │   ├── llama_off8_conc8_rep03.json
+│   │   │       │   │   ├── llama_off8_conc8_rep04.json
+│   │   │       │   │   ├── llama_off8_conc8_rep05.json
+│   │   │       │   │   ├── llama_off8_conc8_rep06.json
+│   │   │       │   │   ├── llama_off8_conc8_rep07.json
+│   │   │       │   │   └── llama_off8_conc8_rep08.json
+│   │   │       │   ├── episodes
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_no_burst_rep01.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_no_burst_rep02.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_no_burst_rep03.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_no_burst_rep04.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_no_burst_rep05.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_no_burst_rep06.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_no_burst_rep07.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_no_burst_rep08.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_prefill_burst_rep01.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_prefill_burst_rep02.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_prefill_burst_rep03.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_prefill_burst_rep04.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_prefill_burst_rep05.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_prefill_burst_rep06.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_prefill_burst_rep07.json
+│   │   │       │   │   ├── llama_off0_conc4_trigger16_prefill_burst_rep08.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_no_burst_rep01.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_no_burst_rep02.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_no_burst_rep03.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_no_burst_rep04.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_no_burst_rep05.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_no_burst_rep06.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_no_burst_rep07.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_no_burst_rep08.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_prefill_burst_rep01.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_prefill_burst_rep02.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_prefill_burst_rep03.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_prefill_burst_rep04.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_prefill_burst_rep05.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_prefill_burst_rep06.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_prefill_burst_rep07.json
+│   │   │       │   │   ├── llama_off0_conc8_trigger16_prefill_burst_rep08.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_no_burst_rep01.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_no_burst_rep02.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_no_burst_rep03.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_no_burst_rep04.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_no_burst_rep05.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_no_burst_rep06.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_no_burst_rep07.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_no_burst_rep08.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_prefill_burst_rep01.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_prefill_burst_rep02.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_prefill_burst_rep03.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_prefill_burst_rep04.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_prefill_burst_rep05.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_prefill_burst_rep06.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_prefill_burst_rep07.json
+│   │   │       │   │   ├── llama_off12_conc4_trigger16_prefill_burst_rep08.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_no_burst_rep01.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_no_burst_rep02.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_no_burst_rep03.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_no_burst_rep04.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_no_burst_rep05.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_no_burst_rep06.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_no_burst_rep07.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_no_burst_rep08.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_prefill_burst_rep01.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_prefill_burst_rep02.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_prefill_burst_rep03.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_prefill_burst_rep04.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_prefill_burst_rep05.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_prefill_burst_rep06.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_prefill_burst_rep07.json
+│   │   │       │   │   ├── llama_off12_conc8_trigger16_prefill_burst_rep08.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_no_burst_rep01.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_no_burst_rep02.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_no_burst_rep03.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_no_burst_rep04.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_no_burst_rep05.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_no_burst_rep06.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_no_burst_rep07.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_no_burst_rep08.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_prefill_burst_rep01.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_prefill_burst_rep02.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_prefill_burst_rep03.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_prefill_burst_rep04.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_prefill_burst_rep05.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_prefill_burst_rep06.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_prefill_burst_rep07.json
+│   │   │       │   │   ├── llama_off8_conc4_trigger16_prefill_burst_rep08.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_no_burst_rep01.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_no_burst_rep02.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_no_burst_rep03.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_no_burst_rep04.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_no_burst_rep05.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_no_burst_rep06.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_no_burst_rep07.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_no_burst_rep08.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_prefill_burst_rep01.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_prefill_burst_rep02.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_prefill_burst_rep03.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_prefill_burst_rep04.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_prefill_burst_rep05.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_prefill_burst_rep06.json
+│   │   │       │   │   ├── llama_off8_conc8_trigger16_prefill_burst_rep07.json
+│   │   │       │   │   └── llama_off8_conc8_trigger16_prefill_burst_rep08.json
+│   │   │       │   ├── integrity_manifest.json
+│   │   │       │   ├── official_run_manifest.json
+│   │   │       │   ├── official_run_summary.json
+│   │   │       │   ├── server_logs
+│   │   │       │   │   ├── llama_off0_conc4_rep01.log
+│   │   │       │   │   ├── llama_off0_conc4_rep02.log
+│   │   │       │   │   ├── llama_off0_conc4_rep03.log
+│   │   │       │   │   ├── llama_off0_conc4_rep04.log
+│   │   │       │   │   ├── llama_off0_conc4_rep05.log
+│   │   │       │   │   ├── llama_off0_conc4_rep06.log
+│   │   │       │   │   ├── llama_off0_conc4_rep07.log
+│   │   │       │   │   ├── llama_off0_conc4_rep08.log
+│   │   │       │   │   ├── llama_off0_conc8_rep01.log
+│   │   │       │   │   ├── llama_off0_conc8_rep02.log
+│   │   │       │   │   ├── llama_off0_conc8_rep03.log
+│   │   │       │   │   ├── llama_off0_conc8_rep04.log
+│   │   │       │   │   ├── llama_off0_conc8_rep05.log
+│   │   │       │   │   ├── llama_off0_conc8_rep06.log
+│   │   │       │   │   ├── llama_off0_conc8_rep07.log
+│   │   │       │   │   ├── llama_off0_conc8_rep08.log
+│   │   │       │   │   ├── llama_off12_conc4_rep01.log
+│   │   │       │   │   ├── llama_off12_conc4_rep02.log
+│   │   │       │   │   ├── llama_off12_conc4_rep03.log
+│   │   │       │   │   ├── llama_off12_conc4_rep04.log
+│   │   │       │   │   ├── llama_off12_conc4_rep05.log
+│   │   │       │   │   ├── llama_off12_conc4_rep06.log
+│   │   │       │   │   ├── llama_off12_conc4_rep07.log
+│   │   │       │   │   ├── llama_off12_conc4_rep08.log
+│   │   │       │   │   ├── llama_off12_conc8_rep01.log
+│   │   │       │   │   ├── llama_off12_conc8_rep02.log
+│   │   │       │   │   ├── llama_off12_conc8_rep03.log
+│   │   │       │   │   ├── llama_off12_conc8_rep04.log
+│   │   │       │   │   ├── llama_off12_conc8_rep05.log
+│   │   │       │   │   ├── llama_off12_conc8_rep06.log
+│   │   │       │   │   ├── llama_off12_conc8_rep07.log
+│   │   │       │   │   ├── llama_off12_conc8_rep08.log
+│   │   │       │   │   ├── llama_off8_conc4_rep01.log
+│   │   │       │   │   ├── llama_off8_conc4_rep02.log
+│   │   │       │   │   ├── llama_off8_conc4_rep03.log
+│   │   │       │   │   ├── llama_off8_conc4_rep04.log
+│   │   │       │   │   ├── llama_off8_conc4_rep05.log
+│   │   │       │   │   ├── llama_off8_conc4_rep06.log
+│   │   │       │   │   ├── llama_off8_conc4_rep07.log
+│   │   │       │   │   ├── llama_off8_conc4_rep08.log
+│   │   │       │   │   ├── llama_off8_conc8_rep01.log
+│   │   │       │   │   ├── llama_off8_conc8_rep02.log
+│   │   │       │   │   ├── llama_off8_conc8_rep03.log
+│   │   │       │   │   ├── llama_off8_conc8_rep04.log
+│   │   │       │   │   ├── llama_off8_conc8_rep05.log
+│   │   │       │   │   ├── llama_off8_conc8_rep06.log
+│   │   │       │   │   ├── llama_off8_conc8_rep07.log
+│   │   │       │   │   └── llama_off8_conc8_rep08.log
+│   │   │       │   └── stabilization
+│   │   │       │       ├── llama_off0_conc4_rep01.json
+│   │   │       │       ├── llama_off0_conc4_rep02.json
+│   │   │       │       ├── llama_off0_conc4_rep03.json
+│   │   │       │       ├── llama_off0_conc4_rep04.json
+│   │   │       │       ├── llama_off0_conc4_rep05.json
+│   │   │       │       ├── llama_off0_conc4_rep06.json
+│   │   │       │       ├── llama_off0_conc4_rep07.json
+│   │   │       │       ├── llama_off0_conc4_rep08.json
+│   │   │       │       ├── llama_off0_conc8_rep01.json
+│   │   │       │       ├── llama_off0_conc8_rep02.json
+│   │   │       │       ├── llama_off0_conc8_rep03.json
+│   │   │       │       ├── llama_off0_conc8_rep04.json
+│   │   │       │       ├── llama_off0_conc8_rep05.json
+│   │   │       │       ├── llama_off0_conc8_rep06.json
+│   │   │       │       ├── llama_off0_conc8_rep07.json
+│   │   │       │       ├── llama_off0_conc8_rep08.json
+│   │   │       │       ├── llama_off12_conc4_rep01.json
+│   │   │       │       ├── llama_off12_conc4_rep02.json
+│   │   │       │       ├── llama_off12_conc4_rep03.json
+│   │   │       │       ├── llama_off12_conc4_rep04.json
+│   │   │       │       ├── llama_off12_conc4_rep05.json
+│   │   │       │       ├── llama_off12_conc4_rep06.json
+│   │   │       │       ├── llama_off12_conc4_rep07.json
+│   │   │       │       ├── llama_off12_conc4_rep08.json
+│   │   │       │       ├── llama_off12_conc8_rep01.json
+│   │   │       │       ├── llama_off12_conc8_rep02.json
+│   │   │       │       ├── llama_off12_conc8_rep03.json
+│   │   │       │       ├── llama_off12_conc8_rep04.json
+│   │   │       │       ├── llama_off12_conc8_rep05.json
+│   │   │       │       ├── llama_off12_conc8_rep06.json
+│   │   │       │       ├── llama_off12_conc8_rep07.json
+│   │   │       │       ├── llama_off12_conc8_rep08.json
+│   │   │       │       ├── llama_off8_conc4_rep01.json
+│   │   │       │       ├── llama_off8_conc4_rep02.json
+│   │   │       │       ├── llama_off8_conc4_rep03.json
+│   │   │       │       ├── llama_off8_conc4_rep04.json
+│   │   │       │       ├── llama_off8_conc4_rep05.json
+│   │   │       │       ├── llama_off8_conc4_rep06.json
+│   │   │       │       ├── llama_off8_conc4_rep07.json
+│   │   │       │       ├── llama_off8_conc4_rep08.json
+│   │   │       │       ├── llama_off8_conc8_rep01.json
+│   │   │       │       ├── llama_off8_conc8_rep02.json
+│   │   │       │       ├── llama_off8_conc8_rep03.json
+│   │   │       │       ├── llama_off8_conc8_rep04.json
+│   │   │       │       ├── llama_off8_conc8_rep05.json
+│   │   │       │       ├── llama_off8_conc8_rep06.json
+│   │   │       │       ├── llama_off8_conc8_rep07.json
+│   │   │       │       └── llama_off8_conc8_rep08.json
+│   │   │       └── smoke_off12_conc8_rep01
+│   │   │           ├── episodes
+│   │   │           │   ├── llama_off12_conc8_trigger16_no_burst_rep01.json
+│   │   │           │   └── llama_off12_conc8_trigger16_prefill_burst_rep01.json
+│   │   │           ├── server_logs
+│   │   │           │   └── llama_off12_conc8_rep01.log
+│   │   │           ├── smoke_run_summary.json
+│   │   │           └── stabilization
+│   │   │               └── llama_off12_conc8_rep01.json
+│   │   ├── log_audit_20260718T184538Z
+│   │   │   ├── broad_scheduler_kv_hits.txt
+│   │   │   ├── error_warning_hits.txt
+│   │   │   ├── log_index.tsv
+│   │   │   ├── strict_preemption_hits.txt
+│   │   │   └── SUMMARY.txt
+│   │   ├── prefill_confirmation_compact_20260718T175448Z.zip
+│   │   └── qwen
+│   │       ├── prefill_confirmation_schedule_audit.txt
+│   │       ├── prefill_confirmation_schedule.csv
+│   │       ├── prefill_confirmation_schedule.json
+│   │       └── results
+│   │           ├── official_initial8_20260718T052207Z
+│   │           │   ├── block_summaries
+│   │           │   │   ├── qwen_off0_conc4_rep01.json
+│   │           │   │   ├── qwen_off0_conc4_rep02.json
+│   │           │   │   ├── qwen_off0_conc4_rep03.json
+│   │           │   │   ├── qwen_off0_conc4_rep04.json
+│   │           │   │   ├── qwen_off0_conc4_rep05.json
+│   │           │   │   ├── qwen_off0_conc4_rep06.json
+│   │           │   │   ├── qwen_off0_conc4_rep07.json
+│   │           │   │   ├── qwen_off0_conc4_rep08.json
+│   │           │   │   ├── qwen_off0_conc8_rep01.json
+│   │           │   │   ├── qwen_off0_conc8_rep02.json
+│   │           │   │   ├── qwen_off0_conc8_rep03.json
+│   │           │   │   ├── qwen_off0_conc8_rep04.json
+│   │           │   │   ├── qwen_off0_conc8_rep05.json
+│   │           │   │   ├── qwen_off0_conc8_rep06.json
+│   │           │   │   ├── qwen_off0_conc8_rep07.json
+│   │           │   │   ├── qwen_off0_conc8_rep08.json
+│   │           │   │   ├── qwen_off12_conc4_rep01.json
+│   │           │   │   ├── qwen_off12_conc4_rep02.json
+│   │           │   │   ├── qwen_off12_conc4_rep03.json
+│   │           │   │   ├── qwen_off12_conc4_rep04.json
+│   │           │   │   ├── qwen_off12_conc4_rep05.json
+│   │           │   │   ├── qwen_off12_conc4_rep06.json
+│   │           │   │   ├── qwen_off12_conc4_rep07.json
+│   │           │   │   ├── qwen_off12_conc4_rep08.json
+│   │           │   │   ├── qwen_off12_conc8_rep01.json
+│   │           │   │   ├── qwen_off12_conc8_rep02.json
+│   │           │   │   ├── qwen_off12_conc8_rep03.json
+│   │           │   │   ├── qwen_off12_conc8_rep04.json
+│   │           │   │   ├── qwen_off12_conc8_rep05.json
+│   │           │   │   ├── qwen_off12_conc8_rep06.json
+│   │           │   │   ├── qwen_off12_conc8_rep07.json
+│   │           │   │   ├── qwen_off12_conc8_rep08.json
+│   │           │   │   ├── qwen_off8_conc4_rep01.json
+│   │           │   │   ├── qwen_off8_conc4_rep02.json
+│   │           │   │   ├── qwen_off8_conc4_rep03.json
+│   │           │   │   ├── qwen_off8_conc4_rep04.json
+│   │           │   │   ├── qwen_off8_conc4_rep05.json
+│   │           │   │   ├── qwen_off8_conc4_rep06.json
+│   │           │   │   ├── qwen_off8_conc4_rep07.json
+│   │           │   │   ├── qwen_off8_conc4_rep08.json
+│   │           │   │   ├── qwen_off8_conc8_rep01.json
+│   │           │   │   ├── qwen_off8_conc8_rep02.json
+│   │           │   │   ├── qwen_off8_conc8_rep03.json
+│   │           │   │   ├── qwen_off8_conc8_rep04.json
+│   │           │   │   ├── qwen_off8_conc8_rep05.json
+│   │           │   │   ├── qwen_off8_conc8_rep06.json
+│   │           │   │   ├── qwen_off8_conc8_rep07.json
+│   │           │   │   └── qwen_off8_conc8_rep08.json
+│   │           │   ├── episodes
+│   │           │   │   ├── qwen_off0_conc4_trigger16_no_burst_rep01.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_no_burst_rep02.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_no_burst_rep03.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_no_burst_rep04.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_no_burst_rep05.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_no_burst_rep06.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_no_burst_rep07.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_no_burst_rep08.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_prefill_burst_rep01.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_prefill_burst_rep02.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_prefill_burst_rep03.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_prefill_burst_rep04.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_prefill_burst_rep05.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_prefill_burst_rep06.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_prefill_burst_rep07.json
+│   │           │   │   ├── qwen_off0_conc4_trigger16_prefill_burst_rep08.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_no_burst_rep01.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_no_burst_rep02.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_no_burst_rep03.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_no_burst_rep04.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_no_burst_rep05.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_no_burst_rep06.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_no_burst_rep07.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_no_burst_rep08.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_prefill_burst_rep01.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_prefill_burst_rep02.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_prefill_burst_rep03.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_prefill_burst_rep04.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_prefill_burst_rep05.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_prefill_burst_rep06.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_prefill_burst_rep07.json
+│   │           │   │   ├── qwen_off0_conc8_trigger16_prefill_burst_rep08.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_no_burst_rep01.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_no_burst_rep02.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_no_burst_rep03.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_no_burst_rep04.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_no_burst_rep05.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_no_burst_rep06.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_no_burst_rep07.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_no_burst_rep08.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_prefill_burst_rep01.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_prefill_burst_rep02.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_prefill_burst_rep03.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_prefill_burst_rep04.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_prefill_burst_rep05.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_prefill_burst_rep06.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_prefill_burst_rep07.json
+│   │           │   │   ├── qwen_off12_conc4_trigger16_prefill_burst_rep08.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_no_burst_rep01.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_no_burst_rep02.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_no_burst_rep03.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_no_burst_rep04.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_no_burst_rep05.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_no_burst_rep06.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_no_burst_rep07.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_no_burst_rep08.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_prefill_burst_rep01.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_prefill_burst_rep02.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_prefill_burst_rep03.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_prefill_burst_rep04.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_prefill_burst_rep05.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_prefill_burst_rep06.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_prefill_burst_rep07.json
+│   │           │   │   ├── qwen_off12_conc8_trigger16_prefill_burst_rep08.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_no_burst_rep01.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_no_burst_rep02.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_no_burst_rep03.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_no_burst_rep04.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_no_burst_rep05.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_no_burst_rep06.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_no_burst_rep07.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_no_burst_rep08.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_prefill_burst_rep01.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_prefill_burst_rep02.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_prefill_burst_rep03.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_prefill_burst_rep04.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_prefill_burst_rep05.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_prefill_burst_rep06.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_prefill_burst_rep07.json
+│   │           │   │   ├── qwen_off8_conc4_trigger16_prefill_burst_rep08.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_no_burst_rep01.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_no_burst_rep02.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_no_burst_rep03.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_no_burst_rep04.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_no_burst_rep05.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_no_burst_rep06.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_no_burst_rep07.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_no_burst_rep08.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_prefill_burst_rep01.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_prefill_burst_rep02.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_prefill_burst_rep03.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_prefill_burst_rep04.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_prefill_burst_rep05.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_prefill_burst_rep06.json
+│   │           │   │   ├── qwen_off8_conc8_trigger16_prefill_burst_rep07.json
+│   │           │   │   └── qwen_off8_conc8_trigger16_prefill_burst_rep08.json
+│   │           │   ├── integrity_manifest.json
+│   │           │   ├── official_run_manifest.json
+│   │           │   ├── official_run_summary.json
+│   │           │   ├── server_logs
+│   │           │   │   ├── qwen_off0_conc4_rep01.log
+│   │           │   │   ├── qwen_off0_conc4_rep02.log
+│   │           │   │   ├── qwen_off0_conc4_rep03.log
+│   │           │   │   ├── qwen_off0_conc4_rep04.log
+│   │           │   │   ├── qwen_off0_conc4_rep05.log
+│   │           │   │   ├── qwen_off0_conc4_rep06.log
+│   │           │   │   ├── qwen_off0_conc4_rep07.log
+│   │           │   │   ├── qwen_off0_conc4_rep08.log
+│   │           │   │   ├── qwen_off0_conc8_rep01.log
+│   │           │   │   ├── qwen_off0_conc8_rep02.log
+│   │           │   │   ├── qwen_off0_conc8_rep03.log
+│   │           │   │   ├── qwen_off0_conc8_rep04.log
+│   │           │   │   ├── qwen_off0_conc8_rep05.log
+│   │           │   │   ├── qwen_off0_conc8_rep06.log
+│   │           │   │   ├── qwen_off0_conc8_rep07.log
+│   │           │   │   ├── qwen_off0_conc8_rep08.log
+│   │           │   │   ├── qwen_off12_conc4_rep01.log
+│   │           │   │   ├── qwen_off12_conc4_rep02.log
+│   │           │   │   ├── qwen_off12_conc4_rep03.log
+│   │           │   │   ├── qwen_off12_conc4_rep04.log
+│   │           │   │   ├── qwen_off12_conc4_rep05.log
+│   │           │   │   ├── qwen_off12_conc4_rep06.log
+│   │           │   │   ├── qwen_off12_conc4_rep07.log
+│   │           │   │   ├── qwen_off12_conc4_rep08.log
+│   │           │   │   ├── qwen_off12_conc8_rep01.log
+│   │           │   │   ├── qwen_off12_conc8_rep02.log
+│   │           │   │   ├── qwen_off12_conc8_rep03.log
+│   │           │   │   ├── qwen_off12_conc8_rep04.log
+│   │           │   │   ├── qwen_off12_conc8_rep05.log
+│   │           │   │   ├── qwen_off12_conc8_rep06.log
+│   │           │   │   ├── qwen_off12_conc8_rep07.log
+│   │           │   │   ├── qwen_off12_conc8_rep08.log
+│   │           │   │   ├── qwen_off8_conc4_rep01.log
+│   │           │   │   ├── qwen_off8_conc4_rep02.log
+│   │           │   │   ├── qwen_off8_conc4_rep03.log
+│   │           │   │   ├── qwen_off8_conc4_rep04.log
+│   │           │   │   ├── qwen_off8_conc4_rep05.log
+│   │           │   │   ├── qwen_off8_conc4_rep06.log
+│   │           │   │   ├── qwen_off8_conc4_rep07.log
+│   │           │   │   ├── qwen_off8_conc4_rep08.log
+│   │           │   │   ├── qwen_off8_conc8_rep01.log
+│   │           │   │   ├── qwen_off8_conc8_rep02.log
+│   │           │   │   ├── qwen_off8_conc8_rep03.log
+│   │           │   │   ├── qwen_off8_conc8_rep04.log
+│   │           │   │   ├── qwen_off8_conc8_rep05.log
+│   │           │   │   ├── qwen_off8_conc8_rep06.log
+│   │           │   │   ├── qwen_off8_conc8_rep07.log
+│   │           │   │   └── qwen_off8_conc8_rep08.log
+│   │           │   └── stabilization
+│   │           │       ├── qwen_off0_conc4_rep01.json
+│   │           │       ├── qwen_off0_conc4_rep02.json
+│   │           │       ├── qwen_off0_conc4_rep03.json
+│   │           │       ├── qwen_off0_conc4_rep04.json
+│   │           │       ├── qwen_off0_conc4_rep05.json
+│   │           │       ├── qwen_off0_conc4_rep06.json
+│   │           │       ├── qwen_off0_conc4_rep07.json
+│   │           │       ├── qwen_off0_conc4_rep08.json
+│   │           │       ├── qwen_off0_conc8_rep01.json
+│   │           │       ├── qwen_off0_conc8_rep02.json
+│   │           │       ├── qwen_off0_conc8_rep03.json
+│   │           │       ├── qwen_off0_conc8_rep04.json
+│   │           │       ├── qwen_off0_conc8_rep05.json
+│   │           │       ├── qwen_off0_conc8_rep06.json
+│   │           │       ├── qwen_off0_conc8_rep07.json
+│   │           │       ├── qwen_off0_conc8_rep08.json
+│   │           │       ├── qwen_off12_conc4_rep01.json
+│   │           │       ├── qwen_off12_conc4_rep02.json
+│   │           │       ├── qwen_off12_conc4_rep03.json
+│   │           │       ├── qwen_off12_conc4_rep04.json
+│   │           │       ├── qwen_off12_conc4_rep05.json
+│   │           │       ├── qwen_off12_conc4_rep06.json
+│   │           │       ├── qwen_off12_conc4_rep07.json
+│   │           │       ├── qwen_off12_conc4_rep08.json
+│   │           │       ├── qwen_off12_conc8_rep01.json
+│   │           │       ├── qwen_off12_conc8_rep02.json
+│   │           │       ├── qwen_off12_conc8_rep03.json
+│   │           │       ├── qwen_off12_conc8_rep04.json
+│   │           │       ├── qwen_off12_conc8_rep05.json
+│   │           │       ├── qwen_off12_conc8_rep06.json
+│   │           │       ├── qwen_off12_conc8_rep07.json
+│   │           │       ├── qwen_off12_conc8_rep08.json
+│   │           │       ├── qwen_off8_conc4_rep01.json
+│   │           │       ├── qwen_off8_conc4_rep02.json
+│   │           │       ├── qwen_off8_conc4_rep03.json
+│   │           │       ├── qwen_off8_conc4_rep04.json
+│   │           │       ├── qwen_off8_conc4_rep05.json
+│   │           │       ├── qwen_off8_conc4_rep06.json
+│   │           │       ├── qwen_off8_conc4_rep07.json
+│   │           │       ├── qwen_off8_conc4_rep08.json
+│   │           │       ├── qwen_off8_conc8_rep01.json
+│   │           │       ├── qwen_off8_conc8_rep02.json
+│   │           │       ├── qwen_off8_conc8_rep03.json
+│   │           │       ├── qwen_off8_conc8_rep04.json
+│   │           │       ├── qwen_off8_conc8_rep05.json
+│   │           │       ├── qwen_off8_conc8_rep06.json
+│   │           │       ├── qwen_off8_conc8_rep07.json
+│   │           │       └── qwen_off8_conc8_rep08.json
+│   │           └── smoke_off12_conc8_rep01_20260718T045538Z
+│   │               ├── episodes
+│   │               │   ├── qwen_off12_conc8_trigger16_no_burst_rep01.json
+│   │               │   └── qwen_off12_conc8_trigger16_prefill_burst_rep01.json
+│   │               ├── server_logs
+│   │               │   └── qwen_off12_conc8_rep01.log
+│   │               ├── smoke_run_summary.json
+│   │               └── stabilization
+│   │                   └── qwen_off12_conc8_rep01.json
+│   ├── prefill_screen
+│   │   ├── chunked_prefill_audit.txt
+│   │   ├── prefill_screen_schedule_audit.txt
+│   │   ├── prefill_screen_schedule.csv
+│   │   ├── prefill_screen_schedule.json
+│   │   └── results
+│   │       ├── official_20260715T211157Z
+│   │       │   ├── block_summaries
+│   │       │   │   ├── llama_block01_low.json
+│   │       │   │   ├── llama_block02_high.json
+│   │       │   │   ├── llama_block03_high.json
+│   │       │   │   ├── llama_block04_low.json
+│   │       │   │   ├── llama_block05_low.json
+│   │       │   │   └── llama_block06_high.json
+│   │       │   ├── episodes
+│   │       │   │   ├── llama_off0_conc4_no_burst_rep1.json
+│   │       │   │   ├── llama_off0_conc4_no_burst_rep2.json
+│   │       │   │   ├── llama_off0_conc4_no_burst_rep3.json
+│   │       │   │   ├── llama_off0_conc4_prefill_burst_rep1.json
+│   │       │   │   ├── llama_off0_conc4_prefill_burst_rep2.json
+│   │       │   │   ├── llama_off0_conc4_prefill_burst_rep3.json
+│   │       │   │   ├── llama_off0_conc8_no_burst_rep1.json
+│   │       │   │   ├── llama_off0_conc8_no_burst_rep2.json
+│   │       │   │   ├── llama_off0_conc8_no_burst_rep3.json
+│   │       │   │   ├── llama_off0_conc8_prefill_burst_rep1.json
+│   │       │   │   ├── llama_off0_conc8_prefill_burst_rep2.json
+│   │       │   │   ├── llama_off0_conc8_prefill_burst_rep3.json
+│   │       │   │   ├── llama_off12_conc4_no_burst_rep1.json
+│   │       │   │   ├── llama_off12_conc4_no_burst_rep2.json
+│   │       │   │   ├── llama_off12_conc4_no_burst_rep3.json
+│   │       │   │   ├── llama_off12_conc4_prefill_burst_rep1.json
+│   │       │   │   ├── llama_off12_conc4_prefill_burst_rep2.json
+│   │       │   │   ├── llama_off12_conc4_prefill_burst_rep3.json
+│   │       │   │   ├── llama_off12_conc8_no_burst_rep1.json
+│   │       │   │   ├── llama_off12_conc8_no_burst_rep2.json
+│   │       │   │   ├── llama_off12_conc8_no_burst_rep3.json
+│   │       │   │   ├── llama_off12_conc8_prefill_burst_rep1.json
+│   │       │   │   ├── llama_off12_conc8_prefill_burst_rep2.json
+│   │       │   │   └── llama_off12_conc8_prefill_burst_rep3.json
+│   │       │   ├── integrity_manifest.json
+│   │       │   ├── official_run_manifest.json
+│   │       │   ├── official_run_summary.json
+│   │       │   ├── server_logs
+│   │       │   │   ├── llama_block01_low.log
+│   │       │   │   ├── llama_block02_high.log
+│   │       │   │   ├── llama_block03_high.log
+│   │       │   │   ├── llama_block04_low.log
+│   │       │   │   ├── llama_block05_low.log
+│   │       │   │   └── llama_block06_high.log
+│   │       │   └── stabilization
+│   │       │       ├── llama_block01_low.json
+│   │       │       ├── llama_block02_high.json
+│   │       │       ├── llama_block03_high.json
+│   │       │       ├── llama_block04_low.json
+│   │       │       ├── llama_block05_low.json
+│   │       │       └── llama_block06_high.json
+│   │       ├── smoke_high_20260715T202841Z
+│   │       │   ├── episodes
+│   │       │   │   ├── llama_off12_conc4_no_burst_rep1.json
+│   │       │   │   ├── llama_off12_conc4_prefill_burst_rep1.json
+│   │       │   │   ├── llama_off12_conc8_no_burst_rep1.json
+│   │       │   │   └── llama_off12_conc8_prefill_burst_rep1.json
+│   │       │   ├── server_logs
+│   │       │   │   └── llama_block02_high.log
+│   │       │   ├── smoke_run_summary.json
+│   │       │   └── stabilization
+│   │       │       └── llama_block02_high.json
+│   │       └── smoke_low_20260715T202454Z
+│   │           ├── episodes
+│   │           │   ├── llama_off0_conc4_no_burst_rep1.json
+│   │           │   ├── llama_off0_conc4_prefill_burst_rep1.json
+│   │           │   ├── llama_off0_conc8_no_burst_rep1.json
+│   │           │   └── llama_off0_conc8_prefill_burst_rep1.json
+│   │           ├── server_logs
+│   │           │   └── llama_block01_low.log
+│   │           ├── smoke_run_summary.json
+│   │           └── stabilization
+│   │               └── llama_block01_low.json
+│   ├── prefill_trigger_sweep
+│   │   └── llama
+│   │       ├── prefill_trigger_sweep_schedule_audit.txt
+│   │       ├── prefill_trigger_sweep_schedule.csv
+│   │       ├── prefill_trigger_sweep_schedule.json
+│   │       └── results
+│   │           ├── official_20260716T183650Z
+│   │           │   ├── block_summaries
+│   │           │   │   ├── llama_block01_low_trigger1.json
+│   │           │   │   ├── llama_block02_high_trigger1.json
+│   │           │   │   ├── llama_block03_low_trigger16.json
+│   │           │   │   ├── llama_block04_high_trigger16.json
+│   │           │   │   ├── llama_block05_low_trigger32.json
+│   │           │   │   ├── llama_block06_high_trigger32.json
+│   │           │   │   ├── llama_block07_low_trigger16.json
+│   │           │   │   ├── llama_block08_high_trigger16.json
+│   │           │   │   ├── llama_block09_low_trigger32.json
+│   │           │   │   ├── llama_block10_high_trigger32.json
+│   │           │   │   ├── llama_block11_low_trigger1.json
+│   │           │   │   └── llama_block12_high_trigger1.json
+│   │           │   ├── episodes
+│   │           │   │   ├── llama_off0_conc4_trigger16_no_burst_rep1.json
+│   │           │   │   ├── llama_off0_conc4_trigger16_no_burst_rep2.json
+│   │           │   │   ├── llama_off0_conc4_trigger16_prefill_burst_rep1.json
+│   │           │   │   ├── llama_off0_conc4_trigger16_prefill_burst_rep2.json
+│   │           │   │   ├── llama_off0_conc4_trigger1_no_burst_rep1.json
+│   │           │   │   ├── llama_off0_conc4_trigger1_no_burst_rep2.json
+│   │           │   │   ├── llama_off0_conc4_trigger1_prefill_burst_rep1.json
+│   │           │   │   ├── llama_off0_conc4_trigger1_prefill_burst_rep2.json
+│   │           │   │   ├── llama_off0_conc4_trigger32_no_burst_rep1.json
+│   │           │   │   ├── llama_off0_conc4_trigger32_no_burst_rep2.json
+│   │           │   │   ├── llama_off0_conc4_trigger32_prefill_burst_rep1.json
+│   │           │   │   ├── llama_off0_conc4_trigger32_prefill_burst_rep2.json
+│   │           │   │   ├── llama_off12_conc4_trigger16_no_burst_rep1.json
+│   │           │   │   ├── llama_off12_conc4_trigger16_no_burst_rep2.json
+│   │           │   │   ├── llama_off12_conc4_trigger16_prefill_burst_rep1.json
+│   │           │   │   ├── llama_off12_conc4_trigger16_prefill_burst_rep2.json
+│   │           │   │   ├── llama_off12_conc4_trigger1_no_burst_rep1.json
+│   │           │   │   ├── llama_off12_conc4_trigger1_no_burst_rep2.json
+│   │           │   │   ├── llama_off12_conc4_trigger1_prefill_burst_rep1.json
+│   │           │   │   ├── llama_off12_conc4_trigger1_prefill_burst_rep2.json
+│   │           │   │   ├── llama_off12_conc4_trigger32_no_burst_rep1.json
+│   │           │   │   ├── llama_off12_conc4_trigger32_no_burst_rep2.json
+│   │           │   │   ├── llama_off12_conc4_trigger32_prefill_burst_rep1.json
+│   │           │   │   └── llama_off12_conc4_trigger32_prefill_burst_rep2.json
+│   │           │   ├── integrity_manifest.json
+│   │           │   ├── official_run_manifest.json
+│   │           │   ├── official_run_summary.json
+│   │           │   ├── server_logs
+│   │           │   │   ├── llama_block01_low_trigger1.log
+│   │           │   │   ├── llama_block02_high_trigger1.log
+│   │           │   │   ├── llama_block03_low_trigger16.log
+│   │           │   │   ├── llama_block04_high_trigger16.log
+│   │           │   │   ├── llama_block05_low_trigger32.log
+│   │           │   │   ├── llama_block06_high_trigger32.log
+│   │           │   │   ├── llama_block07_low_trigger16.log
+│   │           │   │   ├── llama_block08_high_trigger16.log
+│   │           │   │   ├── llama_block09_low_trigger32.log
+│   │           │   │   ├── llama_block10_high_trigger32.log
+│   │           │   │   ├── llama_block11_low_trigger1.log
+│   │           │   │   └── llama_block12_high_trigger1.log
+│   │           │   └── stabilization
+│   │           │       ├── llama_block01_low_trigger1.json
+│   │           │       ├── llama_block02_high_trigger1.json
+│   │           │       ├── llama_block03_low_trigger16.json
+│   │           │       ├── llama_block04_high_trigger16.json
+│   │           │       ├── llama_block05_low_trigger32.json
+│   │           │       ├── llama_block06_high_trigger32.json
+│   │           │       ├── llama_block07_low_trigger16.json
+│   │           │       ├── llama_block08_high_trigger16.json
+│   │           │       ├── llama_block09_low_trigger32.json
+│   │           │       ├── llama_block10_high_trigger32.json
+│   │           │       ├── llama_block11_low_trigger1.json
+│   │           │       └── llama_block12_high_trigger1.json
+│   │           └── smoke_20260716T183337Z
+│   │               ├── episodes
+│   │               │   ├── llama_off0_conc4_trigger1_no_burst_rep1.json
+│   │               │   └── llama_off0_conc4_trigger1_prefill_burst_rep1.json
+│   │               ├── server_logs
+│   │               │   └── llama_block01_low_trigger1.log
+│   │               ├── smoke_run_summary.json
+│   │               └── stabilization
+│   │                   └── llama_block01_low_trigger1.json
+│   └── profile_grid_v2
+│       ├── audit
+│       │   ├── llama_profile_grid_audit.csv
+│       │   └── qwen_profile_grid_audit.csv
+│       ├── llama
+│       │   ├── offload0
+│       │   │   ├── llama_offload0_conc12_in256_out128_run1.json
+│       │   │   ├── llama_offload0_conc12_in256_out128_run2.json
+│       │   │   ├── llama_offload0_conc12_in256_out128_run3.json
+│       │   │   ├── llama_offload0_conc12_in256_out128_run4.json
+│       │   │   ├── llama_offload0_conc12_in256_out128_run5.json
+│       │   │   ├── llama_offload0_conc12_in256_out32_run1.json
+│       │   │   ├── llama_offload0_conc12_in256_out32_run2.json
+│       │   │   ├── llama_offload0_conc12_in256_out32_run3.json
+│       │   │   ├── llama_offload0_conc12_in256_out32_run4.json
+│       │   │   ├── llama_offload0_conc12_in256_out32_run5.json
+│       │   │   ├── llama_offload0_conc12_in256_out64_run1.json
+│       │   │   ├── llama_offload0_conc12_in256_out64_run2.json
+│       │   │   ├── llama_offload0_conc12_in256_out64_run3.json
+│       │   │   ├── llama_offload0_conc12_in256_out64_run4.json
+│       │   │   ├── llama_offload0_conc12_in256_out64_run5.json
+│       │   │   ├── llama_offload0_conc16_in256_out128_run1.json
+│       │   │   ├── llama_offload0_conc16_in256_out128_run2.json
+│       │   │   ├── llama_offload0_conc16_in256_out128_run3.json
+│       │   │   ├── llama_offload0_conc16_in256_out128_run4.json
+│       │   │   ├── llama_offload0_conc16_in256_out128_run5.json
+│       │   │   ├── llama_offload0_conc16_in256_out32_run1.json
+│       │   │   ├── llama_offload0_conc16_in256_out32_run2.json
+│       │   │   ├── llama_offload0_conc16_in256_out32_run3.json
+│       │   │   ├── llama_offload0_conc16_in256_out32_run4.json
+│       │   │   ├── llama_offload0_conc16_in256_out32_run5.json
+│       │   │   ├── llama_offload0_conc16_in256_out64_run1.json
+│       │   │   ├── llama_offload0_conc16_in256_out64_run2.json
+│       │   │   ├── llama_offload0_conc16_in256_out64_run3.json
+│       │   │   ├── llama_offload0_conc16_in256_out64_run4.json
+│       │   │   ├── llama_offload0_conc16_in256_out64_run5.json
+│       │   │   ├── llama_offload0_conc1_in256_out128_run1.json
+│       │   │   ├── llama_offload0_conc1_in256_out128_run2.json
+│       │   │   ├── llama_offload0_conc1_in256_out128_run3.json
+│       │   │   ├── llama_offload0_conc1_in256_out128_run4.json
+│       │   │   ├── llama_offload0_conc1_in256_out128_run5.json
+│       │   │   ├── llama_offload0_conc1_in256_out32_run1.json
+│       │   │   ├── llama_offload0_conc1_in256_out32_run2.json
+│       │   │   ├── llama_offload0_conc1_in256_out32_run3.json
+│       │   │   ├── llama_offload0_conc1_in256_out32_run4.json
+│       │   │   ├── llama_offload0_conc1_in256_out32_run5.json
+│       │   │   ├── llama_offload0_conc1_in256_out64_run1.json
+│       │   │   ├── llama_offload0_conc1_in256_out64_run2.json
+│       │   │   ├── llama_offload0_conc1_in256_out64_run3.json
+│       │   │   ├── llama_offload0_conc1_in256_out64_run4.json
+│       │   │   ├── llama_offload0_conc1_in256_out64_run5.json
+│       │   │   ├── llama_offload0_conc2_in256_out128_run1.json
+│       │   │   ├── llama_offload0_conc2_in256_out128_run2.json
+│       │   │   ├── llama_offload0_conc2_in256_out128_run3.json
+│       │   │   ├── llama_offload0_conc2_in256_out128_run4.json
+│       │   │   ├── llama_offload0_conc2_in256_out128_run5.json
+│       │   │   ├── llama_offload0_conc2_in256_out32_run1.json
+│       │   │   ├── llama_offload0_conc2_in256_out32_run2.json
+│       │   │   ├── llama_offload0_conc2_in256_out32_run3.json
+│       │   │   ├── llama_offload0_conc2_in256_out32_run4.json
+│       │   │   ├── llama_offload0_conc2_in256_out32_run5.json
+│       │   │   ├── llama_offload0_conc2_in256_out64_run1.json
+│       │   │   ├── llama_offload0_conc2_in256_out64_run2.json
+│       │   │   ├── llama_offload0_conc2_in256_out64_run3.json
+│       │   │   ├── llama_offload0_conc2_in256_out64_run4.json
+│       │   │   ├── llama_offload0_conc2_in256_out64_run5.json
+│       │   │   ├── llama_offload0_conc4_in256_out128_run1.json
+│       │   │   ├── llama_offload0_conc4_in256_out128_run2.json
+│       │   │   ├── llama_offload0_conc4_in256_out128_run3.json
+│       │   │   ├── llama_offload0_conc4_in256_out128_run4.json
+│       │   │   ├── llama_offload0_conc4_in256_out128_run5.json
+│       │   │   ├── llama_offload0_conc4_in256_out32_run1.json
+│       │   │   ├── llama_offload0_conc4_in256_out32_run2.json
+│       │   │   ├── llama_offload0_conc4_in256_out32_run3.json
+│       │   │   ├── llama_offload0_conc4_in256_out32_run4.json
+│       │   │   ├── llama_offload0_conc4_in256_out32_run5.json
+│       │   │   ├── llama_offload0_conc4_in256_out64_run1.json
+│       │   │   ├── llama_offload0_conc4_in256_out64_run2.json
+│       │   │   ├── llama_offload0_conc4_in256_out64_run3.json
+│       │   │   ├── llama_offload0_conc4_in256_out64_run4.json
+│       │   │   ├── llama_offload0_conc4_in256_out64_run5.json
+│       │   │   ├── llama_offload0_conc8_in256_out128_run1.json
+│       │   │   ├── llama_offload0_conc8_in256_out128_run2.json
+│       │   │   ├── llama_offload0_conc8_in256_out128_run3.json
+│       │   │   ├── llama_offload0_conc8_in256_out128_run4.json
+│       │   │   ├── llama_offload0_conc8_in256_out128_run5.json
+│       │   │   ├── llama_offload0_conc8_in256_out32_run1.json
+│       │   │   ├── llama_offload0_conc8_in256_out32_run2.json
+│       │   │   ├── llama_offload0_conc8_in256_out32_run3.json
+│       │   │   ├── llama_offload0_conc8_in256_out32_run4.json
+│       │   │   ├── llama_offload0_conc8_in256_out32_run5.json
+│       │   │   ├── llama_offload0_conc8_in256_out64_run1.json
+│       │   │   ├── llama_offload0_conc8_in256_out64_run2.json
+│       │   │   ├── llama_offload0_conc8_in256_out64_run3.json
+│       │   │   ├── llama_offload0_conc8_in256_out64_run4.json
+│       │   │   └── llama_offload0_conc8_in256_out64_run5.json
+│       │   ├── offload12
+│       │   │   ├── llama_offload12_conc12_in256_out128_run1.json
+│       │   │   ├── llama_offload12_conc12_in256_out128_run2.json
+│       │   │   ├── llama_offload12_conc12_in256_out128_run3.json
+│       │   │   ├── llama_offload12_conc12_in256_out128_run4.json
+│       │   │   ├── llama_offload12_conc12_in256_out128_run5.json
+│       │   │   ├── llama_offload12_conc12_in256_out32_run1.json
+│       │   │   ├── llama_offload12_conc12_in256_out32_run2.json
+│       │   │   ├── llama_offload12_conc12_in256_out32_run3.json
+│       │   │   ├── llama_offload12_conc12_in256_out32_run4.json
+│       │   │   ├── llama_offload12_conc12_in256_out32_run5.json
+│       │   │   ├── llama_offload12_conc12_in256_out64_run1.json
+│       │   │   ├── llama_offload12_conc12_in256_out64_run2.json
+│       │   │   ├── llama_offload12_conc12_in256_out64_run3.json
+│       │   │   ├── llama_offload12_conc12_in256_out64_run4.json
+│       │   │   ├── llama_offload12_conc12_in256_out64_run5.json
+│       │   │   ├── llama_offload12_conc16_in256_out128_run1.json
+│       │   │   ├── llama_offload12_conc16_in256_out128_run2.json
+│       │   │   ├── llama_offload12_conc16_in256_out128_run3.json
+│       │   │   ├── llama_offload12_conc16_in256_out128_run4.json
+│       │   │   ├── llama_offload12_conc16_in256_out128_run5.json
+│       │   │   ├── llama_offload12_conc16_in256_out32_run1.json
+│       │   │   ├── llama_offload12_conc16_in256_out32_run2.json
+│       │   │   ├── llama_offload12_conc16_in256_out32_run3.json
+│       │   │   ├── llama_offload12_conc16_in256_out32_run4.json
+│       │   │   ├── llama_offload12_conc16_in256_out32_run5.json
+│       │   │   ├── llama_offload12_conc16_in256_out64_run1.json
+│       │   │   ├── llama_offload12_conc16_in256_out64_run2.json
+│       │   │   ├── llama_offload12_conc16_in256_out64_run3.json
+│       │   │   ├── llama_offload12_conc16_in256_out64_run4.json
+│       │   │   ├── llama_offload12_conc16_in256_out64_run5.json
+│       │   │   ├── llama_offload12_conc1_in256_out128_run1.json
+│       │   │   ├── llama_offload12_conc1_in256_out128_run2.json
+│       │   │   ├── llama_offload12_conc1_in256_out128_run3.json
+│       │   │   ├── llama_offload12_conc1_in256_out128_run4.json
+│       │   │   ├── llama_offload12_conc1_in256_out128_run5.json
+│       │   │   ├── llama_offload12_conc1_in256_out32_run1.json
+│       │   │   ├── llama_offload12_conc1_in256_out32_run2.json
+│       │   │   ├── llama_offload12_conc1_in256_out32_run3.json
+│       │   │   ├── llama_offload12_conc1_in256_out32_run4.json
+│       │   │   ├── llama_offload12_conc1_in256_out32_run5.json
+│       │   │   ├── llama_offload12_conc1_in256_out64_run1.json
+│       │   │   ├── llama_offload12_conc1_in256_out64_run2.json
+│       │   │   ├── llama_offload12_conc1_in256_out64_run3.json
+│       │   │   ├── llama_offload12_conc1_in256_out64_run4.json
+│       │   │   ├── llama_offload12_conc1_in256_out64_run5.json
+│       │   │   ├── llama_offload12_conc2_in256_out128_run1.json
+│       │   │   ├── llama_offload12_conc2_in256_out128_run2.json
+│       │   │   ├── llama_offload12_conc2_in256_out128_run3.json
+│       │   │   ├── llama_offload12_conc2_in256_out128_run4.json
+│       │   │   ├── llama_offload12_conc2_in256_out128_run5.json
+│       │   │   ├── llama_offload12_conc2_in256_out32_run1.json
+│       │   │   ├── llama_offload12_conc2_in256_out32_run2.json
+│       │   │   ├── llama_offload12_conc2_in256_out32_run3.json
+│       │   │   ├── llama_offload12_conc2_in256_out32_run4.json
+│       │   │   ├── llama_offload12_conc2_in256_out32_run5.json
+│       │   │   ├── llama_offload12_conc2_in256_out64_run1.json
+│       │   │   ├── llama_offload12_conc2_in256_out64_run2.json
+│       │   │   ├── llama_offload12_conc2_in256_out64_run3.json
+│       │   │   ├── llama_offload12_conc2_in256_out64_run4.json
+│       │   │   ├── llama_offload12_conc2_in256_out64_run5.json
+│       │   │   ├── llama_offload12_conc4_in256_out128_run1.json
+│       │   │   ├── llama_offload12_conc4_in256_out128_run2.json
+│       │   │   ├── llama_offload12_conc4_in256_out128_run3.json
+│       │   │   ├── llama_offload12_conc4_in256_out128_run4.json
+│       │   │   ├── llama_offload12_conc4_in256_out128_run5.json
+│       │   │   ├── llama_offload12_conc4_in256_out32_run1.json
+│       │   │   ├── llama_offload12_conc4_in256_out32_run2.json
+│       │   │   ├── llama_offload12_conc4_in256_out32_run3.json
+│       │   │   ├── llama_offload12_conc4_in256_out32_run4.json
+│       │   │   ├── llama_offload12_conc4_in256_out32_run5.json
+│       │   │   ├── llama_offload12_conc4_in256_out64_run1.json
+│       │   │   ├── llama_offload12_conc4_in256_out64_run2.json
+│       │   │   ├── llama_offload12_conc4_in256_out64_run3.json
+│       │   │   ├── llama_offload12_conc4_in256_out64_run4.json
+│       │   │   ├── llama_offload12_conc4_in256_out64_run5.json
+│       │   │   ├── llama_offload12_conc8_in256_out128_run1.json
+│       │   │   ├── llama_offload12_conc8_in256_out128_run2.json
+│       │   │   ├── llama_offload12_conc8_in256_out128_run3.json
+│       │   │   ├── llama_offload12_conc8_in256_out128_run4.json
+│       │   │   ├── llama_offload12_conc8_in256_out128_run5.json
+│       │   │   ├── llama_offload12_conc8_in256_out32_run1.json
+│       │   │   ├── llama_offload12_conc8_in256_out32_run2.json
+│       │   │   ├── llama_offload12_conc8_in256_out32_run3.json
+│       │   │   ├── llama_offload12_conc8_in256_out32_run4.json
+│       │   │   ├── llama_offload12_conc8_in256_out32_run5.json
+│       │   │   ├── llama_offload12_conc8_in256_out64_run1.json
+│       │   │   ├── llama_offload12_conc8_in256_out64_run2.json
+│       │   │   ├── llama_offload12_conc8_in256_out64_run3.json
+│       │   │   ├── llama_offload12_conc8_in256_out64_run4.json
+│       │   │   └── llama_offload12_conc8_in256_out64_run5.json
+│       │   ├── offload16
+│       │   │   ├── llama_offload16_conc12_in256_out128_run1.json
+│       │   │   ├── llama_offload16_conc12_in256_out128_run2.json
+│       │   │   ├── llama_offload16_conc12_in256_out128_run3.json
+│       │   │   ├── llama_offload16_conc12_in256_out128_run4.json
+│       │   │   ├── llama_offload16_conc12_in256_out128_run5.json
+│       │   │   ├── llama_offload16_conc12_in256_out32_run1.json
+│       │   │   ├── llama_offload16_conc12_in256_out32_run2.json
+│       │   │   ├── llama_offload16_conc12_in256_out32_run3.json
+│       │   │   ├── llama_offload16_conc12_in256_out32_run4.json
+│       │   │   ├── llama_offload16_conc12_in256_out32_run5.json
+│       │   │   ├── llama_offload16_conc12_in256_out64_run1.json
+│       │   │   ├── llama_offload16_conc12_in256_out64_run2.json
+│       │   │   ├── llama_offload16_conc12_in256_out64_run3.json
+│       │   │   ├── llama_offload16_conc12_in256_out64_run4.json
+│       │   │   ├── llama_offload16_conc12_in256_out64_run5.json
+│       │   │   ├── llama_offload16_conc16_in256_out128_run1.json
+│       │   │   ├── llama_offload16_conc16_in256_out128_run2.json
+│       │   │   ├── llama_offload16_conc16_in256_out128_run3.json
+│       │   │   ├── llama_offload16_conc16_in256_out128_run4.json
+│       │   │   ├── llama_offload16_conc16_in256_out128_run5.json
+│       │   │   ├── llama_offload16_conc16_in256_out32_run1.json
+│       │   │   ├── llama_offload16_conc16_in256_out32_run2.json
+│       │   │   ├── llama_offload16_conc16_in256_out32_run3.json
+│       │   │   ├── llama_offload16_conc16_in256_out32_run4.json
+│       │   │   ├── llama_offload16_conc16_in256_out32_run5.json
+│       │   │   ├── llama_offload16_conc16_in256_out64_run1.json
+│       │   │   ├── llama_offload16_conc16_in256_out64_run2.json
+│       │   │   ├── llama_offload16_conc16_in256_out64_run3.json
+│       │   │   ├── llama_offload16_conc16_in256_out64_run4.json
+│       │   │   ├── llama_offload16_conc16_in256_out64_run5.json
+│       │   │   ├── llama_offload16_conc1_in256_out128_run1.json
+│       │   │   ├── llama_offload16_conc1_in256_out128_run2.json
+│       │   │   ├── llama_offload16_conc1_in256_out128_run3.json
+│       │   │   ├── llama_offload16_conc1_in256_out128_run4.json
+│       │   │   ├── llama_offload16_conc1_in256_out128_run5.json
+│       │   │   ├── llama_offload16_conc1_in256_out32_run1.json
+│       │   │   ├── llama_offload16_conc1_in256_out32_run2.json
+│       │   │   ├── llama_offload16_conc1_in256_out32_run3.json
+│       │   │   ├── llama_offload16_conc1_in256_out32_run4.json
+│       │   │   ├── llama_offload16_conc1_in256_out32_run5.json
+│       │   │   ├── llama_offload16_conc1_in256_out64_run1.json
+│       │   │   ├── llama_offload16_conc1_in256_out64_run2.json
+│       │   │   ├── llama_offload16_conc1_in256_out64_run3.json
+│       │   │   ├── llama_offload16_conc1_in256_out64_run4.json
+│       │   │   ├── llama_offload16_conc1_in256_out64_run5.json
+│       │   │   ├── llama_offload16_conc2_in256_out128_run1.json
+│       │   │   ├── llama_offload16_conc2_in256_out128_run2.json
+│       │   │   ├── llama_offload16_conc2_in256_out128_run3.json
+│       │   │   ├── llama_offload16_conc2_in256_out128_run4.json
+│       │   │   ├── llama_offload16_conc2_in256_out128_run5.json
+│       │   │   ├── llama_offload16_conc2_in256_out32_run1.json
+│       │   │   ├── llama_offload16_conc2_in256_out32_run2.json
+│       │   │   ├── llama_offload16_conc2_in256_out32_run3.json
+│       │   │   ├── llama_offload16_conc2_in256_out32_run4.json
+│       │   │   ├── llama_offload16_conc2_in256_out32_run5.json
+│       │   │   ├── llama_offload16_conc2_in256_out64_run1.json
+│       │   │   ├── llama_offload16_conc2_in256_out64_run2.json
+│       │   │   ├── llama_offload16_conc2_in256_out64_run3.json
+│       │   │   ├── llama_offload16_conc2_in256_out64_run4.json
+│       │   │   ├── llama_offload16_conc2_in256_out64_run5.json
+│       │   │   ├── llama_offload16_conc4_in256_out128_run1.json
+│       │   │   ├── llama_offload16_conc4_in256_out128_run2.json
+│       │   │   ├── llama_offload16_conc4_in256_out128_run3.json
+│       │   │   ├── llama_offload16_conc4_in256_out128_run4.json
+│       │   │   ├── llama_offload16_conc4_in256_out128_run5.json
+│       │   │   ├── llama_offload16_conc4_in256_out32_run1.json
+│       │   │   ├── llama_offload16_conc4_in256_out32_run2.json
+│       │   │   ├── llama_offload16_conc4_in256_out32_run3.json
+│       │   │   ├── llama_offload16_conc4_in256_out32_run4.json
+│       │   │   ├── llama_offload16_conc4_in256_out32_run5.json
+│       │   │   ├── llama_offload16_conc4_in256_out64_run1.json
+│       │   │   ├── llama_offload16_conc4_in256_out64_run2.json
+│       │   │   ├── llama_offload16_conc4_in256_out64_run3.json
+│       │   │   ├── llama_offload16_conc4_in256_out64_run4.json
+│       │   │   ├── llama_offload16_conc4_in256_out64_run5.json
+│       │   │   ├── llama_offload16_conc8_in256_out128_run1.json
+│       │   │   ├── llama_offload16_conc8_in256_out128_run2.json
+│       │   │   ├── llama_offload16_conc8_in256_out128_run3.json
+│       │   │   ├── llama_offload16_conc8_in256_out128_run4.json
+│       │   │   ├── llama_offload16_conc8_in256_out128_run5.json
+│       │   │   ├── llama_offload16_conc8_in256_out32_run1.json
+│       │   │   ├── llama_offload16_conc8_in256_out32_run2.json
+│       │   │   ├── llama_offload16_conc8_in256_out32_run3.json
+│       │   │   ├── llama_offload16_conc8_in256_out32_run4.json
+│       │   │   ├── llama_offload16_conc8_in256_out32_run5.json
+│       │   │   ├── llama_offload16_conc8_in256_out64_run1.json
+│       │   │   ├── llama_offload16_conc8_in256_out64_run2.json
+│       │   │   ├── llama_offload16_conc8_in256_out64_run3.json
+│       │   │   ├── llama_offload16_conc8_in256_out64_run4.json
+│       │   │   └── llama_offload16_conc8_in256_out64_run5.json
+│       │   ├── offload2
+│       │   │   ├── llama_offload2_conc12_in256_out128_run1.json
+│       │   │   ├── llama_offload2_conc12_in256_out128_run2.json
+│       │   │   ├── llama_offload2_conc12_in256_out128_run3.json
+│       │   │   ├── llama_offload2_conc12_in256_out128_run4.json
+│       │   │   ├── llama_offload2_conc12_in256_out128_run5.json
+│       │   │   ├── llama_offload2_conc12_in256_out32_run1.json
+│       │   │   ├── llama_offload2_conc12_in256_out32_run2.json
+│       │   │   ├── llama_offload2_conc12_in256_out32_run3.json
+│       │   │   ├── llama_offload2_conc12_in256_out32_run4.json
+│       │   │   ├── llama_offload2_conc12_in256_out32_run5.json
+│       │   │   ├── llama_offload2_conc12_in256_out64_run1.json
+│       │   │   ├── llama_offload2_conc12_in256_out64_run2.json
+│       │   │   ├── llama_offload2_conc12_in256_out64_run3.json
+│       │   │   ├── llama_offload2_conc12_in256_out64_run4.json
+│       │   │   ├── llama_offload2_conc12_in256_out64_run5.json
+│       │   │   ├── llama_offload2_conc16_in256_out128_run1.json
+│       │   │   ├── llama_offload2_conc16_in256_out128_run2.json
+│       │   │   ├── llama_offload2_conc16_in256_out128_run3.json
+│       │   │   ├── llama_offload2_conc16_in256_out128_run4.json
+│       │   │   ├── llama_offload2_conc16_in256_out128_run5.json
+│       │   │   ├── llama_offload2_conc16_in256_out32_run1.json
+│       │   │   ├── llama_offload2_conc16_in256_out32_run2.json
+│       │   │   ├── llama_offload2_conc16_in256_out32_run3.json
+│       │   │   ├── llama_offload2_conc16_in256_out32_run4.json
+│       │   │   ├── llama_offload2_conc16_in256_out32_run5.json
+│       │   │   ├── llama_offload2_conc16_in256_out64_run1.json
+│       │   │   ├── llama_offload2_conc16_in256_out64_run2.json
+│       │   │   ├── llama_offload2_conc16_in256_out64_run3.json
+│       │   │   ├── llama_offload2_conc16_in256_out64_run4.json
+│       │   │   ├── llama_offload2_conc16_in256_out64_run5.json
+│       │   │   ├── llama_offload2_conc1_in256_out128_run1.json
+│       │   │   ├── llama_offload2_conc1_in256_out128_run2.json
+│       │   │   ├── llama_offload2_conc1_in256_out128_run3.json
+│       │   │   ├── llama_offload2_conc1_in256_out128_run4.json
+│       │   │   ├── llama_offload2_conc1_in256_out128_run5.json
+│       │   │   ├── llama_offload2_conc1_in256_out32_run1.json
+│       │   │   ├── llama_offload2_conc1_in256_out32_run2.json
+│       │   │   ├── llama_offload2_conc1_in256_out32_run3.json
+│       │   │   ├── llama_offload2_conc1_in256_out32_run4.json
+│       │   │   ├── llama_offload2_conc1_in256_out32_run5.json
+│       │   │   ├── llama_offload2_conc1_in256_out64_run1.json
+│       │   │   ├── llama_offload2_conc1_in256_out64_run2.json
+│       │   │   ├── llama_offload2_conc1_in256_out64_run3.json
+│       │   │   ├── llama_offload2_conc1_in256_out64_run4.json
+│       │   │   ├── llama_offload2_conc1_in256_out64_run5.json
+│       │   │   ├── llama_offload2_conc2_in256_out128_run1.json
+│       │   │   ├── llama_offload2_conc2_in256_out128_run2.json
+│       │   │   ├── llama_offload2_conc2_in256_out128_run3.json
+│       │   │   ├── llama_offload2_conc2_in256_out128_run4.json
+│       │   │   ├── llama_offload2_conc2_in256_out128_run5.json
+│       │   │   ├── llama_offload2_conc2_in256_out32_run1.json
+│       │   │   ├── llama_offload2_conc2_in256_out32_run2.json
+│       │   │   ├── llama_offload2_conc2_in256_out32_run3.json
+│       │   │   ├── llama_offload2_conc2_in256_out32_run4.json
+│       │   │   ├── llama_offload2_conc2_in256_out32_run5.json
+│       │   │   ├── llama_offload2_conc2_in256_out64_run1.json
+│       │   │   ├── llama_offload2_conc2_in256_out64_run2.json
+│       │   │   ├── llama_offload2_conc2_in256_out64_run3.json
+│       │   │   ├── llama_offload2_conc2_in256_out64_run4.json
+│       │   │   ├── llama_offload2_conc2_in256_out64_run5.json
+│       │   │   ├── llama_offload2_conc4_in256_out128_run1.json
+│       │   │   ├── llama_offload2_conc4_in256_out128_run2.json
+│       │   │   ├── llama_offload2_conc4_in256_out128_run3.json
+│       │   │   ├── llama_offload2_conc4_in256_out128_run4.json
+│       │   │   ├── llama_offload2_conc4_in256_out128_run5.json
+│       │   │   ├── llama_offload2_conc4_in256_out32_run1.json
+│       │   │   ├── llama_offload2_conc4_in256_out32_run2.json
+│       │   │   ├── llama_offload2_conc4_in256_out32_run3.json
+│       │   │   ├── llama_offload2_conc4_in256_out32_run4.json
+│       │   │   ├── llama_offload2_conc4_in256_out32_run5.json
+│       │   │   ├── llama_offload2_conc4_in256_out64_run1.json
+│       │   │   ├── llama_offload2_conc4_in256_out64_run2.json
+│       │   │   ├── llama_offload2_conc4_in256_out64_run3.json
+│       │   │   ├── llama_offload2_conc4_in256_out64_run4.json
+│       │   │   ├── llama_offload2_conc4_in256_out64_run5.json
+│       │   │   ├── llama_offload2_conc8_in256_out128_run1.json
+│       │   │   ├── llama_offload2_conc8_in256_out128_run2.json
+│       │   │   ├── llama_offload2_conc8_in256_out128_run3.json
+│       │   │   ├── llama_offload2_conc8_in256_out128_run4.json
+│       │   │   ├── llama_offload2_conc8_in256_out128_run5.json
+│       │   │   ├── llama_offload2_conc8_in256_out32_run1.json
+│       │   │   ├── llama_offload2_conc8_in256_out32_run2.json
+│       │   │   ├── llama_offload2_conc8_in256_out32_run3.json
+│       │   │   ├── llama_offload2_conc8_in256_out32_run4.json
+│       │   │   ├── llama_offload2_conc8_in256_out32_run5.json
+│       │   │   ├── llama_offload2_conc8_in256_out64_run1.json
+│       │   │   ├── llama_offload2_conc8_in256_out64_run2.json
+│       │   │   ├── llama_offload2_conc8_in256_out64_run3.json
+│       │   │   ├── llama_offload2_conc8_in256_out64_run4.json
+│       │   │   └── llama_offload2_conc8_in256_out64_run5.json
+│       │   ├── offload4
+│       │   │   ├── llama_offload4_conc12_in256_out128_run1.json
+│       │   │   ├── llama_offload4_conc12_in256_out128_run2.json
+│       │   │   ├── llama_offload4_conc12_in256_out128_run3.json
+│       │   │   ├── llama_offload4_conc12_in256_out128_run4.json
+│       │   │   ├── llama_offload4_conc12_in256_out128_run5.json
+│       │   │   ├── llama_offload4_conc12_in256_out32_run1.json
+│       │   │   ├── llama_offload4_conc12_in256_out32_run2.json
+│       │   │   ├── llama_offload4_conc12_in256_out32_run3.json
+│       │   │   ├── llama_offload4_conc12_in256_out32_run4.json
+│       │   │   ├── llama_offload4_conc12_in256_out32_run5.json
+│       │   │   ├── llama_offload4_conc12_in256_out64_run1.json
+│       │   │   ├── llama_offload4_conc12_in256_out64_run2.json
+│       │   │   ├── llama_offload4_conc12_in256_out64_run3.json
+│       │   │   ├── llama_offload4_conc12_in256_out64_run4.json
+│       │   │   ├── llama_offload4_conc12_in256_out64_run5.json
+│       │   │   ├── llama_offload4_conc16_in256_out128_run1.json
+│       │   │   ├── llama_offload4_conc16_in256_out128_run2.json
+│       │   │   ├── llama_offload4_conc16_in256_out128_run3.json
+│       │   │   ├── llama_offload4_conc16_in256_out128_run4.json
+│       │   │   ├── llama_offload4_conc16_in256_out128_run5.json
+│       │   │   ├── llama_offload4_conc16_in256_out32_run1.json
+│       │   │   ├── llama_offload4_conc16_in256_out32_run2.json
+│       │   │   ├── llama_offload4_conc16_in256_out32_run3.json
+│       │   │   ├── llama_offload4_conc16_in256_out32_run4.json
+│       │   │   ├── llama_offload4_conc16_in256_out32_run5.json
+│       │   │   ├── llama_offload4_conc16_in256_out64_run1.json
+│       │   │   ├── llama_offload4_conc16_in256_out64_run2.json
+│       │   │   ├── llama_offload4_conc16_in256_out64_run3.json
+│       │   │   ├── llama_offload4_conc16_in256_out64_run4.json
+│       │   │   ├── llama_offload4_conc16_in256_out64_run5.json
+│       │   │   ├── llama_offload4_conc1_in256_out128_run1.json
+│       │   │   ├── llama_offload4_conc1_in256_out128_run2.json
+│       │   │   ├── llama_offload4_conc1_in256_out128_run3.json
+│       │   │   ├── llama_offload4_conc1_in256_out128_run4.json
+│       │   │   ├── llama_offload4_conc1_in256_out128_run5.json
+│       │   │   ├── llama_offload4_conc1_in256_out32_run1.json
+│       │   │   ├── llama_offload4_conc1_in256_out32_run2.json
+│       │   │   ├── llama_offload4_conc1_in256_out32_run3.json
+│       │   │   ├── llama_offload4_conc1_in256_out32_run4.json
+│       │   │   ├── llama_offload4_conc1_in256_out32_run5.json
+│       │   │   ├── llama_offload4_conc1_in256_out64_run1.json
+│       │   │   ├── llama_offload4_conc1_in256_out64_run2.json
+│       │   │   ├── llama_offload4_conc1_in256_out64_run3.json
+│       │   │   ├── llama_offload4_conc1_in256_out64_run4.json
+│       │   │   ├── llama_offload4_conc1_in256_out64_run5.json
+│       │   │   ├── llama_offload4_conc2_in256_out128_run1.json
+│       │   │   ├── llama_offload4_conc2_in256_out128_run2.json
+│       │   │   ├── llama_offload4_conc2_in256_out128_run3.json
+│       │   │   ├── llama_offload4_conc2_in256_out128_run4.json
+│       │   │   ├── llama_offload4_conc2_in256_out128_run5.json
+│       │   │   ├── llama_offload4_conc2_in256_out32_run1.json
+│       │   │   ├── llama_offload4_conc2_in256_out32_run2.json
+│       │   │   ├── llama_offload4_conc2_in256_out32_run3.json
+│       │   │   ├── llama_offload4_conc2_in256_out32_run4.json
+│       │   │   ├── llama_offload4_conc2_in256_out32_run5.json
+│       │   │   ├── llama_offload4_conc2_in256_out64_run1.json
+│       │   │   ├── llama_offload4_conc2_in256_out64_run2.json
+│       │   │   ├── llama_offload4_conc2_in256_out64_run3.json
+│       │   │   ├── llama_offload4_conc2_in256_out64_run4.json
+│       │   │   ├── llama_offload4_conc2_in256_out64_run5.json
+│       │   │   ├── llama_offload4_conc4_in256_out128_run1.json
+│       │   │   ├── llama_offload4_conc4_in256_out128_run2.json
+│       │   │   ├── llama_offload4_conc4_in256_out128_run3.json
+│       │   │   ├── llama_offload4_conc4_in256_out128_run4.json
+│       │   │   ├── llama_offload4_conc4_in256_out128_run5.json
+│       │   │   ├── llama_offload4_conc4_in256_out32_run1.json
+│       │   │   ├── llama_offload4_conc4_in256_out32_run2.json
+│       │   │   ├── llama_offload4_conc4_in256_out32_run3.json
+│       │   │   ├── llama_offload4_conc4_in256_out32_run4.json
+│       │   │   ├── llama_offload4_conc4_in256_out32_run5.json
+│       │   │   ├── llama_offload4_conc4_in256_out64_run1.json
+│       │   │   ├── llama_offload4_conc4_in256_out64_run2.json
+│       │   │   ├── llama_offload4_conc4_in256_out64_run3.json
+│       │   │   ├── llama_offload4_conc4_in256_out64_run4.json
+│       │   │   ├── llama_offload4_conc4_in256_out64_run5.json
+│       │   │   ├── llama_offload4_conc8_in256_out128_run1.json
+│       │   │   ├── llama_offload4_conc8_in256_out128_run2.json
+│       │   │   ├── llama_offload4_conc8_in256_out128_run3.json
+│       │   │   ├── llama_offload4_conc8_in256_out128_run4.json
+│       │   │   ├── llama_offload4_conc8_in256_out128_run5.json
+│       │   │   ├── llama_offload4_conc8_in256_out32_run1.json
+│       │   │   ├── llama_offload4_conc8_in256_out32_run2.json
+│       │   │   ├── llama_offload4_conc8_in256_out32_run3.json
+│       │   │   ├── llama_offload4_conc8_in256_out32_run4.json
+│       │   │   ├── llama_offload4_conc8_in256_out32_run5.json
+│       │   │   ├── llama_offload4_conc8_in256_out64_run1.json
+│       │   │   ├── llama_offload4_conc8_in256_out64_run2.json
+│       │   │   ├── llama_offload4_conc8_in256_out64_run3.json
+│       │   │   ├── llama_offload4_conc8_in256_out64_run4.json
+│       │   │   └── llama_offload4_conc8_in256_out64_run5.json
+│       │   └── offload8
+│       │       ├── llama_offload8_conc12_in256_out128_run1.json
+│       │       ├── llama_offload8_conc12_in256_out128_run2.json
+│       │       ├── llama_offload8_conc12_in256_out128_run3.json
+│       │       ├── llama_offload8_conc12_in256_out128_run4.json
+│       │       ├── llama_offload8_conc12_in256_out128_run5.json
+│       │       ├── llama_offload8_conc12_in256_out32_run1.json
+│       │       ├── llama_offload8_conc12_in256_out32_run2.json
+│       │       ├── llama_offload8_conc12_in256_out32_run3.json
+│       │       ├── llama_offload8_conc12_in256_out32_run4.json
+│       │       ├── llama_offload8_conc12_in256_out32_run5.json
+│       │       ├── llama_offload8_conc12_in256_out64_run1.json
+│       │       ├── llama_offload8_conc12_in256_out64_run2.json
+│       │       ├── llama_offload8_conc12_in256_out64_run3.json
+│       │       ├── llama_offload8_conc12_in256_out64_run4.json
+│       │       ├── llama_offload8_conc12_in256_out64_run5.json
+│       │       ├── llama_offload8_conc16_in256_out128_run1.json
+│       │       ├── llama_offload8_conc16_in256_out128_run2.json
+│       │       ├── llama_offload8_conc16_in256_out128_run3.json
+│       │       ├── llama_offload8_conc16_in256_out128_run4.json
+│       │       ├── llama_offload8_conc16_in256_out128_run5.json
+│       │       ├── llama_offload8_conc16_in256_out32_run1.json
+│       │       ├── llama_offload8_conc16_in256_out32_run2.json
+│       │       ├── llama_offload8_conc16_in256_out32_run3.json
+│       │       ├── llama_offload8_conc16_in256_out32_run4.json
+│       │       ├── llama_offload8_conc16_in256_out32_run5.json
+│       │       ├── llama_offload8_conc16_in256_out64_run1.json
+│       │       ├── llama_offload8_conc16_in256_out64_run2.json
+│       │       ├── llama_offload8_conc16_in256_out64_run3.json
+│       │       ├── llama_offload8_conc16_in256_out64_run4.json
+│       │       ├── llama_offload8_conc16_in256_out64_run5.json
+│       │       ├── llama_offload8_conc1_in256_out128_run1.json
+│       │       ├── llama_offload8_conc1_in256_out128_run2.json
+│       │       ├── llama_offload8_conc1_in256_out128_run3.json
+│       │       ├── llama_offload8_conc1_in256_out128_run4.json
+│       │       ├── llama_offload8_conc1_in256_out128_run5.json
+│       │       ├── llama_offload8_conc1_in256_out32_run1.json
+│       │       ├── llama_offload8_conc1_in256_out32_run2.json
+│       │       ├── llama_offload8_conc1_in256_out32_run3.json
+│       │       ├── llama_offload8_conc1_in256_out32_run4.json
+│       │       ├── llama_offload8_conc1_in256_out32_run5.json
+│       │       ├── llama_offload8_conc1_in256_out64_run1.json
+│       │       ├── llama_offload8_conc1_in256_out64_run2.json
+│       │       ├── llama_offload8_conc1_in256_out64_run3.json
+│       │       ├── llama_offload8_conc1_in256_out64_run4.json
+│       │       ├── llama_offload8_conc1_in256_out64_run5.json
+│       │       ├── llama_offload8_conc2_in256_out128_run1.json
+│       │       ├── llama_offload8_conc2_in256_out128_run2.json
+│       │       ├── llama_offload8_conc2_in256_out128_run3.json
+│       │       ├── llama_offload8_conc2_in256_out128_run4.json
+│       │       ├── llama_offload8_conc2_in256_out128_run5.json
+│       │       ├── llama_offload8_conc2_in256_out32_run1.json
+│       │       ├── llama_offload8_conc2_in256_out32_run2.json
+│       │       ├── llama_offload8_conc2_in256_out32_run3.json
+│       │       ├── llama_offload8_conc2_in256_out32_run4.json
+│       │       ├── llama_offload8_conc2_in256_out32_run5.json
+│       │       ├── llama_offload8_conc2_in256_out64_run1.json
+│       │       ├── llama_offload8_conc2_in256_out64_run2.json
+│       │       ├── llama_offload8_conc2_in256_out64_run3.json
+│       │       ├── llama_offload8_conc2_in256_out64_run4.json
+│       │       ├── llama_offload8_conc2_in256_out64_run5.json
+│       │       ├── llama_offload8_conc4_in256_out128_run1.json
+│       │       ├── llama_offload8_conc4_in256_out128_run2.json
+│       │       ├── llama_offload8_conc4_in256_out128_run3.json
+│       │       ├── llama_offload8_conc4_in256_out128_run4.json
+│       │       ├── llama_offload8_conc4_in256_out128_run5.json
+│       │       ├── llama_offload8_conc4_in256_out32_run1.json
+│       │       ├── llama_offload8_conc4_in256_out32_run2.json
+│       │       ├── llama_offload8_conc4_in256_out32_run3.json
+│       │       ├── llama_offload8_conc4_in256_out32_run4.json
+│       │       ├── llama_offload8_conc4_in256_out32_run5.json
+│       │       ├── llama_offload8_conc4_in256_out64_run1.json
+│       │       ├── llama_offload8_conc4_in256_out64_run2.json
+│       │       ├── llama_offload8_conc4_in256_out64_run3.json
+│       │       ├── llama_offload8_conc4_in256_out64_run4.json
+│       │       ├── llama_offload8_conc4_in256_out64_run5.json
+│       │       ├── llama_offload8_conc8_in256_out128_run1.json
+│       │       ├── llama_offload8_conc8_in256_out128_run2.json
+│       │       ├── llama_offload8_conc8_in256_out128_run3.json
+│       │       ├── llama_offload8_conc8_in256_out128_run4.json
+│       │       ├── llama_offload8_conc8_in256_out128_run5.json
+│       │       ├── llama_offload8_conc8_in256_out32_run1.json
+│       │       ├── llama_offload8_conc8_in256_out32_run2.json
+│       │       ├── llama_offload8_conc8_in256_out32_run3.json
+│       │       ├── llama_offload8_conc8_in256_out32_run4.json
+│       │       ├── llama_offload8_conc8_in256_out32_run5.json
+│       │       ├── llama_offload8_conc8_in256_out64_run1.json
+│       │       ├── llama_offload8_conc8_in256_out64_run2.json
+│       │       ├── llama_offload8_conc8_in256_out64_run3.json
+│       │       ├── llama_offload8_conc8_in256_out64_run4.json
+│       │       └── llama_offload8_conc8_in256_out64_run5.json
+│       ├── llama_audit.csv
+│       ├── llama_audit_filename.csv
+│       ├── paper_analysis
+│       │   ├── paper_bootstrap_ci.csv
+│       │   ├── paper_profile_summary.md
+│       │   ├── paper_table_by_offload_concurrency.csv
+│       │   ├── paper_table_by_offload_concurrency_detail.csv
+│       │   ├── paper_table_by_offload.csv
+│       │   ├── paper_table_by_offload_detail.csv
+│       │   ├── paper_table_by_offload_output.csv
+│       │   ├── paper_table_by_offload_output_detail.csv
+│       │   ├── paper_table_cross_model.csv
+│       │   ├── paper_table_output_stability.csv
+│       │   └── paper_table_saturation.csv
+│       ├── paper_summary_llama
+│       │   ├── paper_profile_summary.md
+│       │   ├── paper_table_by_offload_concurrency.csv
+│       │   ├── paper_table_by_offload.csv
+│       │   ├── paper_table_by_offload_output.csv
+│       │   └── paper_table_output_stability.csv
+│       ├── qwen
+│       │   ├── offload0
+│       │   │   ├── qwen_offload0_conc12_in256_out128_run1.json
+│       │   │   ├── qwen_offload0_conc12_in256_out128_run2.json
+│       │   │   ├── qwen_offload0_conc12_in256_out128_run3.json
+│       │   │   ├── qwen_offload0_conc12_in256_out128_run4.json
+│       │   │   ├── qwen_offload0_conc12_in256_out128_run5.json
+│       │   │   ├── qwen_offload0_conc12_in256_out32_run1.json
+│       │   │   ├── qwen_offload0_conc12_in256_out32_run2.json
+│       │   │   ├── qwen_offload0_conc12_in256_out32_run3.json
+│       │   │   ├── qwen_offload0_conc12_in256_out32_run4.json
+│       │   │   ├── qwen_offload0_conc12_in256_out32_run5.json
+│       │   │   ├── qwen_offload0_conc12_in256_out64_run1.json
+│       │   │   ├── qwen_offload0_conc12_in256_out64_run2.json
+│       │   │   ├── qwen_offload0_conc12_in256_out64_run3.json
+│       │   │   ├── qwen_offload0_conc12_in256_out64_run4.json
+│       │   │   ├── qwen_offload0_conc12_in256_out64_run5.json
+│       │   │   ├── qwen_offload0_conc16_in256_out128_run1.json
+│       │   │   ├── qwen_offload0_conc16_in256_out128_run2.json
+│       │   │   ├── qwen_offload0_conc16_in256_out128_run3.json
+│       │   │   ├── qwen_offload0_conc16_in256_out128_run4.json
+│       │   │   ├── qwen_offload0_conc16_in256_out128_run5.json
+│       │   │   ├── qwen_offload0_conc16_in256_out32_run1.json
+│       │   │   ├── qwen_offload0_conc16_in256_out32_run2.json
+│       │   │   ├── qwen_offload0_conc16_in256_out32_run3.json
+│       │   │   ├── qwen_offload0_conc16_in256_out32_run4.json
+│       │   │   ├── qwen_offload0_conc16_in256_out32_run5.json
+│       │   │   ├── qwen_offload0_conc16_in256_out64_run1.json
+│       │   │   ├── qwen_offload0_conc16_in256_out64_run2.json
+│       │   │   ├── qwen_offload0_conc16_in256_out64_run3.json
+│       │   │   ├── qwen_offload0_conc16_in256_out64_run4.json
+│       │   │   ├── qwen_offload0_conc16_in256_out64_run5.json
+│       │   │   ├── qwen_offload0_conc1_in256_out128_run1.json
+│       │   │   ├── qwen_offload0_conc1_in256_out128_run2.json
+│       │   │   ├── qwen_offload0_conc1_in256_out128_run3.json
+│       │   │   ├── qwen_offload0_conc1_in256_out128_run4.json
+│       │   │   ├── qwen_offload0_conc1_in256_out128_run5.json
+│       │   │   ├── qwen_offload0_conc1_in256_out32_run1.json
+│       │   │   ├── qwen_offload0_conc1_in256_out32_run2.json
+│       │   │   ├── qwen_offload0_conc1_in256_out32_run3.json
+│       │   │   ├── qwen_offload0_conc1_in256_out32_run4.json
+│       │   │   ├── qwen_offload0_conc1_in256_out32_run5.json
+│       │   │   ├── qwen_offload0_conc1_in256_out64_run1.json
+│       │   │   ├── qwen_offload0_conc1_in256_out64_run2.json
+│       │   │   ├── qwen_offload0_conc1_in256_out64_run3.json
+│       │   │   ├── qwen_offload0_conc1_in256_out64_run4.json
+│       │   │   ├── qwen_offload0_conc1_in256_out64_run5.json
+│       │   │   ├── qwen_offload0_conc2_in256_out128_run1.json
+│       │   │   ├── qwen_offload0_conc2_in256_out128_run2.json
+│       │   │   ├── qwen_offload0_conc2_in256_out128_run3.json
+│       │   │   ├── qwen_offload0_conc2_in256_out128_run4.json
+│       │   │   ├── qwen_offload0_conc2_in256_out128_run5.json
+│       │   │   ├── qwen_offload0_conc2_in256_out32_run1.json
+│       │   │   ├── qwen_offload0_conc2_in256_out32_run2.json
+│       │   │   ├── qwen_offload0_conc2_in256_out32_run3.json
+│       │   │   ├── qwen_offload0_conc2_in256_out32_run4.json
+│       │   │   ├── qwen_offload0_conc2_in256_out32_run5.json
+│       │   │   ├── qwen_offload0_conc2_in256_out64_run1.json
+│       │   │   ├── qwen_offload0_conc2_in256_out64_run2.json
+│       │   │   ├── qwen_offload0_conc2_in256_out64_run3.json
+│       │   │   ├── qwen_offload0_conc2_in256_out64_run4.json
+│       │   │   ├── qwen_offload0_conc2_in256_out64_run5.json
+│       │   │   ├── qwen_offload0_conc4_in256_out128_run1.json
+│       │   │   ├── qwen_offload0_conc4_in256_out128_run2.json
+│       │   │   ├── qwen_offload0_conc4_in256_out128_run3.json
+│       │   │   ├── qwen_offload0_conc4_in256_out128_run4.json
+│       │   │   ├── qwen_offload0_conc4_in256_out128_run5.json
+│       │   │   ├── qwen_offload0_conc4_in256_out32_run1.json
+│       │   │   ├── qwen_offload0_conc4_in256_out32_run2.json
+│       │   │   ├── qwen_offload0_conc4_in256_out32_run3.json
+│       │   │   ├── qwen_offload0_conc4_in256_out32_run4.json
+│       │   │   ├── qwen_offload0_conc4_in256_out32_run5.json
+│       │   │   ├── qwen_offload0_conc4_in256_out64_run1.json
+│       │   │   ├── qwen_offload0_conc4_in256_out64_run2.json
+│       │   │   ├── qwen_offload0_conc4_in256_out64_run3.json
+│       │   │   ├── qwen_offload0_conc4_in256_out64_run4.json
+│       │   │   ├── qwen_offload0_conc4_in256_out64_run5.json
+│       │   │   ├── qwen_offload0_conc8_in256_out128_run1.json
+│       │   │   ├── qwen_offload0_conc8_in256_out128_run2.json
+│       │   │   ├── qwen_offload0_conc8_in256_out128_run3.json
+│       │   │   ├── qwen_offload0_conc8_in256_out128_run4.json
+│       │   │   ├── qwen_offload0_conc8_in256_out128_run5.json
+│       │   │   ├── qwen_offload0_conc8_in256_out32_run1.json
+│       │   │   ├── qwen_offload0_conc8_in256_out32_run2.json
+│       │   │   ├── qwen_offload0_conc8_in256_out32_run3.json
+│       │   │   ├── qwen_offload0_conc8_in256_out32_run4.json
+│       │   │   ├── qwen_offload0_conc8_in256_out32_run5.json
+│       │   │   ├── qwen_offload0_conc8_in256_out64_run1.json
+│       │   │   ├── qwen_offload0_conc8_in256_out64_run2.json
+│       │   │   ├── qwen_offload0_conc8_in256_out64_run3.json
+│       │   │   ├── qwen_offload0_conc8_in256_out64_run4.json
+│       │   │   └── qwen_offload0_conc8_in256_out64_run5.json
+│       │   ├── offload12
+│       │   │   ├── qwen_offload12_conc12_in256_out128_run1.json
+│       │   │   ├── qwen_offload12_conc12_in256_out128_run2.json
+│       │   │   ├── qwen_offload12_conc12_in256_out128_run3.json
+│       │   │   ├── qwen_offload12_conc12_in256_out128_run4.json
+│       │   │   ├── qwen_offload12_conc12_in256_out128_run5.json
+│       │   │   ├── qwen_offload12_conc12_in256_out32_run1.json
+│       │   │   ├── qwen_offload12_conc12_in256_out32_run2.json
+│       │   │   ├── qwen_offload12_conc12_in256_out32_run3.json
+│       │   │   ├── qwen_offload12_conc12_in256_out32_run4.json
+│       │   │   ├── qwen_offload12_conc12_in256_out32_run5.json
+│       │   │   ├── qwen_offload12_conc12_in256_out64_run1.json
+│       │   │   ├── qwen_offload12_conc12_in256_out64_run2.json
+│       │   │   ├── qwen_offload12_conc12_in256_out64_run3.json
+│       │   │   ├── qwen_offload12_conc12_in256_out64_run4.json
+│       │   │   ├── qwen_offload12_conc12_in256_out64_run5.json
+│       │   │   ├── qwen_offload12_conc16_in256_out128_run1.json
+│       │   │   ├── qwen_offload12_conc16_in256_out128_run2.json
+│       │   │   ├── qwen_offload12_conc16_in256_out128_run3.json
+│       │   │   ├── qwen_offload12_conc16_in256_out128_run4.json
+│       │   │   ├── qwen_offload12_conc16_in256_out128_run5.json
+│       │   │   ├── qwen_offload12_conc16_in256_out32_run1.json
+│       │   │   ├── qwen_offload12_conc16_in256_out32_run2.json
+│       │   │   ├── qwen_offload12_conc16_in256_out32_run3.json
+│       │   │   ├── qwen_offload12_conc16_in256_out32_run4.json
+│       │   │   ├── qwen_offload12_conc16_in256_out32_run5.json
+│       │   │   ├── qwen_offload12_conc16_in256_out64_run1.json
+│       │   │   ├── qwen_offload12_conc16_in256_out64_run2.json
+│       │   │   ├── qwen_offload12_conc16_in256_out64_run3.json
+│       │   │   ├── qwen_offload12_conc16_in256_out64_run4.json
+│       │   │   ├── qwen_offload12_conc16_in256_out64_run5.json
+│       │   │   ├── qwen_offload12_conc1_in256_out128_run1.json
+│       │   │   ├── qwen_offload12_conc1_in256_out128_run2.json
+│       │   │   ├── qwen_offload12_conc1_in256_out128_run3.json
+│       │   │   ├── qwen_offload12_conc1_in256_out128_run4.json
+│       │   │   ├── qwen_offload12_conc1_in256_out128_run5.json
+│       │   │   ├── qwen_offload12_conc1_in256_out32_run1.json
+│       │   │   ├── qwen_offload12_conc1_in256_out32_run2.json
+│       │   │   ├── qwen_offload12_conc1_in256_out32_run3.json
+│       │   │   ├── qwen_offload12_conc1_in256_out32_run4.json
+│       │   │   ├── qwen_offload12_conc1_in256_out32_run5.json
+│       │   │   ├── qwen_offload12_conc1_in256_out64_run1.json
+│       │   │   ├── qwen_offload12_conc1_in256_out64_run2.json
+│       │   │   ├── qwen_offload12_conc1_in256_out64_run3.json
+│       │   │   ├── qwen_offload12_conc1_in256_out64_run4.json
+│       │   │   ├── qwen_offload12_conc1_in256_out64_run5.json
+│       │   │   ├── qwen_offload12_conc2_in256_out128_run1.json
+│       │   │   ├── qwen_offload12_conc2_in256_out128_run2.json
+│       │   │   ├── qwen_offload12_conc2_in256_out128_run3.json
+│       │   │   ├── qwen_offload12_conc2_in256_out128_run4.json
+│       │   │   ├── qwen_offload12_conc2_in256_out128_run5.json
+│       │   │   ├── qwen_offload12_conc2_in256_out32_run1.json
+│       │   │   ├── qwen_offload12_conc2_in256_out32_run2.json
+│       │   │   ├── qwen_offload12_conc2_in256_out32_run3.json
+│       │   │   ├── qwen_offload12_conc2_in256_out32_run4.json
+│       │   │   ├── qwen_offload12_conc2_in256_out32_run5.json
+│       │   │   ├── qwen_offload12_conc2_in256_out64_run1.json
+│       │   │   ├── qwen_offload12_conc2_in256_out64_run2.json
+│       │   │   ├── qwen_offload12_conc2_in256_out64_run3.json
+│       │   │   ├── qwen_offload12_conc2_in256_out64_run4.json
+│       │   │   ├── qwen_offload12_conc2_in256_out64_run5.json
+│       │   │   ├── qwen_offload12_conc4_in256_out128_run1.json
+│       │   │   ├── qwen_offload12_conc4_in256_out128_run2.json
+│       │   │   ├── qwen_offload12_conc4_in256_out128_run3.json
+│       │   │   ├── qwen_offload12_conc4_in256_out128_run4.json
+│       │   │   ├── qwen_offload12_conc4_in256_out128_run5.json
+│       │   │   ├── qwen_offload12_conc4_in256_out32_run1.json
+│       │   │   ├── qwen_offload12_conc4_in256_out32_run2.json
+│       │   │   ├── qwen_offload12_conc4_in256_out32_run3.json
+│       │   │   ├── qwen_offload12_conc4_in256_out32_run4.json
+│       │   │   ├── qwen_offload12_conc4_in256_out32_run5.json
+│       │   │   ├── qwen_offload12_conc4_in256_out64_run1.json
+│       │   │   ├── qwen_offload12_conc4_in256_out64_run2.json
+│       │   │   ├── qwen_offload12_conc4_in256_out64_run3.json
+│       │   │   ├── qwen_offload12_conc4_in256_out64_run4.json
+│       │   │   ├── qwen_offload12_conc4_in256_out64_run5.json
+│       │   │   ├── qwen_offload12_conc8_in256_out128_run1.json
+│       │   │   ├── qwen_offload12_conc8_in256_out128_run2.json
+│       │   │   ├── qwen_offload12_conc8_in256_out128_run3.json
+│       │   │   ├── qwen_offload12_conc8_in256_out128_run4.json
+│       │   │   ├── qwen_offload12_conc8_in256_out128_run5.json
+│       │   │   ├── qwen_offload12_conc8_in256_out32_run1.json
+│       │   │   ├── qwen_offload12_conc8_in256_out32_run2.json
+│       │   │   ├── qwen_offload12_conc8_in256_out32_run3.json
+│       │   │   ├── qwen_offload12_conc8_in256_out32_run4.json
+│       │   │   ├── qwen_offload12_conc8_in256_out32_run5.json
+│       │   │   ├── qwen_offload12_conc8_in256_out64_run1.json
+│       │   │   ├── qwen_offload12_conc8_in256_out64_run2.json
+│       │   │   ├── qwen_offload12_conc8_in256_out64_run3.json
+│       │   │   ├── qwen_offload12_conc8_in256_out64_run4.json
+│       │   │   └── qwen_offload12_conc8_in256_out64_run5.json
+│       │   ├── offload16
+│       │   │   ├── qwen_offload16_conc12_in256_out128_run1.json
+│       │   │   ├── qwen_offload16_conc12_in256_out128_run2.json
+│       │   │   ├── qwen_offload16_conc12_in256_out128_run3.json
+│       │   │   ├── qwen_offload16_conc12_in256_out128_run4.json
+│       │   │   ├── qwen_offload16_conc12_in256_out128_run5.json
+│       │   │   ├── qwen_offload16_conc12_in256_out32_run1.json
+│       │   │   ├── qwen_offload16_conc12_in256_out32_run2.json
+│       │   │   ├── qwen_offload16_conc12_in256_out32_run3.json
+│       │   │   ├── qwen_offload16_conc12_in256_out32_run4.json
+│       │   │   ├── qwen_offload16_conc12_in256_out32_run5.json
+│       │   │   ├── qwen_offload16_conc12_in256_out64_run1.json
+│       │   │   ├── qwen_offload16_conc12_in256_out64_run2.json
+│       │   │   ├── qwen_offload16_conc12_in256_out64_run3.json
+│       │   │   ├── qwen_offload16_conc12_in256_out64_run4.json
+│       │   │   ├── qwen_offload16_conc12_in256_out64_run5.json
+│       │   │   ├── qwen_offload16_conc16_in256_out128_run1.json
+│       │   │   ├── qwen_offload16_conc16_in256_out128_run2.json
+│       │   │   ├── qwen_offload16_conc16_in256_out128_run3.json
+│       │   │   ├── qwen_offload16_conc16_in256_out128_run4.json
+│       │   │   ├── qwen_offload16_conc16_in256_out128_run5.json
+│       │   │   ├── qwen_offload16_conc16_in256_out32_run1.json
+│       │   │   ├── qwen_offload16_conc16_in256_out32_run2.json
+│       │   │   ├── qwen_offload16_conc16_in256_out32_run3.json
+│       │   │   ├── qwen_offload16_conc16_in256_out32_run4.json
+│       │   │   ├── qwen_offload16_conc16_in256_out32_run5.json
+│       │   │   ├── qwen_offload16_conc16_in256_out64_run1.json
+│       │   │   ├── qwen_offload16_conc16_in256_out64_run2.json
+│       │   │   ├── qwen_offload16_conc16_in256_out64_run3.json
+│       │   │   ├── qwen_offload16_conc16_in256_out64_run4.json
+│       │   │   ├── qwen_offload16_conc16_in256_out64_run5.json
+│       │   │   ├── qwen_offload16_conc1_in256_out128_run1.json
+│       │   │   ├── qwen_offload16_conc1_in256_out128_run2.json
+│       │   │   ├── qwen_offload16_conc1_in256_out128_run3.json
+│       │   │   ├── qwen_offload16_conc1_in256_out128_run4.json
+│       │   │   ├── qwen_offload16_conc1_in256_out128_run5.json
+│       │   │   ├── qwen_offload16_conc1_in256_out32_run1.json
+│       │   │   ├── qwen_offload16_conc1_in256_out32_run2.json
+│       │   │   ├── qwen_offload16_conc1_in256_out32_run3.json
+│       │   │   ├── qwen_offload16_conc1_in256_out32_run4.json
+│       │   │   ├── qwen_offload16_conc1_in256_out32_run5.json
+│       │   │   ├── qwen_offload16_conc1_in256_out64_run1.json
+│       │   │   ├── qwen_offload16_conc1_in256_out64_run2.json
+│       │   │   ├── qwen_offload16_conc1_in256_out64_run3.json
+│       │   │   ├── qwen_offload16_conc1_in256_out64_run4.json
+│       │   │   ├── qwen_offload16_conc1_in256_out64_run5.json
+│       │   │   ├── qwen_offload16_conc2_in256_out128_run1.json
+│       │   │   ├── qwen_offload16_conc2_in256_out128_run2.json
+│       │   │   ├── qwen_offload16_conc2_in256_out128_run3.json
+│       │   │   ├── qwen_offload16_conc2_in256_out128_run4.json
+│       │   │   ├── qwen_offload16_conc2_in256_out128_run5.json
+│       │   │   ├── qwen_offload16_conc2_in256_out32_run1.json
+│       │   │   ├── qwen_offload16_conc2_in256_out32_run2.json
+│       │   │   ├── qwen_offload16_conc2_in256_out32_run3.json
+│       │   │   ├── qwen_offload16_conc2_in256_out32_run4.json
+│       │   │   ├── qwen_offload16_conc2_in256_out32_run5.json
+│       │   │   ├── qwen_offload16_conc2_in256_out64_run1.json
+│       │   │   ├── qwen_offload16_conc2_in256_out64_run2.json
+│       │   │   ├── qwen_offload16_conc2_in256_out64_run3.json
+│       │   │   ├── qwen_offload16_conc2_in256_out64_run4.json
+│       │   │   ├── qwen_offload16_conc2_in256_out64_run5.json
+│       │   │   ├── qwen_offload16_conc4_in256_out128_run1.json
+│       │   │   ├── qwen_offload16_conc4_in256_out128_run2.json
+│       │   │   ├── qwen_offload16_conc4_in256_out128_run3.json
+│       │   │   ├── qwen_offload16_conc4_in256_out128_run4.json
+│       │   │   ├── qwen_offload16_conc4_in256_out128_run5.json
+│       │   │   ├── qwen_offload16_conc4_in256_out32_run1.json
+│       │   │   ├── qwen_offload16_conc4_in256_out32_run2.json
+│       │   │   ├── qwen_offload16_conc4_in256_out32_run3.json
+│       │   │   ├── qwen_offload16_conc4_in256_out32_run4.json
+│       │   │   ├── qwen_offload16_conc4_in256_out32_run5.json
+│       │   │   ├── qwen_offload16_conc4_in256_out64_run1.json
+│       │   │   ├── qwen_offload16_conc4_in256_out64_run2.json
+│       │   │   ├── qwen_offload16_conc4_in256_out64_run3.json
+│       │   │   ├── qwen_offload16_conc4_in256_out64_run4.json
+│       │   │   ├── qwen_offload16_conc4_in256_out64_run5.json
+│       │   │   ├── qwen_offload16_conc8_in256_out128_run1.json
+│       │   │   ├── qwen_offload16_conc8_in256_out128_run2.json
+│       │   │   ├── qwen_offload16_conc8_in256_out128_run3.json
+│       │   │   ├── qwen_offload16_conc8_in256_out128_run4.json
+│       │   │   ├── qwen_offload16_conc8_in256_out128_run5.json
+│       │   │   ├── qwen_offload16_conc8_in256_out32_run1.json
+│       │   │   ├── qwen_offload16_conc8_in256_out32_run2.json
+│       │   │   ├── qwen_offload16_conc8_in256_out32_run3.json
+│       │   │   ├── qwen_offload16_conc8_in256_out32_run4.json
+│       │   │   ├── qwen_offload16_conc8_in256_out32_run5.json
+│       │   │   ├── qwen_offload16_conc8_in256_out64_run1.json
+│       │   │   ├── qwen_offload16_conc8_in256_out64_run2.json
+│       │   │   ├── qwen_offload16_conc8_in256_out64_run3.json
+│       │   │   ├── qwen_offload16_conc8_in256_out64_run4.json
+│       │   │   └── qwen_offload16_conc8_in256_out64_run5.json
+│       │   ├── offload2
+│       │   │   ├── qwen_offload2_conc12_in256_out128_run1.json
+│       │   │   ├── qwen_offload2_conc12_in256_out128_run2.json
+│       │   │   ├── qwen_offload2_conc12_in256_out128_run3.json
+│       │   │   ├── qwen_offload2_conc12_in256_out128_run4.json
+│       │   │   ├── qwen_offload2_conc12_in256_out128_run5.json
+│       │   │   ├── qwen_offload2_conc12_in256_out32_run1.json
+│       │   │   ├── qwen_offload2_conc12_in256_out32_run2.json
+│       │   │   ├── qwen_offload2_conc12_in256_out32_run3.json
+│       │   │   ├── qwen_offload2_conc12_in256_out32_run4.json
+│       │   │   ├── qwen_offload2_conc12_in256_out32_run5.json
+│       │   │   ├── qwen_offload2_conc12_in256_out64_run1.json
+│       │   │   ├── qwen_offload2_conc12_in256_out64_run2.json
+│       │   │   ├── qwen_offload2_conc12_in256_out64_run3.json
+│       │   │   ├── qwen_offload2_conc12_in256_out64_run4.json
+│       │   │   ├── qwen_offload2_conc12_in256_out64_run5.json
+│       │   │   ├── qwen_offload2_conc16_in256_out128_run1.json
+│       │   │   ├── qwen_offload2_conc16_in256_out128_run2.json
+│       │   │   ├── qwen_offload2_conc16_in256_out128_run3.json
+│       │   │   ├── qwen_offload2_conc16_in256_out128_run4.json
+│       │   │   ├── qwen_offload2_conc16_in256_out128_run5.json
+│       │   │   ├── qwen_offload2_conc16_in256_out32_run1.json
+│       │   │   ├── qwen_offload2_conc16_in256_out32_run2.json
+│       │   │   ├── qwen_offload2_conc16_in256_out32_run3.json
+│       │   │   ├── qwen_offload2_conc16_in256_out32_run4.json
+│       │   │   ├── qwen_offload2_conc16_in256_out32_run5.json
+│       │   │   ├── qwen_offload2_conc16_in256_out64_run1.json
+│       │   │   ├── qwen_offload2_conc16_in256_out64_run2.json
+│       │   │   ├── qwen_offload2_conc16_in256_out64_run3.json
+│       │   │   ├── qwen_offload2_conc16_in256_out64_run4.json
+│       │   │   ├── qwen_offload2_conc16_in256_out64_run5.json
+│       │   │   ├── qwen_offload2_conc1_in256_out128_run1.json
+│       │   │   ├── qwen_offload2_conc1_in256_out128_run2.json
+│       │   │   ├── qwen_offload2_conc1_in256_out128_run3.json
+│       │   │   ├── qwen_offload2_conc1_in256_out128_run4.json
+│       │   │   ├── qwen_offload2_conc1_in256_out128_run5.json
+│       │   │   ├── qwen_offload2_conc1_in256_out32_run1.json
+│       │   │   ├── qwen_offload2_conc1_in256_out32_run2.json
+│       │   │   ├── qwen_offload2_conc1_in256_out32_run3.json
+│       │   │   ├── qwen_offload2_conc1_in256_out32_run4.json
+│       │   │   ├── qwen_offload2_conc1_in256_out32_run5.json
+│       │   │   ├── qwen_offload2_conc1_in256_out64_run1.json
+│       │   │   ├── qwen_offload2_conc1_in256_out64_run2.json
+│       │   │   ├── qwen_offload2_conc1_in256_out64_run3.json
+│       │   │   ├── qwen_offload2_conc1_in256_out64_run4.json
+│       │   │   ├── qwen_offload2_conc1_in256_out64_run5.json
+│       │   │   ├── qwen_offload2_conc2_in256_out128_run1.json
+│       │   │   ├── qwen_offload2_conc2_in256_out128_run2.json
+│       │   │   ├── qwen_offload2_conc2_in256_out128_run3.json
+│       │   │   ├── qwen_offload2_conc2_in256_out128_run4.json
+│       │   │   ├── qwen_offload2_conc2_in256_out128_run5.json
+│       │   │   ├── qwen_offload2_conc2_in256_out32_run1.json
+│       │   │   ├── qwen_offload2_conc2_in256_out32_run2.json
+│       │   │   ├── qwen_offload2_conc2_in256_out32_run3.json
+│       │   │   ├── qwen_offload2_conc2_in256_out32_run4.json
+│       │   │   ├── qwen_offload2_conc2_in256_out32_run5.json
+│       │   │   ├── qwen_offload2_conc2_in256_out64_run1.json
+│       │   │   ├── qwen_offload2_conc2_in256_out64_run2.json
+│       │   │   ├── qwen_offload2_conc2_in256_out64_run3.json
+│       │   │   ├── qwen_offload2_conc2_in256_out64_run4.json
+│       │   │   ├── qwen_offload2_conc2_in256_out64_run5.json
+│       │   │   ├── qwen_offload2_conc4_in256_out128_run1.json
+│       │   │   ├── qwen_offload2_conc4_in256_out128_run2.json
+│       │   │   ├── qwen_offload2_conc4_in256_out128_run3.json
+│       │   │   ├── qwen_offload2_conc4_in256_out128_run4.json
+│       │   │   ├── qwen_offload2_conc4_in256_out128_run5.json
+│       │   │   ├── qwen_offload2_conc4_in256_out32_run1.json
+│       │   │   ├── qwen_offload2_conc4_in256_out32_run2.json
+│       │   │   ├── qwen_offload2_conc4_in256_out32_run3.json
+│       │   │   ├── qwen_offload2_conc4_in256_out32_run4.json
+│       │   │   ├── qwen_offload2_conc4_in256_out32_run5.json
+│       │   │   ├── qwen_offload2_conc4_in256_out64_run1.json
+│       │   │   ├── qwen_offload2_conc4_in256_out64_run2.json
+│       │   │   ├── qwen_offload2_conc4_in256_out64_run3.json
+│       │   │   ├── qwen_offload2_conc4_in256_out64_run4.json
+│       │   │   ├── qwen_offload2_conc4_in256_out64_run5.json
+│       │   │   ├── qwen_offload2_conc8_in256_out128_run1.json
+│       │   │   ├── qwen_offload2_conc8_in256_out128_run2.json
+│       │   │   ├── qwen_offload2_conc8_in256_out128_run3.json
+│       │   │   ├── qwen_offload2_conc8_in256_out128_run4.json
+│       │   │   ├── qwen_offload2_conc8_in256_out128_run5.json
+│       │   │   ├── qwen_offload2_conc8_in256_out32_run1.json
+│       │   │   ├── qwen_offload2_conc8_in256_out32_run2.json
+│       │   │   ├── qwen_offload2_conc8_in256_out32_run3.json
+│       │   │   ├── qwen_offload2_conc8_in256_out32_run4.json
+│       │   │   ├── qwen_offload2_conc8_in256_out32_run5.json
+│       │   │   ├── qwen_offload2_conc8_in256_out64_run1.json
+│       │   │   ├── qwen_offload2_conc8_in256_out64_run2.json
+│       │   │   ├── qwen_offload2_conc8_in256_out64_run3.json
+│       │   │   ├── qwen_offload2_conc8_in256_out64_run4.json
+│       │   │   └── qwen_offload2_conc8_in256_out64_run5.json
+│       │   ├── offload4
+│       │   │   ├── qwen_offload4_conc12_in256_out128_run1.json
+│       │   │   ├── qwen_offload4_conc12_in256_out128_run2.json
+│       │   │   ├── qwen_offload4_conc12_in256_out128_run3.json
+│       │   │   ├── qwen_offload4_conc12_in256_out128_run4.json
+│       │   │   ├── qwen_offload4_conc12_in256_out128_run5.json
+│       │   │   ├── qwen_offload4_conc12_in256_out32_run1.json
+│       │   │   ├── qwen_offload4_conc12_in256_out32_run2.json
+│       │   │   ├── qwen_offload4_conc12_in256_out32_run3.json
+│       │   │   ├── qwen_offload4_conc12_in256_out32_run4.json
+│       │   │   ├── qwen_offload4_conc12_in256_out32_run5.json
+│       │   │   ├── qwen_offload4_conc12_in256_out64_run1.json
+│       │   │   ├── qwen_offload4_conc12_in256_out64_run2.json
+│       │   │   ├── qwen_offload4_conc12_in256_out64_run3.json
+│       │   │   ├── qwen_offload4_conc12_in256_out64_run4.json
+│       │   │   ├── qwen_offload4_conc12_in256_out64_run5.json
+│       │   │   ├── qwen_offload4_conc16_in256_out128_run1.json
+│       │   │   ├── qwen_offload4_conc16_in256_out128_run2.json
+│       │   │   ├── qwen_offload4_conc16_in256_out128_run3.json
+│       │   │   ├── qwen_offload4_conc16_in256_out128_run4.json
+│       │   │   ├── qwen_offload4_conc16_in256_out128_run5.json
+│       │   │   ├── qwen_offload4_conc16_in256_out32_run1.json
+│       │   │   ├── qwen_offload4_conc16_in256_out32_run2.json
+│       │   │   ├── qwen_offload4_conc16_in256_out32_run3.json
+│       │   │   ├── qwen_offload4_conc16_in256_out32_run4.json
+│       │   │   ├── qwen_offload4_conc16_in256_out32_run5.json
+│       │   │   ├── qwen_offload4_conc16_in256_out64_run1.json
+│       │   │   ├── qwen_offload4_conc16_in256_out64_run2.json
+│       │   │   ├── qwen_offload4_conc16_in256_out64_run3.json
+│       │   │   ├── qwen_offload4_conc16_in256_out64_run4.json
+│       │   │   ├── qwen_offload4_conc16_in256_out64_run5.json
+│       │   │   ├── qwen_offload4_conc1_in256_out128_run1.json
+│       │   │   ├── qwen_offload4_conc1_in256_out128_run2.json
+│       │   │   ├── qwen_offload4_conc1_in256_out128_run3.json
+│       │   │   ├── qwen_offload4_conc1_in256_out128_run4.json
+│       │   │   ├── qwen_offload4_conc1_in256_out128_run5.json
+│       │   │   ├── qwen_offload4_conc1_in256_out32_run1.json
+│       │   │   ├── qwen_offload4_conc1_in256_out32_run2.json
+│       │   │   ├── qwen_offload4_conc1_in256_out32_run3.json
+│       │   │   ├── qwen_offload4_conc1_in256_out32_run4.json
+│       │   │   ├── qwen_offload4_conc1_in256_out32_run5.json
+│       │   │   ├── qwen_offload4_conc1_in256_out64_run1.json
+│       │   │   ├── qwen_offload4_conc1_in256_out64_run2.json
+│       │   │   ├── qwen_offload4_conc1_in256_out64_run3.json
+│       │   │   ├── qwen_offload4_conc1_in256_out64_run4.json
+│       │   │   ├── qwen_offload4_conc1_in256_out64_run5.json
+│       │   │   ├── qwen_offload4_conc2_in256_out128_run1.json
+│       │   │   ├── qwen_offload4_conc2_in256_out128_run2.json
+│       │   │   ├── qwen_offload4_conc2_in256_out128_run3.json
+│       │   │   ├── qwen_offload4_conc2_in256_out128_run4.json
+│       │   │   ├── qwen_offload4_conc2_in256_out128_run5.json
+│       │   │   ├── qwen_offload4_conc2_in256_out32_run1.json
+│       │   │   ├── qwen_offload4_conc2_in256_out32_run2.json
+│       │   │   ├── qwen_offload4_conc2_in256_out32_run3.json
+│       │   │   ├── qwen_offload4_conc2_in256_out32_run4.json
+│       │   │   ├── qwen_offload4_conc2_in256_out32_run5.json
+│       │   │   ├── qwen_offload4_conc2_in256_out64_run1.json
+│       │   │   ├── qwen_offload4_conc2_in256_out64_run2.json
+│       │   │   ├── qwen_offload4_conc2_in256_out64_run3.json
+│       │   │   ├── qwen_offload4_conc2_in256_out64_run4.json
+│       │   │   ├── qwen_offload4_conc2_in256_out64_run5.json
+│       │   │   ├── qwen_offload4_conc4_in256_out128_run1.json
+│       │   │   ├── qwen_offload4_conc4_in256_out128_run2.json
+│       │   │   ├── qwen_offload4_conc4_in256_out128_run3.json
+│       │   │   ├── qwen_offload4_conc4_in256_out128_run4.json
+│       │   │   ├── qwen_offload4_conc4_in256_out128_run5.json
+│       │   │   ├── qwen_offload4_conc4_in256_out32_run1.json
+│       │   │   ├── qwen_offload4_conc4_in256_out32_run2.json
+│       │   │   ├── qwen_offload4_conc4_in256_out32_run3.json
+│       │   │   ├── qwen_offload4_conc4_in256_out32_run4.json
+│       │   │   ├── qwen_offload4_conc4_in256_out32_run5.json
+│       │   │   ├── qwen_offload4_conc4_in256_out64_run1.json
+│       │   │   ├── qwen_offload4_conc4_in256_out64_run2.json
+│       │   │   ├── qwen_offload4_conc4_in256_out64_run3.json
+│       │   │   ├── qwen_offload4_conc4_in256_out64_run4.json
+│       │   │   ├── qwen_offload4_conc4_in256_out64_run5.json
+│       │   │   ├── qwen_offload4_conc8_in256_out128_run1.json
+│       │   │   ├── qwen_offload4_conc8_in256_out128_run2.json
+│       │   │   ├── qwen_offload4_conc8_in256_out128_run3.json
+│       │   │   ├── qwen_offload4_conc8_in256_out128_run4.json
+│       │   │   ├── qwen_offload4_conc8_in256_out128_run5.json
+│       │   │   ├── qwen_offload4_conc8_in256_out32_run1.json
+│       │   │   ├── qwen_offload4_conc8_in256_out32_run2.json
+│       │   │   ├── qwen_offload4_conc8_in256_out32_run3.json
+│       │   │   ├── qwen_offload4_conc8_in256_out32_run4.json
+│       │   │   ├── qwen_offload4_conc8_in256_out32_run5.json
+│       │   │   ├── qwen_offload4_conc8_in256_out64_run1.json
+│       │   │   ├── qwen_offload4_conc8_in256_out64_run2.json
+│       │   │   ├── qwen_offload4_conc8_in256_out64_run3.json
+│       │   │   ├── qwen_offload4_conc8_in256_out64_run4.json
+│       │   │   └── qwen_offload4_conc8_in256_out64_run5.json
+│       │   └── offload8
+│       │       ├── qwen_offload8_conc12_in256_out128_run1.json
+│       │       ├── qwen_offload8_conc12_in256_out128_run2.json
+│       │       ├── qwen_offload8_conc12_in256_out128_run3.json
+│       │       ├── qwen_offload8_conc12_in256_out128_run4.json
+│       │       ├── qwen_offload8_conc12_in256_out128_run5.json
+│       │       ├── qwen_offload8_conc12_in256_out32_run1.json
+│       │       ├── qwen_offload8_conc12_in256_out32_run2.json
+│       │       ├── qwen_offload8_conc12_in256_out32_run3.json
+│       │       ├── qwen_offload8_conc12_in256_out32_run4.json
+│       │       ├── qwen_offload8_conc12_in256_out32_run5.json
+│       │       ├── qwen_offload8_conc12_in256_out64_run1.json
+│       │       ├── qwen_offload8_conc12_in256_out64_run2.json
+│       │       ├── qwen_offload8_conc12_in256_out64_run3.json
+│       │       ├── qwen_offload8_conc12_in256_out64_run4.json
+│       │       ├── qwen_offload8_conc12_in256_out64_run5.json
+│       │       ├── qwen_offload8_conc16_in256_out128_run1.json
+│       │       ├── qwen_offload8_conc16_in256_out128_run2.json
+│       │       ├── qwen_offload8_conc16_in256_out128_run3.json
+│       │       ├── qwen_offload8_conc16_in256_out128_run4.json
+│       │       ├── qwen_offload8_conc16_in256_out128_run5.json
+│       │       ├── qwen_offload8_conc16_in256_out32_run1.json
+│       │       ├── qwen_offload8_conc16_in256_out32_run2.json
+│       │       ├── qwen_offload8_conc16_in256_out32_run3.json
+│       │       ├── qwen_offload8_conc16_in256_out32_run4.json
+│       │       ├── qwen_offload8_conc16_in256_out32_run5.json
+│       │       ├── qwen_offload8_conc16_in256_out64_run1.json
+│       │       ├── qwen_offload8_conc16_in256_out64_run2.json
+│       │       ├── qwen_offload8_conc16_in256_out64_run3.json
+│       │       ├── qwen_offload8_conc16_in256_out64_run4.json
+│       │       ├── qwen_offload8_conc16_in256_out64_run5.json
+│       │       ├── qwen_offload8_conc1_in256_out128_run1.json
+│       │       ├── qwen_offload8_conc1_in256_out128_run2.json
+│       │       ├── qwen_offload8_conc1_in256_out128_run3.json
+│       │       ├── qwen_offload8_conc1_in256_out128_run4.json
+│       │       ├── qwen_offload8_conc1_in256_out128_run5.json
+│       │       ├── qwen_offload8_conc1_in256_out32_run1.json
+│       │       ├── qwen_offload8_conc1_in256_out32_run2.json
+│       │       ├── qwen_offload8_conc1_in256_out32_run3.json
+│       │       ├── qwen_offload8_conc1_in256_out32_run4.json
+│       │       ├── qwen_offload8_conc1_in256_out32_run5.json
+│       │       ├── qwen_offload8_conc1_in256_out64_run1.json
+│       │       ├── qwen_offload8_conc1_in256_out64_run2.json
+│       │       ├── qwen_offload8_conc1_in256_out64_run3.json
+│       │       ├── qwen_offload8_conc1_in256_out64_run4.json
+│       │       ├── qwen_offload8_conc1_in256_out64_run5.json
+│       │       ├── qwen_offload8_conc2_in256_out128_run1.json
+│       │       ├── qwen_offload8_conc2_in256_out128_run2.json
+│       │       ├── qwen_offload8_conc2_in256_out128_run3.json
+│       │       ├── qwen_offload8_conc2_in256_out128_run4.json
+│       │       ├── qwen_offload8_conc2_in256_out128_run5.json
+│       │       ├── qwen_offload8_conc2_in256_out32_run1.json
+│       │       ├── qwen_offload8_conc2_in256_out32_run2.json
+│       │       ├── qwen_offload8_conc2_in256_out32_run3.json
+│       │       ├── qwen_offload8_conc2_in256_out32_run4.json
+│       │       ├── qwen_offload8_conc2_in256_out32_run5.json
+│       │       ├── qwen_offload8_conc2_in256_out64_run1.json
+│       │       ├── qwen_offload8_conc2_in256_out64_run2.json
+│       │       ├── qwen_offload8_conc2_in256_out64_run3.json
+│       │       ├── qwen_offload8_conc2_in256_out64_run4.json
+│       │       ├── qwen_offload8_conc2_in256_out64_run5.json
+│       │       ├── qwen_offload8_conc4_in256_out128_run1.json
+│       │       ├── qwen_offload8_conc4_in256_out128_run2.json
+│       │       ├── qwen_offload8_conc4_in256_out128_run3.json
+│       │       ├── qwen_offload8_conc4_in256_out128_run4.json
+│       │       ├── qwen_offload8_conc4_in256_out128_run5.json
+│       │       ├── qwen_offload8_conc4_in256_out32_run1.json
+│       │       ├── qwen_offload8_conc4_in256_out32_run2.json
+│       │       ├── qwen_offload8_conc4_in256_out32_run3.json
+│       │       ├── qwen_offload8_conc4_in256_out32_run4.json
+│       │       ├── qwen_offload8_conc4_in256_out32_run5.json
+│       │       ├── qwen_offload8_conc4_in256_out64_run1.json
+│       │       ├── qwen_offload8_conc4_in256_out64_run2.json
+│       │       ├── qwen_offload8_conc4_in256_out64_run3.json
+│       │       ├── qwen_offload8_conc4_in256_out64_run4.json
+│       │       ├── qwen_offload8_conc4_in256_out64_run5.json
+│       │       ├── qwen_offload8_conc8_in256_out128_run1.json
+│       │       ├── qwen_offload8_conc8_in256_out128_run2.json
+│       │       ├── qwen_offload8_conc8_in256_out128_run3.json
+│       │       ├── qwen_offload8_conc8_in256_out128_run4.json
+│       │       ├── qwen_offload8_conc8_in256_out128_run5.json
+│       │       ├── qwen_offload8_conc8_in256_out32_run1.json
+│       │       ├── qwen_offload8_conc8_in256_out32_run2.json
+│       │       ├── qwen_offload8_conc8_in256_out32_run3.json
+│       │       ├── qwen_offload8_conc8_in256_out32_run4.json
+│       │       ├── qwen_offload8_conc8_in256_out32_run5.json
+│       │       ├── qwen_offload8_conc8_in256_out64_run1.json
+│       │       ├── qwen_offload8_conc8_in256_out64_run2.json
+│       │       ├── qwen_offload8_conc8_in256_out64_run3.json
+│       │       ├── qwen_offload8_conc8_in256_out64_run4.json
+│       │       └── qwen_offload8_conc8_in256_out64_run5.json
+│       └── summary
+│           ├── profile_by_offload_concurrency.csv
+│           ├── profile_by_offload.csv
+│           ├── profile_by_offload_output.csv
+│           └── profile_run_metrics.csv
+├── scripts
+│   ├── analyze_profile_grid_for_paper.py
+│   ├── analyze_profile_grids_for_paper.py
+│   ├── audit_profile_grid_filenames.py
+│   ├── audit_profile_grids.py
+│   ├── chunk_budget_screen
+│   │   ├── chunk_budget_screen_tests
+│   │   │   └── __init__.py
+│   │   ├── make_chunk_budget_schedule.py
+│   │   ├── __pycache__
+│   │   │   ├── make_chunk_budget_schedule.cpython-313.pyc
+│   │   │   └── run_chunk_budget_screen.cpython-313.pyc
+│   │   ├── run_chunk_budget_screen.py
+│   │   ├── run_chunk_budget_screen.sh
+│   │   ├── run_server.sh
+│   │   └── SOURCE_BASELINE_SHA256.txt
+│   ├── inspect_profile_json.py
+│   ├── phase_a
+│   │   ├── analyze_phase_a.py
+│   │   ├── make_phase_a_schedule.py
+│   │   ├── phase_a_tests
+│   │   │   ├── fixtures.py
+│   │   │   ├── __init__.py
+│   │   │   ├── integration_checks.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── fixtures.cpython-313.pyc
+│   │   │   │   ├── __init__.cpython-313.pyc
+│   │   │   │   ├── integration_checks.cpython-313.pyc
+│   │   │   │   ├── selftest_runner.cpython-313.pyc
+│   │   │   │   ├── stage2_checks.cpython-313.pyc
+│   │   │   │   └── stage3_checks.cpython-313.pyc
+│   │   │   ├── selftest_runner.py
+│   │   │   ├── stage2_checks.py
+│   │   │   └── stage3_checks.py
+│   │   ├── __pycache__
+│   │   │   ├── make_phase_a_schedule.cpython-313.pyc
+│   │   │   └── run_phase_a.cpython-313.pyc
+│   │   ├── run_phase_a.py
+│   │   ├── run_phase_a.sh
+│   │   └── run_server.sh
+│   ├── prefill_confirmation
+│   │   ├── audit_prefill_server_logs.sh
+│   │   ├── AUDIT.txt
+│   │   ├── export_prefill_confirmation_results_v2.py
+│   │   ├── generate_prefill_confirmation_schedule.py
+│   │   ├── __pycache__
+│   │   │   ├── export_prefill_confirmation_results_v2.cpython-313.pyc
+│   │   │   ├── generate_prefill_confirmation_schedule.cpython-313.pyc
+│   │   │   └── test_generate_prefill_confirmation_schedule.cpython-313.pyc
+│   │   ├── run_prefill_confirmation.py
+│   │   ├── run_prefill_confirmation.sh
+│   │   ├── run_prefill_trigger_sweep.py
+│   │   ├── run_server.sh
+│   │   ├── SHA256SUMS.txt
+│   │   ├── test_generate_prefill_confirmation_schedule.py
+│   │   ├── test_prefill_confirmation_timing.py
+│   │   ├── test_prefill_trigger_timing.py
+│   │   └── test_run_prefill_confirmation.py
+│   ├── prefill_screen
+│   │   ├── make_prefill_screen_schedule.py
+│   │   ├── prefill_screen_tests
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-313.pyc
+│   │   │   │   └── selftest_runner.cpython-313.pyc
+│   │   │   └── selftest_runner.py
+│   │   ├── __pycache__
+│   │   │   └── make_prefill_screen_schedule.cpython-313.pyc
+│   │   ├── run_prefill_screen.py
+│   │   ├── run_prefill_screen.sh
+│   │   └── run_server.sh
+│   ├── prefill_trigger_sweep
+│   │   ├── make_prefill_trigger_sweep_schedule.py
+│   │   ├── run_prefill_trigger_sweep.py
+│   │   ├── run_prefill_trigger_sweep.sh
+│   │   └── run_server.sh
+│   ├── run_client_profile_grid_v2.sh
+│   ├── run_phase_a_fixed_burst.py
+│   ├── run_phase_a.py
+│   ├── run_phase_a.sh
+│   ├── run_server.sh
+│   ├── summarize_profile_grids_exact.py
+│   ├── summarize_profile_grids.py
+│   └── workshop_prefill_analysis
+│       ├── quick_chunk_budget_summary.py
+│       ├── quick_prefill_overlap.py
+│       ├── quick_prefill_secondary.py
+│       └── quick_prefill_summary.py
+├── status
+│   └── preheat
+│       ├── preheat_llama_offload0_20260704_082226.json
+│       ├── preheat_llama_offload0_20260704_082344.json
+│       ├── preheat_llama_offload12_20260705_074727.json
+│       ├── preheat_llama_offload12_20260705_081011.json
+│       ├── preheat_llama_offload16_20260706_052751.json
+│       ├── preheat_llama_offload16_20260706_054524.json
+│       ├── preheat_llama_offload16_20260706_101354.json
+│       ├── preheat_llama_offload16_20260707_082004.json
+│       ├── preheat_llama_offload16_20260707_083403.json
+│       ├── preheat_llama_offload2_20260704_085752.json
+│       ├── preheat_llama_offload2_20260704_090623.json
+│       ├── preheat_llama_offload4_20260704_120006.json
+│       ├── preheat_llama_offload4_20260704_122006.json
+│       ├── preheat_llama_offload8_20260704_174323.json
+│       ├── preheat_llama_offload8_20260704_175609.json
+│       ├── preheat_qwen_offload0_20260710_173359.json
+│       ├── preheat_qwen_offload0_20260710_173500.json
+│       ├── preheat_qwen_offload12_20260708_192350.json
+│       ├── preheat_qwen_offload12_20260708_200540.json
+│       ├── preheat_qwen_offload16_20260707_212618.json
+│       ├── preheat_qwen_offload16_20260708_054512.json
+│       ├── preheat_qwen_offload16_20260710_182436.json
+│       ├── preheat_qwen_offload16_20260710_185813.json
+│       ├── preheat_qwen_offload2_20260711_070559.json
+│       ├── preheat_qwen_offload2_20260711_071345.json
+│       ├── preheat_qwen_offload4_20260710_220734.json
+│       ├── preheat_qwen_offload4_20260710_222226.json
+│       ├── preheat_qwen_offload8_20260709_192924.json
+│       └── preheat_qwen_offload8_20260709_200458.json
+└── tree.txt
+
+164 directories, 2424 files

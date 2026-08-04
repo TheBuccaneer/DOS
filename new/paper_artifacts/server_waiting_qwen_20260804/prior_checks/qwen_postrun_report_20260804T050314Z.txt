@@ -1,0 +1,107 @@
+=== 1. VOLLSTÄNDIGKEIT UND INTEGRITÄT ===
+target: /home/rock/projects/DOS/new/runs/server_waiting_confirmation/qwen/final_capture_20260803T183032Z
+campaign: /home/rock/projects/DOS/new/runs/server_waiting_confirmation/qwen/final_capture_20260803T183032Z/source_campaign
+outer_manifest_status: PASS
+outer_manifest_entries: 89
+inner_manifest_status: KNOWN_FINALIZATION_GAP
+inner_manifest_entries: 82
+inner_manifest_unlisted: ['official_run_summary.json']
+episodes_count: 32/32
+block_summaries_count: 16/16
+stabilization_count: 16/16
+server_logs_count: 16/16
+official_run_summary.json_present: True
+official_run_manifest.json_present: True
+integrity_manifest.json_present: True
+.server_waiting_confirmation_run_mode_present: True
+summary.overall_status: 'complete'
+summary.planned_episodes: 32
+summary.valid_complete_episodes: 32
+summary.missing_episodes: 0
+summary.planned_blocks: 16
+summary.completed_blocks: 16
+block_complete_count: 16/16
+stabilization_pass_count: 16/16
+server_log_error_lines: 0
+episode_complete_count: 32/32
+episode_validation_clean_count: 32/32
+paired_blocks_found: 16/16
+schedule_fingerprints: ['sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557']
+environment_fingerprint_count: 1
+cells_found: [(0, 4), (0, 8), (12, 4), (12, 8)]
+cell (0, 4): blocks=4, repeats=[1, 2, 3, 4], first_condition={'prefill_burst': 2, 'no_burst': 2}
+cell (0, 8): blocks=4, repeats=[1, 2, 3, 4], first_condition={'prefill_burst': 2, 'no_burst': 2}
+cell (12, 4): blocks=4, repeats=[1, 2, 3, 4], first_condition={'prefill_burst': 2, 'no_burst': 2}
+cell (12, 8): blocks=4, repeats=[1, 2, 3, 4], first_condition={'no_burst': 2, 'prefill_burst': 2}
+
+=== 2. RAW-SSE- UND TRIGGER-REKONSTRUKTION ===
+requests_reconstructed: 704
+raw_sse_events_reconstructed: 43392
+metrics_corroborated_episodes: 32/32
+raw_reconstruction_errors: 0
+classification_counts: {'B': 8, 'C': 8}
+raw_token_classification_counts: {'B': 8, 'C': 8}
+
+=== 3. WISSENSCHAFTLICHE DESKRIPTION JE PAAR ===
+block                          cls  first   TPOT-ratio  ITL-ratio  Completion-delta-ms  Burst-nach-Aktiv-s  Rest-bis-alle-s
+qwen_off0_k4_rep01               C prefill    0.999371   1.044122                19.94                6.22            -0.41
+qwen_off0_k4_rep02               C no_burs    1.002581   1.029263                -7.02                6.24            -0.40
+qwen_off0_k4_rep03               C no_burs    1.001467   1.038360               -14.50                6.24            -0.41
+qwen_off0_k4_rep04               C prefill    1.000240   1.026578                14.02                6.23            -0.40
+qwen_off0_k8_rep01               B prefill    0.996961   0.964762                 6.02                2.57             2.17
+qwen_off0_k8_rep02               B prefill    0.997973   0.971942                 3.94                2.57             2.17
+qwen_off0_k8_rep03               B no_burs    1.001745   1.001671               -10.93                2.57             2.17
+qwen_off0_k8_rep04               B no_burs    1.003121   1.016016               -11.49                2.57             2.18
+qwen_off12_k4_rep01              C prefill    1.000206   0.999891                14.00              433.98           -12.68
+qwen_off12_k4_rep02              C prefill    0.999939   1.000238                -0.60              433.98           -12.68
+qwen_off12_k4_rep03              C no_burs    0.999924   1.000748               -14.76              433.95           -12.68
+qwen_off12_k4_rep04              C no_burs    1.000118   1.000672                 8.66              433.97           -12.67
+qwen_off12_k8_rep01              B no_burs    1.000023   1.001246              2083.10              141.86           121.28
+qwen_off12_k8_rep02              B prefill    1.000008   1.000415                 5.52              142.21           121.57
+qwen_off12_k8_rep03              B prefill    1.000007   1.000698                -2.75              142.01           121.41
+qwen_off12_k8_rep04              B no_burs    1.000097   0.998589                12.10              141.85           121.27
+
+=== 4. WISSENSCHAFTLICHE DESKRIPTION JE ZELLE ===
+offload  k  Klassen   TPOT-med [min,max]       ITL-med [min,max]        Completion-med-ms  nach-Aktiv-med-s  Rest-bis-alle-med-s
+      0  4 C4        1.000854 [0.999371,1.002581]  1.033812 [1.026578,1.044122]               3.50               6.23                -0.40
+      0  8 B4        0.999859 [0.996961,1.003121]  0.986806 [0.964762,1.016016]              -3.50               2.57                 2.17
+     12  4 C4        1.000029 [0.999924,1.000206]  1.000455 [0.999891,1.000748]               4.03             433.97               -12.68
+     12  8 B4        1.000016 [1.000007,1.000097]  1.000556 [0.998589,1.001246]               8.81             141.93               121.35
+
+=== 5. OFFLOAD-MODULATION: OFF12 MINUS OFF0 ===
+k=4: TPOT-ratio-delta=-0.000825, ITL-ratio-delta=-0.033356, Completion-delta-differenz-ms=0.53
+k=8: TPOT-ratio-delta=0.000157, ITL-ratio-delta=0.013750, Completion-delta-differenz-ms=12.31
+
+=== 6. AUFFÄLLIGE EINZELPAARE ===
+qwen_off12_k8_rep01: |Completion-Delta| >=1000 ms
+
+=== 7. AUTOMATISCHE, VORSICHTIGE INTERPRETATION ===
+- Deskriptiv repliziert sich ein klares k-Regime: k=4 ergibt C, k=8 ergibt B, jeweils bei Offload 0 und 12.
+- Auf Klassenebene zeigt dieser Lauf damit eine Modulation durch max_num_seqs, nicht durch den Offload-Zustand.
+- Größte absolute Abweichung eines Zellmedians der TPOT-Ratio von 1: 0.085%.
+- Das ist eine deskriptive Effektgröße; ohne kampagnenübergreifende Streuung darf daraus kein allgemeiner Nullwirkungssatz folgen.
+- A/B/C beziehen sich ausschließlich auf client-sichtbaren Output. Interne Admission und interner Prefill-Start werden nicht beobachtet.
+- Einzelne starke Max-ITL- oder Completion-Ausreißer müssen trotz stabiler Zellmediane separat berichtet und im Raw Trace geprüft werden.
+
+=== 8. ENDSTATUS ===
+COMPLETENESS_PASS=true
+RAW_RECONSTRUCTION_PASS=true
+NO_D_CLASSIFICATIONS=true
+SCIENTIFIC_SUMMARY_READY=true
+OUTER_MANIFEST_STATUS=PASS
+INNER_MANIFEST_STATUS=KNOWN_FINALIZATION_GAP
+COMPLETENESS_ERRORS=0
+RAW_ERRORS=0
+WARNINGS=0
+
+=== DIESEN BLOCK AN CHATGPT SENDEN ===
+COMPLETENESS_PASS=true
+RAW_RECONSTRUCTION_PASS=true
+SCIENTIFIC_SUMMARY_READY=true
+classification_counts={'B': 8, 'C': 8}
+cell offload=0 k=4: classes={'C': 4}, TPOT_med=1.000854, ITL_med=1.033812, Completion_med_ms=3.50, after_active_med_s=6.23, remaining_all_med_s=-0.40
+cell offload=0 k=8: classes={'B': 4}, TPOT_med=0.999859, ITL_med=0.986806, Completion_med_ms=-3.50, after_active_med_s=2.57, remaining_all_med_s=2.17
+cell offload=12 k=4: classes={'C': 4}, TPOT_med=1.000029, ITL_med=1.000455, Completion_med_ms=4.03, after_active_med_s=433.97, remaining_all_med_s=-12.68
+cell offload=12 k=8: classes={'B': 4}, TPOT_med=1.000016, ITL_med=1.000556, Completion_med_ms=8.81, after_active_med_s=141.93, remaining_all_med_s=121.35
+outlier_blocks=['qwen_off12_k8_rep01']
+scope=client-visible output only; no internal admission/prefill claim

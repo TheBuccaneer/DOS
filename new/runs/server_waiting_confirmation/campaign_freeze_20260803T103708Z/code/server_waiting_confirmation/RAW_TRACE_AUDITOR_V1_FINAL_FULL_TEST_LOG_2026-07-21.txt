@@ -1,0 +1,1333 @@
+=== 01_py_compile.txt ===
+
+=== 02_shell_wrapper.txt ===
+
+=== 03_shell_server.txt ===
+
+=== 04_cohort.txt ===
+_active_cohort.py self-test
+==============================================================================
+[OK] phase1: K=4 status ok
+[OK] phase1: K=4 cohort is data-driven (earliest 4 by timestamp), not request_index<4
+[OK] phase1: cohort_freeze_ns is the K-th ranked timestamp
+[OK] phase1: K=8 status ok
+[OK] phase1: K=8 cohort has exactly 8 members
+[OK] phase1: deterministic ordering across repeated calls with identical input
+[OK] phase1: equal K-th/(K+1)-th timestamps -> ambiguous_active_cohort_boundary
+[OK] phase1: ambiguous result never carries an arbitrarily-chosen cohort
+[OK] phase1: fewer than K observed -> insufficient_data
+[OK] phase2: happy path returns 'ok'
+[OK] phase2: logical trigger equals the max of the cohort's 16th-token timestamps
+[OK] phase2: active cohort correctly frozen as the data-driven set
+[OK] phase2: a non-cohort token before the logical trigger invalidates the episode
+[OK] phase2: insufficient first-token events within the timeout produce a clean status, no hang
+[OK] issue4: cohort member whose completion_ns <= logical_trigger_ns is caught by timestamp, not task.done()
+[OK] issue1: watcher returns 'ok' once K first-token events are recorded
+[OK] issue1: no 50ms-poll-granularity delay (elapsed=11.3ms, expected well under 50ms of slack beyond the ~10ms the test itself sleeps)
+[OK] issue2: cohort-freeze debounce catches a sibling that was ready-but-not-yet-scheduled and correctly includes it as the actual earliest member
+[OK] issue2: cohort_freeze_ns reflects the debounced (correct) cohort, not the premature one
+==============================================================================
+19/19 checks passed
+=== 05_runner_selftest.txt ===
+run_server_waiting_confirmation.py self-test
+==============================================================================
+_active_cohort.py self-test
+==============================================================================
+[OK] phase1: K=4 status ok
+[OK] phase1: K=4 cohort is data-driven (earliest 4 by timestamp), not request_index<4
+[OK] phase1: cohort_freeze_ns is the K-th ranked timestamp
+[OK] phase1: K=8 status ok
+[OK] phase1: K=8 cohort has exactly 8 members
+[OK] phase1: deterministic ordering across repeated calls with identical input
+[OK] phase1: equal K-th/(K+1)-th timestamps -> ambiguous_active_cohort_boundary
+[OK] phase1: ambiguous result never carries an arbitrarily-chosen cohort
+[OK] phase1: fewer than K observed -> insufficient_data
+[OK] phase2: happy path returns 'ok'
+[OK] phase2: logical trigger equals the max of the cohort's 16th-token timestamps
+[OK] phase2: active cohort correctly frozen as the data-driven set
+[OK] phase2: a non-cohort token before the logical trigger invalidates the episode
+[OK] phase2: insufficient first-token events within the timeout produce a clean status, no hang
+[OK] issue4: cohort member whose completion_ns <= logical_trigger_ns is caught by timestamp, not task.done()
+[OK] issue1: watcher returns 'ok' once K first-token events are recorded
+[OK] issue1: no 50ms-poll-granularity delay (elapsed=11.4ms, expected well under 50ms of slack beyond the ~10ms the test itself sleeps)
+[OK] issue2: cohort-freeze debounce catches a sibling that was ready-but-not-yet-scheduled and correctly includes it as the actual earliest member
+[OK] issue2: cohort_freeze_ns reflects the debounced (correct) cohort, not the premature one
+==============================================================================
+19/19 checks passed
+------------------------------------------------------------------------------
+run_server_waiting_confirmation.py structural self-checks
+[OK] EPISODE_FIELDS has 26 fields
+[OK] OFFICIAL_BLOCK_COUNT == 16
+[OK] OFFICIAL_EPISODE_COUNT == 32
+[OK] OFFLOAD_VALUES == [0, 12]
+[OK] SERVER_MAX_NUM_SEQS_VALUES == [4, 8]
+[OK] MODEL_REGISTRY is qwen-only
+[OK] seed/design_version differ from the original prefill-confirmation study
+[OK] result schema/runner identity is independent of the base module's
+[OK] compute_server_exposure: cohort member -> running_at_trigger_observed
+[OK] compute_server_exposure: dispatched non-member -> dispatched_no_output_at_trigger
+[OK] parse_vllm_metrics_text: running==8.0
+[OK] parse_vllm_metrics_text: waiting==12.0
+[OK] parse_vllm_metrics_text: parse_ok
+[OK] parse_vllm_metrics_text: missing metric -> parse_ok False
+[OK] evaluate_metrics_quality: corroborated for matching running/waiting
+[OK] evaluate_metrics_quality: stale for an old sample
+[OK] evaluate_metrics_quality: contradictory when running/waiting don't match K
+[OK] evaluate_metrics_quality: unavailable with no sample
+[OK] MetricsSampler.nearest_sample_before: excludes a sample whose scrape started pre-trigger but whose response arrived post-trigger
+[OK] MetricsSampler.nearest_sample_before: the same sample IS eligible once the trigger is after its response
+------------------------------------------------------------------------------
+20/20 structural checks passed
+=== 06_schedule.txt ===
+test_generate_server_waiting_schedule.py
+==============================================================================
+[OK] official schedule validates with zero errors
+[OK] exactly 32 episodes
+[OK] exactly 16 blocks
+[OK] 4 repeats, each with all 4 (offload, server_max_num_seqs) cells exactly once
+[OK] cell coverage is exactly offload{0,12} x server_max_num_seqs{4,8}
+[OK] block qwen_off0_k4_rep01: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k4_rep01: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k8_rep01: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k8_rep01: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k8_rep02: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k4_rep02: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k4_rep02: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k8_rep02: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k4_rep03: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k8_rep03: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k4_rep03: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k8_rep03: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k4_rep04: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k4_rep04: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k8_rep04: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k8_rep04: exactly 2 episodes, both conditions, order [1,2]
+[OK] every cell has exactly 2/2 no_burst-first / prefill_burst-first balance across its 4 repeats
+[OK] fingerprint is deterministic across independent re-generation
+[OK] fingerprint has the expected sha256: format
+[OK] fingerprint matches the value recorded in run_server_waiting_confirmation.py
+[OK] a different seed produces a different fingerprint
+[OK] seed differs from the original prefill-confirmation study's seed (20260718)
+[OK] design_version differs from the original study's
+[OK] SEED_NAMESPACE_TAG is mixed into episode/victim/burst seed derivation
+[OK] victim_workload_seed constant within each repeat
+[OK] victim_workload_seed distinct across all 4 repeats
+[OK] victim_workload_seed always != burst_workload_seed
+[OK] rendered CSV is consistent with the episode objects
+[OK] CSV header matches EPISODE_FIELDS exactly
+[OK] audit report declares OVERALL: PASS
+[OK] audit report contains the fingerprint line
+[OK] forbidden server_max_num_seqs mutation is rejected by validate_schedule
+[OK] forbidden trigger_after_decode_tokens mutation is rejected by validate_schedule
+[OK] forbidden offload_gb=8 mutation is rejected (only 0/12 are allowed)
+[OK] write_bundle_atomic wrote all 3 files
+[OK] write_bundle_atomic refuses to overwrite without --force
+[OK] write_bundle_atomic --force overwrites cleanly
+Wrote server-waiting-confirmation schedule bundle to: /tmp/tmp4v8g8kyd/cli_bundle
+schedule_fingerprint: sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557
+episodes: 32, blocks: 16
+[OK] generator CLI main() exits 0
+[OK] generator CLI wrote all 3 bundle files
+==============================================================================
+44/44 checks passed
+=== 07_timing.txt ===
+test_server_waiting_trigger_timing.py
+==============================================================================
+_active_cohort.py self-test
+==============================================================================
+[OK] phase1: K=4 status ok
+[OK] phase1: K=4 cohort is data-driven (earliest 4 by timestamp), not request_index<4
+[OK] phase1: cohort_freeze_ns is the K-th ranked timestamp
+[OK] phase1: K=8 status ok
+[OK] phase1: K=8 cohort has exactly 8 members
+[OK] phase1: deterministic ordering across repeated calls with identical input
+[OK] phase1: equal K-th/(K+1)-th timestamps -> ambiguous_active_cohort_boundary
+[OK] phase1: ambiguous result never carries an arbitrarily-chosen cohort
+[OK] phase1: fewer than K observed -> insufficient_data
+[OK] phase2: happy path returns 'ok'
+[OK] phase2: logical trigger equals the max of the cohort's 16th-token timestamps
+[OK] phase2: active cohort correctly frozen as the data-driven set
+[OK] phase2: a non-cohort token before the logical trigger invalidates the episode
+[OK] phase2: insufficient first-token events within the timeout produce a clean status, no hang
+[OK] issue4: cohort member whose completion_ns <= logical_trigger_ns is caught by timestamp, not task.done()
+[OK] issue1: watcher returns 'ok' once K first-token events are recorded
+[OK] issue1: no 50ms-poll-granularity delay (elapsed=10.5ms, expected well under 50ms of slack beyond the ~10ms the test itself sleeps)
+[OK] issue2: cohort-freeze debounce catches a sibling that was ready-but-not-yet-scheduled and correctly includes it as the actual earliest member
+[OK] issue2: cohort_freeze_ns reflects the debounced (correct) cohort, not the premature one
+==============================================================================
+19/19 checks passed
+[OK] _active_cohort.py self-test suite passes (19 checks)
+[OK] K=4: episode status complete
+[OK] K=4: trigger status ok
+[OK] K=4: active cohort == the designed (scrambled, non-contiguous) fast set
+[OK] K=4: active cohort is NOT the naive request_index<4 assumption
+[OK] K=8: episode status complete
+[OK] K=8: active cohort == the designed (scrambled, non-contiguous) fast set
+[OK] K=8: active cohort is NOT the naive request_index<8 assumption
+[OK] K=4: trigger_perf_ns equals cohort_freeze_ns recorded by the watcher
+[OK] K=4: every cohort member has >=16 decode tokens at the trigger
+[OK] K=8: trigger_perf_ns equals cohort_freeze_ns recorded by the watcher
+[OK] K=8: every cohort member has >=16 decode tokens at the trigger
+[OK] K=4: no request ever has a semaphore_acquired_ns value
+[OK] K=4: all 20 victim requests have a request_dispatch_ns
+[OK] K=4: all 20 victim requests were dispatched before the trigger
+[OK] K=4: exposure groups partition exactly into cohort/non-cohort
+[OK] K=8: no request ever has a semaphore_acquired_ns value
+[OK] K=8: all 20 victim requests have a request_dispatch_ns
+[OK] K=8: all 20 victim requests were dispatched before the trigger
+[OK] K=8: exposure groups partition exactly into cohort/non-cohort
+[OK] validator: fully-dispatched, well-formed cohort passes with zero errors
+[OK] validator: an undispatched-at-trigger request invalidates the episode
+[OK] validator: a non-cohort request with decode tokens at trigger invalidates the episode
+[OK] validator: a cohort member that completed at/before the trigger invalidates the episode
+[OK] validator: a burst request starting at/before the trigger invalidates the episode
+[OK] metrics parser: running == 8.0
+[OK] metrics parser: waiting == 12.0
+[OK] metrics parser: version-tolerant fallback metric names also parse
+[OK] metrics parser: sums across multiple engine-labelled lines
+[OK] metrics quality: corroborated when matching and fresh
+[OK] metrics quality: unavailable with no sample
+[OK] metrics quality: stale for an old sample
+[OK] metrics quality: contradictory when running/waiting don't match K
+[OK] metrics quality: unparsable on a transport error
+[OK] MetricsSampler.nearest_sample_before: excludes a scrape that started pre-trigger but responded post-trigger
+[OK] MetricsSampler.nearest_sample_before: the same sample IS eligible once the trigger is after its response
+[OK] an episode with a real (possibly non-corroborating) metrics sample still reaches 'complete' status purely from the streaming-derived invariants
+[OK] metrics_quality_status is present and is one of the five defined states
+==============================================================================
+38/38 checks passed
+=== 08_runner_integration.txt ===
+test_run_server_waiting_confirmation.py
+==============================================================================
+[OK] py_compile runner, generator, cohort module, and all test files
+[OK] bash -n run_server_waiting_confirmation.sh
+[OK] bash -n run_server_waiting_server.sh
+run_server_waiting_confirmation.py self-test
+==============================================================================
+_active_cohort.py self-test
+==============================================================================
+[OK] phase1: K=4 status ok
+[OK] phase1: K=4 cohort is data-driven (earliest 4 by timestamp), not request_index<4
+[OK] phase1: cohort_freeze_ns is the K-th ranked timestamp
+[OK] phase1: K=8 status ok
+[OK] phase1: K=8 cohort has exactly 8 members
+[OK] phase1: deterministic ordering across repeated calls with identical input
+[OK] phase1: equal K-th/(K+1)-th timestamps -> ambiguous_active_cohort_boundary
+[OK] phase1: ambiguous result never carries an arbitrarily-chosen cohort
+[OK] phase1: fewer than K observed -> insufficient_data
+[OK] phase2: happy path returns 'ok'
+[OK] phase2: logical trigger equals the max of the cohort's 16th-token timestamps
+[OK] phase2: active cohort correctly frozen as the data-driven set
+[OK] phase2: a non-cohort token before the logical trigger invalidates the episode
+[OK] phase2: insufficient first-token events within the timeout produce a clean status, no hang
+[OK] issue4: cohort member whose completion_ns <= logical_trigger_ns is caught by timestamp, not task.done()
+[OK] issue1: watcher returns 'ok' once K first-token events are recorded
+[OK] issue1: no 50ms-poll-granularity delay (elapsed=10.6ms, expected well under 50ms of slack beyond the ~10ms the test itself sleeps)
+[OK] issue2: cohort-freeze debounce catches a sibling that was ready-but-not-yet-scheduled and correctly includes it as the actual earliest member
+[OK] issue2: cohort_freeze_ns reflects the debounced (correct) cohort, not the premature one
+==============================================================================
+19/19 checks passed
+------------------------------------------------------------------------------
+run_server_waiting_confirmation.py structural self-checks
+[OK] EPISODE_FIELDS has 26 fields
+[OK] OFFICIAL_BLOCK_COUNT == 16
+[OK] OFFICIAL_EPISODE_COUNT == 32
+[OK] OFFLOAD_VALUES == [0, 12]
+[OK] SERVER_MAX_NUM_SEQS_VALUES == [4, 8]
+[OK] MODEL_REGISTRY is qwen-only
+[OK] seed/design_version differ from the original prefill-confirmation study
+[OK] result schema/runner identity is independent of the base module's
+[OK] compute_server_exposure: cohort member -> running_at_trigger_observed
+[OK] compute_server_exposure: dispatched non-member -> dispatched_no_output_at_trigger
+[OK] parse_vllm_metrics_text: running==8.0
+[OK] parse_vllm_metrics_text: waiting==12.0
+[OK] parse_vllm_metrics_text: parse_ok
+[OK] parse_vllm_metrics_text: missing metric -> parse_ok False
+[OK] evaluate_metrics_quality: corroborated for matching running/waiting
+[OK] evaluate_metrics_quality: stale for an old sample
+[OK] evaluate_metrics_quality: contradictory when running/waiting don't match K
+[OK] evaluate_metrics_quality: unavailable with no sample
+[OK] MetricsSampler.nearest_sample_before: excludes a sample whose scrape started pre-trigger but whose response arrived post-trigger
+[OK] MetricsSampler.nearest_sample_before: the same sample IS eligible once the trigger is after its response
+------------------------------------------------------------------------------
+20/20 structural checks passed
+[OK] runner self-test (--self-test path)
+[OK] result schema is independent of the audited Schema 5
+[OK] timing instrumentation name/version are new and independent
+[OK] official grid frozen: offload{0,12} x server_max_num_seqs{4,8} x repeats 1..4
+[OK] official counts frozen at 32 episodes / 16 blocks
+[OK] run_server_waiting_server.sh passes the frozen capability check
+[OK] run_server_waiting_server.sh accepts offload 0/12 only
+[OK] run_server_waiting_server.sh accepts server_max_num_seqs 4/8 only
+[OK] run_server_waiting_server.sh passes --max-num-seqs explicitly
+[OK] run_server_waiting_confirmation.sh's REAL_RUN case includes --diagnostic-pair-only
+[OK] wrapper refuses --diagnostic-pair-only without vllm on PATH, exactly as it already does for --smoke-test
+[OK] environment fingerprint tracks exactly this campaign's own artifacts
+Wrote server-waiting-confirmation schedule bundle to: /tmp/rawtrace_final/new/runs/server_waiting_confirmation/qwen/schedule
+schedule_fingerprint: sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557
+episodes: 32, blocks: 16
+[OK] official schedule is available (pre-existing or generated for this test run)
+[OK] actual official bundle validates
+[OK] bundle object returned
+[OK] 32 regular episodes
+[OK] 16 blocks/server starts
+[OK] 16 stabilization runs
+[OK] balanced conditions (16/16)
+[OK] frozen fingerprint matches OFFICIAL_FINGERPRINT
+[OK] hardest smoke block (off12/K8/rep01) exists with exactly 2 episodes
+[OK] all result IDs use zero-padded repeat
+[OK] forbidden server_max_num_seqs mutation rejected
+[OK] forbidden trigger mutation rejected
+Execution plan (dry-run; nothing is executed)
+============================================================
+schedule_fingerprint: sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557
+regular episodes: 32
+blocks (= planned server restarts): 16
+planned stabilization runs: 16
+no_burst episodes: 16
+prefill_burst episodes: 16
+
+--- qwen_off0_k4_rep01 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 1, condition_first: prefill_burst
+    order 1: qwen_off0_k4_trigger16_prefill_burst_rep01 (condition=prefill_burst)
+    order 2: qwen_off0_k4_trigger16_no_burst_rep01 (condition=no_burst)
+--- qwen_off12_k4_rep01 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 1, condition_first: prefill_burst
+    order 1: qwen_off12_k4_trigger16_prefill_burst_rep01 (condition=prefill_burst)
+    order 2: qwen_off12_k4_trigger16_no_burst_rep01 (condition=no_burst)
+--- qwen_off0_k8_rep01 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 1, condition_first: prefill_burst
+    order 1: qwen_off0_k8_trigger16_prefill_burst_rep01 (condition=prefill_burst)
+    order 2: qwen_off0_k8_trigger16_no_burst_rep01 (condition=no_burst)
+--- qwen_off12_k8_rep01 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 1, condition_first: no_burst
+    order 1: qwen_off12_k8_trigger16_no_burst_rep01 (condition=no_burst)
+    order 2: qwen_off12_k8_trigger16_prefill_burst_rep01 (condition=prefill_burst)
+--- qwen_off0_k8_rep02 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 2, condition_first: prefill_burst
+    order 1: qwen_off0_k8_trigger16_prefill_burst_rep02 (condition=prefill_burst)
+    order 2: qwen_off0_k8_trigger16_no_burst_rep02 (condition=no_burst)
+--- qwen_off0_k4_rep02 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 2, condition_first: no_burst
+    order 1: qwen_off0_k4_trigger16_no_burst_rep02 (condition=no_burst)
+    order 2: qwen_off0_k4_trigger16_prefill_burst_rep02 (condition=prefill_burst)
+--- qwen_off12_k4_rep02 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 2, condition_first: prefill_burst
+    order 1: qwen_off12_k4_trigger16_prefill_burst_rep02 (condition=prefill_burst)
+    order 2: qwen_off12_k4_trigger16_no_burst_rep02 (condition=no_burst)
+--- qwen_off12_k8_rep02 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 2, condition_first: prefill_burst
+    order 1: qwen_off12_k8_trigger16_prefill_burst_rep02 (condition=prefill_burst)
+    order 2: qwen_off12_k8_trigger16_no_burst_rep02 (condition=no_burst)
+--- qwen_off0_k4_rep03 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 3, condition_first: no_burstFehler: --resume wird von --diagnostic-pair-only nicht unterstützt (fresh-directory-only).
+Fehler: --diagnostic-pair-only erfordert ein explizit angegebenes --output-dir.
+
+    order 1: qwen_off0_k4_trigger16_no_burst_rep03 (condition=no_burst)
+    order 2: qwen_off0_k4_trigger16_prefill_burst_rep03 (condition=prefill_burst)
+--- qwen_off12_k8_rep03 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 3, condition_first: prefill_burst
+    order 1: qwen_off12_k8_trigger16_prefill_burst_rep03 (condition=prefill_burst)
+    order 2: qwen_off12_k8_trigger16_no_burst_rep03 (condition=no_burst)
+--- qwen_off12_k4_rep03 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 3, condition_first: no_burst
+    order 1: qwen_off12_k4_trigger16_no_burst_rep03 (condition=no_burst)
+    order 2: qwen_off12_k4_trigger16_prefill_burst_rep03 (condition=prefill_burst)
+--- qwen_off0_k8_rep03 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 3, condition_first: no_burst
+    order 1: qwen_off0_k8_trigger16_no_burst_rep03 (condition=no_burst)
+    order 2: qwen_off0_k8_trigger16_prefill_burst_rep03 (condition=prefill_burst)
+--- qwen_off0_k4_rep04 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 4, condition_first: prefill_burst
+    order 1: qwen_off0_k4_trigger16_prefill_burst_rep04 (condition=prefill_burst)
+    order 2: qwen_off0_k4_trigger16_no_burst_rep04 (condition=no_burst)
+--- qwen_off12_k4_rep04 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 4, condition_first: no_burst
+    order 1: qwen_off12_k4_trigger16_no_burst_rep04 (condition=no_burst)
+    order 2: qwen_off12_k4_trigger16_prefill_burst_rep04 (condition=prefill_burst)
+--- qwen_off12_k8_rep04 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 4, condition_first: no_burst
+    order 1: qwen_off12_k8_trigger16_no_burst_rep04 (condition=no_burst)
+    order 2: qwen_off12_k8_trigger16_prefill_burst_rep04 (condition=prefill_burst)
+--- qwen_off0_k8_rep04 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 4, condition_first: no_burst
+    order 1: qwen_off0_k8_trigger16_no_burst_rep04 (condition=no_burst)
+    order 2: qwen_off0_k8_trigger16_prefill_burst_rep04 (condition=prefill_burst)
+
+DRY RUN: no server was started, no network connection was opened, no tokenizer was loaded, no result files were written.
+[OK] dry-run exits 0 against the valid bundle
+[OK] dry-run writes no files into the schedule directory
+[OK] fake off12/K8 smoke block completes
+[OK] both fake smoke episodes are valid_complete
+[OK] block reaches 20 concurrent victim streams, 24 once the prefill_burst episode overlaps its burst
+[OK] completion transport reports the configured 32/32 pool limits
+[OK] metrics transport is a genuinely separate object from the completion transport
+[OK] fake smoke writes exactly two episode files
+[OK] fake smoke writes exactly one stabilization file
+[OK] written episode result has this module's RESULT_SCHEMA_VERSION
+[OK] written episode result records no_client_admission_semaphore_used=True
+[OK] written episode result's trigger has an active_cohort_size of 8
+[OK] written episode result exposes metrics_quality_status
+[OK] written episode result reports all_20_streams_open_before_first_token == True
+[OK] written episode result reports victim_stream_open_count == 20
+[OK] written episode result reports completion_pool_limits 32/32
+[OK] every victim record has a non-null stream_open_or_response_headers_perf_ns
+[OK] every victim record has a non-null token_16_perf_ns for cohort members
+[OK] every victim record's timestamp_monotonicity_errors is empty
+[OK] resume of an already-complete block is a no-op
+[OK] resume no-op never dispatches any fake HTTP stream
+[OK] classify_result_file rejects a schedule_row that no longer matches the schedule
+[OK] classify_result_file rejects malformed JSON as corrupted
+[OK] classify_result_file accepts the restored, valid result as valid_complete
+[OK] B3 adversarial #1: classify_result_file rejects a burst request with status changed to 'failed'
+[OK] B3 adversarial #2: classify_result_file rejects a result with non-empty validation_errors
+[OK] B3 adversarial #3: classify_result_file rejects a result missing no_client_admission_semaphore_used
+[OK] B3 adversarial #4: classify_result_file rejects a non-cohort decode_tokens_received_at_trigger changed to None
+[OK] integrity manifest round-trips cleanly against disk
+[OK] integrity manifest verification detects a tampered file
+[OK] RealEnvironmentProbe hashes _active_cohort.py matching its actual on-disk content
+[OK] RealEnvironmentProbe hashes the imported base runner matching its actual on-disk content
+[OK] mutating _active_cohort.py's hash changes environment_fingerprint
+[OK] mutating run_prefill_confirmation.py's hash changes environment_fingerprint
+[OK] PersistentCompletionTransport starts not-started
+[OK] PersistentCompletionTransport.start() is effective
+[OK] PersistentCompletionTransport.start() is idempotent
+[OK] PersistentCompletionTransport reports exact 32/32 connection limits
+[OK] PersistentCompletionTransport.aclose() is effective
+[OK] PersistentCompletionTransport.aclose() is idempotent
+[OK] PersistentMetricsTransport starts/closes independently
+[OK] validate_diagnostic_block_selection accepts the real qwen_off12_k8_rep01 block
+[OK] validate_diagnostic_block_selection preserves schedule-defined order_in_block order
+[OK] validate_diagnostic_block_selection rejects a bundle with no matching block
+[OK] run_diagnostic_pair refuses a non-empty output directory
+[OK] --diagnostic-pair-only --resume is rejected by the CLI with exit code 1
+[OK] --diagnostic-pair-only without --output-dir is rejected by the CLI with exit code 1
+[OK] run_diagnostic_pair never references run_official_campaign or all-block iteration
+[OK] fake diagnostic pair completes
+[OK] fake diagnostic pair started exactly one server
+[OK] fake diagnostic pair wrote exactly two episode files
+[OK] fake diagnostic pair wrote exactly one stabilization file
+[OK] fake diagnostic pair wrote a JSON summary
+[OK] fake diagnostic pair wrote a human-readable text summary
+[OK] fake diagnostic pair's classification is one of A/B/C/D
+[OK] fake diagnostic pair's classification is genuinely A/B/C (never silently D) for this well-formed run
+[OK] fake diagnostic pair's diagnostic_valid is True for this well-formed run
+[OK] fake diagnostic pair's paired_effect_summary is available
+[OK] fake diagnostic pair's summary carries environment_fingerprint matching the gathered env
+[OK] fake diagnostic pair wrote a diagnostic_run_manifest.json before/around server start
+[OK] diagnostic_run_manifest.json carries the correct environment_fingerprint
+[OK] diagnostic_run_manifest.json carries the full file_hashes snapshot
+[OK] diagnostic_run_manifest.json records the diagnostic_block_id
+[OK] diagnostic_run_manifest semantic validator accepts the exact stored manifest
+[OK] diagnostic_run_manifest semantic validator rejects a wrong host
+[OK] stabilization semantic validator accepts the exact functional artifact
+[OK] stabilization semantic validator rejects functional_passed=False
+[OK] episode result qwen_off12_k8_trigger16_no_burst_rep01.json carries environment_fingerprint in server_metadata
+[OK] episode result qwen_off12_k8_trigger16_prefill_burst_rep01.json carries environment_fingerprint in server_metadata
+[OK] a one-byte-equivalent mutation of _active_cohort.py's recorded hash changes the fingerprint that would be stored
+[OK] fake diagnostic pair reports integrity_verified is True (returned value)
+[OK] fake diagnostic pair reports diagnostic_valid consistent with its classification
+[OK] on-disk diagnostic_pair_summary.json makes NO self-referential integrity_verified claim (non-circular)
+[OK] on-disk diagnostic_pair_summary.json instead carries non-circular integrity metadata
+[OK] fake diagnostic pair wrote a final integrity manifest
+[OK] final integrity manifest lists diagnostic_pair_summary.json among its covered files
+[OK] final integrity manifest lists diagnostic_pair_summary.txt among its covered files
+[OK] final integrity manifest does NOT list itself (no recursive self-hash)
+[OK] final integrity manifest verifies with STRICTLY ZERO errors against the complete, finished output tree
+[OK] integrity manifest has exactly one entry for diagnostic_pair_summary.json
+[OK] integrity manifest's recorded hash for diagnostic_pair_summary.json matches its actual on-disk content (proves the manifest was built AFTER the summary was written, not before)
+[OK] tampering diagnostic_pair_summary.json is detected by the final integrity manifest
+[OK] tampering diagnostic_pair_summary.txt is detected by the final integrity manifest
+[OK] an extra, unlisted file in the output tree is detected by the final integrity manifest
+[OK] a nested integrity_manifest.json (nested/integrity_manifest.json) is detected as an unexpected file, not silently excluded by basename
+[OK] a deeply nested a/b/c/integrity_manifest.json is also detected as unexpected
+[OK] after removing the nested test files, the manifest verifies cleanly again
+[OK] pre-manifest whitelist rejects an unexpected file before manifest construction
+[OK] manifest builder never blesses an unexpected pre-existing file
+[OK] verification detects the unlisted pre-existing file after strict manifest construction
+[OK] _validate_diagnostic_artifact_counts reports zero errors for the complete, well-formed tree
+[OK] _validate_diagnostic_artifact_counts fails closed when an extra stabilization file is present
+[OK] verify_diagnostic_integrity_manifest with expected counts also fails closed on an extra stabilization file
+[OK] _validate_diagnostic_artifact_counts fails closed when an episode file is missing
+[OK] diagnostic integrity manifest verification fails closed after tampering an episode file
+[OK] re-running run_diagnostic_pair against the same (now non-empty) directory is refused
+[OK] classifier: A_OUTPUT_LEVEL_OVERLAP when burst output precedes the last active victim
+[OK] classifier: C_BURST_OUTPUT_AFTER_ALL_VICTIMS when burst output follows every victim
+[OK] classifier: B_NO_OUTPUT_LEVEL_OVERLAP_WITH_FIRST_COHORT otherwise
+[OK] classifier: D when a result is missing
+[OK] classifier: D when trigger.status != 'ok'
+[OK] classifier: D when active_cohort_size != 8
+[OK] classifier: D when a victim status != 'complete'
+[OK] classifier: D when a burst request status != 'complete'
+[OK] classifier: D when all_20_streams_open_before_first_token is not true
+[OK] classifier: D when validation_errors is non-empty
+[OK] classifier: D when no_client_admission_semaphore_used is False
+[OK] classifier: D when active_cohort_size==8 but only 7 active indices are actually listed
+[OK] classifier: D when the active index list contains a duplicate
+[OK] classifier: D when the active index list contains an out-of-range value
+[OK] classifier: D when a non-cohort victim has decode_tokens_received_at_trigger == 1 (nonzero)
+[OK] classifier: D when an active-cohort victim completes at/before the trigger
+[OK] classifier: D when an active-cohort victim's token_16_perf_ns is null
+[OK] classifier: D when a victim stream-open timestamp is null while the aggregate flag is falsely kept true
+[OK] classifier: D when a burst request's canonical dispatch timestamp is null
+[OK] classifier: D when a burst request's dispatch timestamp is AT (not strictly after) the trigger
+[OK] classifier: D when a burst alias field disagrees with its own canonical source field
+[OK] classifier: D when a victim_requests entry is not a dict
+[OK] Blocker B: D when an active-cohort victim's token_16_perf_ns is a valid int but AFTER the trigger
+[OK] Blocker B: D when trigger_perf_ns is greater than max(active token_16_perf_ns)
+[OK] Blocker B: D when trigger_perf_ns is less than max(active token_16_perf_ns)
+[OK] Blocker B: D when a non-cohort victim's first_token_perf_ns is strictly BEFORE the trigger
+[OK] Blocker B: D when a non-cohort victim's first_token_perf_ns is exactly AT the trigger
+[OK] Blocker B: D when an active-cohort victim's completion is exactly AT the trigger
+[OK] Blocker C: D when an active victim's server_exposure_group is wrong
+[OK] Blocker C: D when a non-cohort victim's server_exposure_group is wrong
+[OK] Blocker C: D when was_dispatched_at_trigger is falsely set to False
+[OK] Blocker C: D when an active victim's had_first_token_at_trigger is falsely False
+[OK] Blocker C: D when a non-cohort victim's had_first_token_at_trigger is falsely True
+[OK] Blocker C: D when request_dispatch_ns is missing
+[OK] Blocker C: D when first_token_receive_ns is missing
+[OK] Blocker C: D when stream_end_ns is missing
+[OK] Blocker C: D when task_created_perf_ns is missing
+[OK] Blocker C: D when victim field 'request_index' is missing
+[OK] Blocker C: D when victim field 'status' is missing
+[OK] Blocker C: D when victim field 'task_created_ns' is missing
+[OK] Blocker C: D when victim field 'request_dispatch_ns' is missing
+[OK] Blocker C: D when victim field 'first_token_receive_ns' is missing
+[OK] Blocker C: D when victim field 'stream_end_ns' is missing
+[OK] Blocker C: D when victim field 'task_created_perf_ns' is missing
+[OK] Blocker C: D when victim field 'http_dispatch_start_perf_ns' is missing
+[OK] Blocker C: D when victim field 'stream_open_or_response_headers_perf_ns' is missing
+[OK] Blocker C: D when victim field 'first_token_perf_ns' is missing
+[OK] Blocker C: D when victim field 'token_16_perf_ns' is missing
+[OK] Blocker C: D when victim field 'stream_end_perf_ns' is missing
+[OK] Blocker C: D when victim field 'was_dispatched_at_trigger' is missing
+[OK] Blocker C: D when victim field 'had_first_token_at_trigger' is missing
+[OK] Blocker C: D when victim field 'server_exposure_group' is missing
+[OK] Blocker C: D when victim field 'decode_tokens_received_at_trigger' is missing
+[OK] Blocker C: D when victim field 'dispatch_to_first_token_ms' is missing
+[OK] Blocker C: D when victim field 'timestamp_monotonicity_errors' is missing
+[OK] Blocker C: D when victim field 'server_max_num_seqs' is missing
+[OK] Blocker C: D when the task_created alias contradicts its canonical source
+[OK] Blocker C: D when the dispatch alias contradicts its canonical source
+[OK] Blocker C: D when the first-token alias contradicts its canonical source
+[OK] Blocker C: D when the stream-end alias contradicts its canonical source
+[OK] Blocker C: D when dispatch_to_first_token_ms contradicts its reconstruction
+[OK] Blocker C: D when the stored timestamp_monotonicity_errors is non-empty
+[OK] Blocker C: D when the raw timestamps are genuinely out of order (independently reconstructed monotonicity)
+[OK] Blocker C: D when record_type is wrong
+[OK] final pass: D when a victim record carries server_max_num_seqs != 8
+[OK] final pass: D when a burst record has non-empty timestamp_monotonicity_errors
+[OK] final pass: D when a burst record is missing timestamp_monotonicity_errors
+[OK] final pass: D when server_metadata.model_key is inconsistent with the real diagnostic launch
+[OK] final pass: D when server_metadata.model_full_id is inconsistent with the real diagnostic launch
+[OK] final pass: D when server_metadata.offload_gb is inconsistent with the real diagnostic launch
+[OK] final pass: D when server_metadata.server_max_num_seqs is inconsistent with the real diagnostic launch
+[OK] final pass: D when server_metadata.host is inconsistent with the real diagnostic launch
+[OK] final pass: D when server_metadata.port is inconsistent with the real diagnostic launch
+[OK] final pass: D when server_metadata.server_command is inconsistent with the real diagnostic launch
+[OK] classifier: positive A fixture still classifies correctly after Blocker B/C reconstruction
+[OK] classifier: positive B fixture still classifies correctly after Blocker B/C reconstruction
+[OK] classifier: positive C fixture still classifies correctly after Blocker B/C reconstruction
+[OK] Section 6: a result with 5 independent, simultaneous mutations still classifies as D (no exception)
+[OK] Section 6: the identity error (wrong episode_id) is present among the collected reasons
+[OK] Section 6: the exposure-group error is present among the collected reasons
+[OK] Section 6: the non-cohort decode-token-count error is present among the collected reasons
+[OK] Section 6: the burst-dispatch-at-trigger error is present among the collected reasons
+[OK] Section 6: the top-level validation_errors error is present among the collected reasons
+[OK] Section 6: more than one reason was actually collected (not stopped at the first)
+[OK] strict JSON: D when validation_errors is None instead of exactly []
+[OK] strict JSON: D when validation_errors is {} instead of exactly []
+[OK] strict JSON: D when validation_errors is '' instead of exactly []
+[OK] strict JSON: D when validation_errors is () instead of exactly []
+[OK] strict JSON: D when validation_errors is {'bad'} instead of exactly []
+[OK] strict JSON: D when validation_errors is missing
+[OK] strict JSON: non-int request_dispatch_ns=None yields D rather than an exception
+[OK] strict JSON: non-int request_dispatch_ns='bad' yields D rather than an exception
+[OK] strict JSON: unhashable victim request_index=[] yields D rather than an exception
+[OK] strict JSON: unhashable burst request_index={} yields D rather than an exception
+[OK] strict JSON: victim_requests request_index=0.0 is rejected despite 0.0 == 0
+[OK] strict JSON: burst_requests request_index=0.0 is rejected despite 0.0 == 0
+[OK] strict JSON: non-dict transport_concurrency_evidence yields D rather than AttributeError
+[OK] strict JSON: victim server_max_num_seqs=8.0 is rejected despite 8.0 == 8
+[OK] strict JSON: trigger.active_cohort_size=8.0 is rejected despite 8.0 == 8
+[OK] strict JSON: non-cohort decode_tokens_received_at_trigger=0.0 is rejected
+[OK] strict JSON: stored all_20_streams_open_before_first_token=1 is rejected as non-bool
+[OK] strict JSON: schedule_row.offload_gb=12.0 is rejected despite numeric equality
+[OK] strict JSON: float result_schema_version is rejected despite numeric equality
+[OK] strict JSON: server_metadata.offload_gb=12.0 is rejected as the wrong type
+[OK] strict JSON: server_metadata.server_max_num_seqs=8.0 is rejected as the wrong type
+[OK] strict JSON: server_metadata.port=8000.0 is rejected as the wrong type
+[OK] identity: D when episode_id is wrong
+[OK] identity: D when block_id is wrong
+[OK] identity: D when schedule_row.offload_gb is changed
+[OK] identity: D when schedule_row.server_max_num_seqs is changed
+[OK] identity: D when schedule_row.repeat is changed
+[OK] identity: D when condition is swapped (prefill_burst file claims no_burst)
+[OK] identity: D when run_mode is wrong
+[OK] identity: D when schedule_fingerprint is wrong
+[OK] identity: D when environment_fingerprint is wrong
+[OK] identity: D when schedule_row is incomplete (missing a field)
+[OK] identity: D when result_schema_version is wrong
+[OK] identity: D when runner_version is wrong
+[OK] identity: D when the no_burst file's episode_id is wrong
+[OK] identity: D when the no_burst file's schedule_fingerprint is wrong
+[OK] identity: D when the two files' schedule_fingerprints disagree with each other (and thus with the expected one)
+[OK] classifier: positive A fixture still classifies correctly after identity binding
+[OK] classifier: positive B fixture still classifies correctly after identity binding
+[OK] classifier: positive C fixture still classifies correctly after identity binding
+[OK] compute_paired_effect_summary marks itself available for a valid pair
+[OK] compute_paired_effect_summary never attaches an inferential CI field
+[OK] compute_paired_effect_summary reports unavailable when a result is missing
+[OK] request validity: victim validation_errors mutation yields D
+[OK] request validity: burst validation_errors mutation yields D
+[OK] request validity: victim http_status mutation yields D
+[OK] request validity: burst http_status mutation yields D
+[OK] request validity: victim timed_out mutation yields D
+[OK] request validity: burst timed_out mutation yields D
+[OK] request validity: victim cancelled mutation yields D
+[OK] request validity: burst cancelled mutation yields D
+[OK] request validity: victim done_received mutation yields D
+[OK] request validity: burst done_received mutation yields D
+[OK] request validity: victim error_type mutation yields D
+[OK] request validity: burst error_type mutation yields D
+[OK] request validity: victim error_message mutation yields D
+[OK] request validity: burst error_message mutation yields D
+[OK] request validity: victim finish_reason mutation yields D
+[OK] request validity: burst finish_reason mutation yields D
+[OK] request validity: victim output_token_ids mutation yields D
+[OK] request validity: burst output_token_ids mutation yields D
+[OK] request validity: victim usage mutation yields D
+[OK] request validity: burst usage mutation yields D
+[OK] workload identity: victim role mutation yields D
+[OK] workload identity: victim request_id mutation yields D
+[OK] workload identity: victim prompt_seed mutation yields D
+[OK] workload identity: victim generation_seed mutation yields D
+[OK] workload identity: victim prompt_sha256 mutation yields D
+[OK] workload identity: victim prompt_token_ids_sent mutation yields D
+[OK] workload identity: victim prompt_token_ids_returned mutation yields D
+[OK] workload identity: burst role mutation yields D
+[OK] workload identity: burst request_id mutation yields D
+[OK] effect consistency: internally impossible TPOT/ITL values force D in the main classifier
+[OK] effect consistency: direct effect summary reports unavailable for impossible TPOT/ITL values
+[OK] effect consistency: itl_available false yields D
+[OK] effect consistency: ITL length wrong yields D
+[OK] effect consistency: last-token timestamp wrong yields D
+[OK] strict JSON: burst raw request_dispatch_ns as numerically equal float yields D
+[OK] strict JSON: burst raw first_token_receive_ns as numerically equal float yields D
+[OK] strict JSON: burst raw stream_end_ns as numerically equal float yields D
+[OK] trigger identity: server_max_num_seqs mutation yields D
+[OK] trigger identity: trigger_after_decode_tokens mutation yields D
+[OK] trigger identity: cohort_freeze_ns mutation yields D
+[OK] trigger identity: positive but non-reconstructed cohort_freeze_ns yields D
+[OK] metrics quality: invalid object None yields D
+[OK] metrics quality: invalid object {} yields D
+[OK] metrics quality: invalid object {'metrics_quality_status': 'wrong'} yields D
+[OK] trigger evidence: active decode_tokens_received_at_trigger above output length yields D
+[OK] transport evidence: no_burst peak above exactly 20 yields D
+[OK] transport evidence: physically impossible prefill_burst peak yields D
+[OK] instrumentation identity: timing_instrumentation_name mutation yields D
+[OK] instrumentation identity: timing_instrumentation_version mutation yields D
+[OK] stabilization identity: functional_passed mutation yields D
+[OK] stabilization identity: block_id mutation yields D
+[OK] stabilization identity: path mutation yields D
+[OK] transport evidence: victim_stream_open_count mutation yields D
+[OK] transport evidence: earliest_victim_first_token_ns mutation yields D
+[OK] transport evidence: peak_concurrent_open_completion_streams mutation yields D
+[OK] transport evidence: completion_pool_limits mutation yields D
+[OK] server metadata: completion_pool_limits mutation yields D
+[OK] effect summary: malformed itl_ms returns available=False without raising
+[OK] effect summary: unhashable active indices return available=False without raising
+[OK] effect summary: malformed TPOT returns available=False without raising
+[OK] full D path: run_diagnostic_pair skips effect computation and returns unavailable summary
+[OK] full path: wrong stored workload identity forces D before final attestation
+[OK] full path: internally impossible effect values force D and unavailable effect summary
+[OK] full path: semantically failed stabilization artifact forces D
+[OK] full path: semantically inconsistent diagnostic_run_manifest forces D
+[OK] burst timing aliases exactly mirror their source timestamps
+[OK] well-formed burst timestamps produce zero monotonicity errors
+[OK] an out-of-order burst timestamp (dispatch after first-token) is caught as a monotonicity violation
+[OK] B3: true open-stream peak stays 0 while 3 requests are blocked before response headers
+[OK] B3: peak_inflight_completion_attempts correctly reflects the 3 blocked dispatch attempts
+[OK] B3: get_diagnostics() exposes both the true open-stream peak and the in-flight-attempts peak under distinct, honestly-named keysWarning: metrics_transport failed to close cleanly: RuntimeError: synthetic close() failure
+Warning: completion_transport failed to close cleanly: RuntimeError: synthetic close() failure
+Warning: metrics_transport failed to close cleanly: RuntimeError: synthetic close() failure
+Warning: completion_transport failed to close cleanly: RuntimeError: synthetic close() failure
+
+[OK] N1: completion transport that already started IS closed even when metrics_transport.start() then fails
+[OK] N1: metrics transport that never successfully started is not closed
+[OK] N1: the original start() failure still propagates to the caller
+[OK] N1: if the completion transport itself fails to start, neither transport is closed (metrics never started)
+[OK] N1: metrics_transport.start() is never even attempted if completion transport failed first
+[OK] N1: happy path -- both transports start and both close
+[OK] N1: happy path raises nothing
+[OK] Blocker3: metrics_transport.aclose() raising does NOT suppress completion_transport.aclose()
+[OK] Blocker3: metrics_transport.aclose() was attempted (and failed) as expected
+[OK] Blocker3: the metrics-close error is visibly reported on the result
+[OK] Blocker3: completion_transport.aclose() raising does NOT suppress metrics_transport.aclose()
+[OK] Blocker3: completion_transport.aclose() was attempted (and failed) as expected
+[OK] Blocker3: the completion-close error is visibly reported on the result
+[OK] Blocker3: both close attempts happen even when both raise
+[OK] Blocker3: both errors are present in the report when both closes fail
+[OK] Blocker3: (re-affirmed) happy path -- both transports close successfully with zero reported errors
+[OK] Blocker3/SIGTERM-fake: the diagnostic run reports interrupted overall_status
+[OK] Blocker3/SIGTERM-fake: no server was ever started (interrupt fired before server start)
+[OK] Blocker3/SIGTERM-fake: the outer completion transport was still closed
+[OK] Blocker3/SIGTERM-fake: the outer metrics transport was still closed
+[OK] original run_prefill_confirmation.py hash unchanged from the audited baseline
+==============================================================================
+342/342 checks passed
+=== 09_auditor.txt ===
+test_01_complete_fake_pair_passes (__main__.AuditorRegressionTests.test_01_complete_fake_pair_passes) ... ok
+test_02_original_tree_is_byte_identical (__main__.AuditorRegressionTests.test_02_original_tree_is_byte_identical) ... ok
+test_03_jointly_rehashed_wrong_victim_prompt_fails (__main__.AuditorRegressionTests.test_03_jointly_rehashed_wrong_victim_prompt_fails) ... ok
+test_04_jointly_rehashed_wrong_burst_prompt_fails (__main__.AuditorRegressionTests.test_04_jointly_rehashed_wrong_burst_prompt_fails) ... ok
+test_05_prompt_echo_mismatch_fails (__main__.AuditorRegressionTests.test_05_prompt_echo_mismatch_fails) ... ok
+test_06_same_length_wrong_output_values_fail (__main__.AuditorRegressionTests.test_06_same_length_wrong_output_values_fail) ... ok
+test_07_shifted_victim_first_last_aliases_fail (__main__.AuditorRegressionTests.test_07_shifted_victim_first_last_aliases_fail) ... ok
+test_08_shifted_burst_first_last_aliases_fail (__main__.AuditorRegressionTests.test_08_shifted_burst_first_last_aliases_fail) ... ok
+test_09_itl_redistribution_same_sum_fails (__main__.AuditorRegressionTests.test_09_itl_redistribution_same_sum_fails) ... ok
+test_10_wrong_tpot_fails (__main__.AuditorRegressionTests.test_10_wrong_tpot_fails) ... ok
+test_11_token_batch_fixture_reconstructs_and_passes (__main__.AuditorRegressionTests.test_11_token_batch_fixture_reconstructs_and_passes) ... ok
+test_12_conflicting_batch_fields_fail (__main__.AuditorRegressionTests.test_12_conflicting_batch_fields_fail) ... ok
+test_13_shifted_stored_burst_times_and_abc_contradict_raw (__main__.AuditorRegressionTests.test_13_shifted_stored_burst_times_and_abc_contradict_raw) ... ok
+test_14_malformed_events_are_controlled_scientific_failures (__main__.AuditorRegressionTests.test_14_malformed_events_are_controlled_scientific_failures) ... ok
+test_15_missing_local_tokenizer_is_exit_1 (__main__.AuditorRegressionTests.test_15_missing_local_tokenizer_is_exit_1) ... ok
+test_16_malformed_json_is_exit_1_not_exception (__main__.AuditorRegressionTests.test_16_malformed_json_is_exit_1_not_exception) ... ok
+test_17_output_dir_inside_diagnostic_is_exit_1 (__main__.AuditorRegressionTests.test_17_output_dir_inside_diagnostic_is_exit_1) ... ok
+test_18_pure_reconstructor_rejects_decreasing_time_and_duplicate_done (__main__.AuditorRegressionTests.test_18_pure_reconstructor_rejects_decreasing_time_and_duplicate_done) ... ok
+test_19_manifest_hashes_must_match_actual_sources (__main__.AuditorRegressionTests.test_19_manifest_hashes_must_match_actual_sources) ... ok
+test_20_missing_or_malformed_last_token_aliases_fail (__main__.AuditorRegressionTests.test_20_missing_or_malformed_last_token_aliases_fail) ... ok
+test_21_actual_runner_generated_tree_passes_and_detects_provenance_tamper (__main__.AuditorRegressionTests.test_21_actual_runner_generated_tree_passes_and_detects_provenance_tamper) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 3.704s
+
+OK
+Wrote server-waiting-confirmation schedule bundle to: /tmp/tmpbhjz_00u/schedule
+schedule_fingerprint: sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557
+episodes: 32, blocks: 16
+=== 10_unittest.txt ===
+test_01_complete_fake_pair_passes (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_01_complete_fake_pair_passes) ... ok
+test_02_original_tree_is_byte_identical (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_02_original_tree_is_byte_identical) ... ok
+test_03_jointly_rehashed_wrong_victim_prompt_fails (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_03_jointly_rehashed_wrong_victim_prompt_fails) ... ok
+test_04_jointly_rehashed_wrong_burst_prompt_fails (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_04_jointly_rehashed_wrong_burst_prompt_fails) ... ok
+test_05_prompt_echo_mismatch_fails (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_05_prompt_echo_mismatch_fails) ... ok
+test_06_same_length_wrong_output_values_fail (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_06_same_length_wrong_output_values_fail) ... ok
+test_07_shifted_victim_first_last_aliases_fail (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_07_shifted_victim_first_last_aliases_fail) ... ok
+test_08_shifted_burst_first_last_aliases_fail (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_08_shifted_burst_first_last_aliases_fail) ... ok
+test_09_itl_redistribution_same_sum_fails (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_09_itl_redistribution_same_sum_fails) ... ok
+test_10_wrong_tpot_fails (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_10_wrong_tpot_fails) ... ok
+test_11_token_batch_fixture_reconstructs_and_passes (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_11_token_batch_fixture_reconstructs_and_passes) ... ok
+test_12_conflicting_batch_fields_fail (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_12_conflicting_batch_fields_fail) ... ok
+test_13_shifted_stored_burst_times_and_abc_contradict_raw (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_13_shifted_stored_burst_times_and_abc_contradict_raw) ... ok
+test_14_malformed_events_are_controlled_scientific_failures (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_14_malformed_events_are_controlled_scientific_failures) ... ok
+test_15_missing_local_tokenizer_is_exit_1 (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_15_missing_local_tokenizer_is_exit_1) ... ok
+test_16_malformed_json_is_exit_1_not_exception (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_16_malformed_json_is_exit_1_not_exception) ... ok
+test_17_output_dir_inside_diagnostic_is_exit_1 (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_17_output_dir_inside_diagnostic_is_exit_1) ... ok
+test_18_pure_reconstructor_rejects_decreasing_time_and_duplicate_done (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_18_pure_reconstructor_rejects_decreasing_time_and_duplicate_done) ... ok
+test_19_manifest_hashes_must_match_actual_sources (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_19_manifest_hashes_must_match_actual_sources) ... ok
+test_20_missing_or_malformed_last_token_aliases_fail (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_20_missing_or_malformed_last_token_aliases_fail) ... ok
+test_21_actual_runner_generated_tree_passes_and_detects_provenance_tamper (test_audit_server_waiting_diagnostic.AuditorRegressionTests.test_21_actual_runner_generated_tree_passes_and_detects_provenance_tamper) ... ok
+test_all_checks_pass (test_generate_server_waiting_schedule._MainSuiteTestCase.test_all_checks_pass) ... ok
+test_all_checks_pass (test_run_server_waiting_confirmation._MainSuiteTestCase.test_all_checks_pass) ... Wrote server-waiting-confirmation schedule bundle to: /tmp/tmp8_nmwzqt/schedule
+schedule_fingerprint: sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557
+episodes: 32, blocks: 16
+test_generate_server_waiting_schedule.py
+==============================================================================
+[OK] official schedule validates with zero errors
+[OK] exactly 32 episodes
+[OK] exactly 16 blocks
+[OK] 4 repeats, each with all 4 (offload, server_max_num_seqs) cells exactly once
+[OK] cell coverage is exactly offload{0,12} x server_max_num_seqs{4,8}
+[OK] block qwen_off0_k4_rep01: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k4_rep01: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k8_rep01: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k8_rep01: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k8_rep02: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k4_rep02: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k4_rep02: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k8_rep02: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k4_rep03: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k8_rep03: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k4_rep03: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k8_rep03: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k4_rep04: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k4_rep04: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off12_k8_rep04: exactly 2 episodes, both conditions, order [1,2]
+[OK] block qwen_off0_k8_rep04: exactly 2 episodes, both conditions, order [1,2]
+[OK] every cell has exactly 2/2 no_burst-first / prefill_burst-first balance across its 4 repeats
+[OK] fingerprint is deterministic across independent re-generation
+[OK] fingerprint has the expected sha256: format
+[OK] fingerprint matches the value recorded in run_server_waiting_confirmation.py
+[OK] a different seed produces a different fingerprint
+[OK] seed differs from the original prefill-confirmation study's seed (20260718)
+[OK] design_version differs from the original study's
+[OK] SEED_NAMESPACE_TAG is mixed into episode/victim/burst seed derivation
+[OK] victim_workload_seed constant within each repeat
+[OK] victim_workload_seed distinct across all 4 repeats
+[OK] victim_workload_seed always != burst_workload_seed
+[OK] rendered CSV is consistent with the episode objects
+[OK] CSV header matches EPISODE_FIELDS exactly
+[OK] audit report declares OVERALL: PASS
+[OK] audit report contains the fingerprint line
+[OK] forbidden server_max_num_seqs mutation is rejected by validate_schedule
+[OK] forbidden trigger_after_decode_tokens mutation is rejected by validate_schedule
+[OK] forbidden offload_gb=8 mutation is rejected (only 0/12 are allowed)
+[OK] write_bundle_atomic wrote all 3 files
+[OK] write_bundle_atomic refuses to overwrite without --force
+[OK] write_bundle_atomic --force overwrites cleanly
+Wrote server-waiting-confirmation schedule bundle to: /tmp/tmp5h4j51bv/cli_bundle
+schedule_fingerprint: sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557
+episodes: 32, blocks: 16
+[OK] generator CLI main() exits 0
+[OK] generator CLI wrote all 3 bundle files
+==============================================================================
+44/44 checks passed
+test_run_server_waiting_confirmation.py
+==============================================================================
+[OK] py_compile runner, generator, cohort module, and all test files
+[OK] bash -n run_server_waiting_confirmation.sh
+[OK] bash -n run_server_waiting_server.sh
+run_server_waiting_confirmation.py self-test
+==============================================================================
+_active_cohort.py self-test
+==============================================================================
+[OK] phase1: K=4 status ok
+[OK] phase1: K=4 cohort is data-driven (earliest 4 by timestamp), not request_index<4
+[OK] phase1: cohort_freeze_ns is the K-th ranked timestamp
+[OK] phase1: K=8 status ok
+[OK] phase1: K=8 cohort has exactly 8 members
+[OK] phase1: deterministic ordering across repeated calls with identical input
+[OK] phase1: equal K-th/(K+1)-th timestamps -> ambiguous_active_cohort_boundary
+[OK] phase1: ambiguous result never carries an arbitrarily-chosen cohort
+[OK] phase1: fewer than K observed -> insufficient_data
+[OK] phase2: happy path returns 'ok'
+[OK] phase2: logical trigger equals the max of the cohort's 16th-token timestamps
+[OK] phase2: active cohort correctly frozen as the data-driven set
+[OK] phase2: a non-cohort token before the logical trigger invalidates the episode
+[OK] phase2: insufficient first-token events within the timeout produce a clean status, no hang
+[OK] issue4: cohort member whose completion_ns <= logical_trigger_ns is caught by timestamp, not task.done()
+[OK] issue1: watcher returns 'ok' once K first-token events are recorded
+[OK] issue1: no 50ms-poll-granularity delay (elapsed=10.5ms, expected well under 50ms of slack beyond the ~10ms the test itself sleeps)
+[OK] issue2: cohort-freeze debounce catches a sibling that was ready-but-not-yet-scheduled and correctly includes it as the actual earliest member
+[OK] issue2: cohort_freeze_ns reflects the debounced (correct) cohort, not the premature one
+==============================================================================
+19/19 checks passed
+------------------------------------------------------------------------------
+run_server_waiting_confirmation.py structural self-checks
+[OK] EPISODE_FIELDS has 26 fields
+[OK] OFFICIAL_BLOCK_COUNT == 16
+[OK] OFFICIAL_EPISODE_COUNT == 32
+[OK] OFFLOAD_VALUES == [0, 12]
+[OK] SERVER_MAX_NUM_SEQS_VALUES == [4, 8]
+[OK] MODEL_REGISTRY is qwen-only
+[OK] seed/design_version differ from the original prefill-confirmation study
+[OK] result schema/runner identity is independent of the base module's
+[OK] compute_server_exposure: cohort member -> running_at_trigger_observed
+[OK] compute_server_exposure: dispatched non-member -> dispatched_no_output_at_trigger
+[OK] parse_vllm_metrics_text: running==8.0
+[OK] parse_vllm_metrics_text: waiting==12.0
+[OK] parse_vllm_metrics_text: parse_ok
+[OK] parse_vllm_metrics_text: missing metric -> parse_ok False
+[OK] evaluate_metrics_quality: corroborated for matching running/waiting
+[OK] evaluate_metrics_quality: stale for an old sample
+[OK] evaluate_metrics_quality: contradictory when running/waiting don't match K
+[OK] evaluate_metrics_quality: unavailable with no sample
+[OK] MetricsSampler.nearest_sample_before: excludes a sample whose scrape started pre-trigger but whose response arrived post-trigger
+[OK] MetricsSampler.nearest_sample_before: the same sample IS eligible once the trigger is after its response
+------------------------------------------------------------------------------
+20/20 structural checks passed
+[OK] runner self-test (--self-test path)
+[OK] result schema is independent of the audited Schema 5
+[OK] timing instrumentation name/version are new and independent
+[OK] official grid frozen: offload{0,12} x server_max_num_seqs{4,8} x repeats 1..4
+[OK] official counts frozen at 32 episodes / 16 blocks
+[OK] run_server_waiting_server.sh passes the frozen capability check
+[OK] run_server_waiting_server.sh accepts offload 0/12 only
+[OK] run_server_waiting_server.sh accepts server_max_num_seqs 4/8 only
+[OK] run_server_waiting_server.sh passes --max-num-seqs explicitly
+[OK] run_server_waiting_confirmation.sh's REAL_RUN case includes --diagnostic-pair-only
+[OK] wrapper refuses --diagnostic-pair-only without vllm on PATH, exactly as it already does for --smoke-test
+[OK] environment fingerprint tracks exactly this campaign's own artifacts
+[OK] official schedule is available (pre-existing or generated for this test run)
+[OK] actual official bundle validates
+[OK] bundle object returned
+[OK] 32 regular episodes
+[OK] 16 blocks/server starts
+[OK] 16 stabilization runs
+[OK] balanced conditions (16/16)
+[OK] frozen fingerprint matches OFFICIAL_FINGERPRINT
+[OK] hardest smoke block (off12/K8/rep01) exists with exactly 2 episodes
+[OK] all result IDs use zero-padded repeat
+[OK] forbidden server_max_num_seqs mutation rejected
+[OK] forbidden trigger mutation rejected
+Execution plan (dry-run; nothing is executed)
+============================================================
+schedule_fingerprint: sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557
+regular episodes: 32
+blocks (= planned server restarts): 16
+planned stabilization runs: 16
+no_burst episodes: 16
+prefill_burst episodes: 16
+
+--- qwen_off0_k4_rep01 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 1, condition_first: prefill_burst
+    order 1: qwen_off0_k4_trigger16_prefill_burst_rep01 (condition=prefill_burst)
+    order 2: qwen_off0_k4_trigger16_no_burst_rep01 (condition=no_burst)
+--- qwen_off12_k4_rep01 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 1, condition_first: prefill_burst
+    order 1: qwen_off12_k4_trigger16_prefill_burst_rep01 (condition=prefill_burst)
+    order 2: qwen_off12_k4_trigger16_no_burst_rep01 (condition=no_burst)
+--- qwen_off0_k8_rep01 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 1, condition_first: prefill_burst
+    order 1: qwen_off0_k8_trigger16_prefill_burst_rep01 (condition=prefill_burst)
+    order 2: qwen_off0_k8_trigger16_no_burst_rep01 (condition=no_burst)
+--- qwen_off12_k8_rep01 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 1, condition_first: no_burst
+    order 1: qwen_off12_k8_trigger16_no_burst_rep01 (condition=no_burst)
+    order 2: qwen_off12_k8_trigger16_prefill_burst_rep01 (condition=prefill_burst)
+--- qwen_off0_k8_rep02 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 2, condition_first: prefill_burst
+    order 1: qwen_off0_k8_trigger16_prefill_burst_rep02 (condition=prefill_burst)
+    order 2: qwen_off0_k8_trigger16_no_burst_rep02 (condition=no_burst)
+--- qwen_off0_k4_rep02 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 2, condition_first: no_burst
+    order 1: qwen_off0_k4_trigger16_no_burst_rep02 (condition=no_burst)
+    order 2: qwen_off0_k4_trigger16_prefill_burst_rep02 (condition=prefill_burst)
+--- qwen_off12_k4_rep02 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 2, condition_first: prefill_burst
+    order 1: qwen_off12_k4_trigger16_prefill_burst_rep02 (condition=prefill_burst)
+    order 2: qwen_off12_k4_trigger16_no_burst_rep02 (condition=no_burst)
+--- qwen_off12_k8_rep02 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 2, condition_first: prefill_burst
+    order 1: qwen_off12_k8_trigger16_prefill_burst_rep02 (condition=prefill_burst)
+    order 2: qwen_off12_k8_trigger16_no_burst_rep02 (condition=no_burst)
+--- qwen_off0_k4_rep03 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 3, condition_first: no_burst
+    order 1: qwen_off0_k4_trigger16_no_burst_rep03 (condition=no_burst)
+    order 2: qwen_off0_k4_trigger16_prefill_burst_rep03 (condition=prefill_burst)
+--- qwen_off12_k8_rep03 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 3, condition_first: prefill_burst
+    order 1: qwen_off12_k8_trigger16_prefill_burst_rep03 (condition=prefill_burst)
+    order 2: qwen_off12_k8_trigger16_no_burst_rep03 (condition=no_burst)
+--- qwen_off12_k4_rep03 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 3, condition_first: no_burst
+    order 1: qwen_off12_k4_trigger16_no_burst_rep03 (condition=no_burst)
+    order 2: qwen_off12_k4_trigger16_prefill_burst_rep03 (condition=prefill_burst)
+--- qwen_off0_k8_rep03 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 3, condition_first: no_burst
+    order 1: qwen_off0_k8_trigger16_no_burst_rep03 (condition=no_burst)
+    order 2: qwen_off0_k8_trigger16_prefill_burst_rep03 (condition=prefill_burst)
+--- qwen_off0_k4_rep04 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 4, condition_first: prefill_burst
+    order 1: qwen_off0_k4_trigger16_prefill_burst_rep04 (condition=prefill_burst)
+    order 2: qwen_off0_k4_trigger16_no_burst_rep04 (condition=no_burst)
+--- qwen_off12_k4_rep04 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 4, trigger_after_decode_tokens: 16, repeat: 4, condition_first: no_burst
+    order 1: qwen_off12_k4_trigger16_no_burst_rep04 (condition=no_burst)
+    order 2: qwen_off12_k4_trigger16_prefill_burst_rep04 (condition=prefill_burst)
+--- qwen_off12_k8_rep04 ---
+  model_key: qwen, offload_gb: 12, state: high, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 4, condition_first: no_burst
+    order 1: qwen_off12_k8_trigger16_no_burst_rep04 (condition=no_burst)
+    order 2: qwen_off12_k8_trigger16_prefill_burst_rep04 (condition=prefill_burst)
+--- qwen_off0_k8_rep04 ---
+  model_key: qwen, offload_gb: 0, state: low, server_max_num_seqs: 8, trigger_after_decode_tokens: 16, repeat: 4, condition_first: no_burst
+    order 1: qwen_off0_k8_trigger16_no_burst_rep04 (condition=no_burst)
+    order 2: qwen_off0_k8_trigger16_prefill_burst_rep04 (condition=prefill_burst)
+
+DRY RUN: no server was started, no network connection was opened, no tokenizer was loaded, no result files were written.
+[OK] dry-run exits 0 against the valid bundle
+[OK] dry-run writes no files into the schedule directory
+[OK] fake off12/K8 smoke block completes
+[OK] both fake smoke episodes are valid_complete
+[OK] block reaches 20 concurrent victim streams, 24 once the prefill_burst episode overlaps its burst
+[OK] completion transport reports the configured 32/32 pool limits
+[OK] metrics transport is a genuinely separate object from the completion transport
+[OK] fake smoke writes exactly two episode files
+[OK] fake smoke writes exactly one stabilization file
+[OK] written episode result has this module's RESULT_SCHEMA_VERSION
+[OK] written episode result records no_client_admission_semaphore_used=True
+[OK] written episode result's trigger has an active_cohort_size of 8
+[OK] written episode result exposes metrics_quality_status
+[OK] written episode result reports all_20_streams_open_before_first_token == True
+[OK] written episode result reports victim_stream_open_count == 20
+[OK] written episode result reports completion_pool_limits 32/32
+[OK] every victim record has a non-null stream_open_or_response_headers_perf_ns
+[OK] every victim record has a non-null token_16_perf_ns for cohort members
+[OK] every victim record's timestamp_monotonicity_errors is empty
+[OK] resume of an already-complete block is a no-op
+[OK] resume no-op never dispatches any fake HTTP stream
+[OK] classify_result_file rejects a schedule_row that no longer matches the schedule
+[OK] classify_result_file rejects malformed JSON as corrupted
+[OK] classify_result_file accepts the restored, valid result as valid_complete
+[OK] B3 adversarial #1: classify_result_file rejects a burst request with status changed to 'failed'
+[OK] B3 adversarial #2: classify_result_file rejects a result with non-empty validation_errors
+[OK] B3 adversarial #3: classify_result_file rejects a result missing no_client_admission_semaphore_used
+[OK] B3 adversarial #4: classify_result_file rejects a non-cohort decode_tokens_received_at_trigger changed to None
+[OK] integrity manifest round-trips cleanly against disk
+[OK] integrity manifest verification detects a tampered file
+[OK] RealEnvironmentProbe hashes _active_cohort.py matching its actual on-disk content
+[OK] RealEnvironmentProbe hashes the imported base runner matching its actual on-disk contentFehler: --resume wird von --diagnostic-pair-only nicht unterstützt (fresh-directory-only).
+Fehler: --diagnostic-pair-only erfordert ein explizit angegebenes --output-dir.
+
+[OK] mutating _active_cohort.py's hash changes environment_fingerprint
+[OK] mutating run_prefill_confirmation.py's hash changes environment_fingerprint
+[OK] PersistentCompletionTransport starts not-started
+[OK] PersistentCompletionTransport.start() is effective
+[OK] PersistentCompletionTransport.start() is idempotent
+[OK] PersistentCompletionTransport reports exact 32/32 connection limits
+[OK] PersistentCompletionTransport.aclose() is effective
+[OK] PersistentCompletionTransport.aclose() is idempotent
+[OK] PersistentMetricsTransport starts/closes independently
+[OK] validate_diagnostic_block_selection accepts the real qwen_off12_k8_rep01 block
+[OK] validate_diagnostic_block_selection preserves schedule-defined order_in_block order
+[OK] validate_diagnostic_block_selection rejects a bundle with no matching block
+[OK] run_diagnostic_pair refuses a non-empty output directory
+[OK] --diagnostic-pair-only --resume is rejected by the CLI with exit code 1
+[OK] --diagnostic-pair-only without --output-dir is rejected by the CLI with exit code 1
+[OK] run_diagnostic_pair never references run_official_campaign or all-block iteration
+[OK] fake diagnostic pair completes
+[OK] fake diagnostic pair started exactly one server
+[OK] fake diagnostic pair wrote exactly two episode files
+[OK] fake diagnostic pair wrote exactly one stabilization file
+[OK] fake diagnostic pair wrote a JSON summary
+[OK] fake diagnostic pair wrote a human-readable text summary
+[OK] fake diagnostic pair's classification is one of A/B/C/D
+[OK] fake diagnostic pair's classification is genuinely A/B/C (never silently D) for this well-formed run
+[OK] fake diagnostic pair's diagnostic_valid is True for this well-formed run
+[OK] fake diagnostic pair's paired_effect_summary is available
+[OK] fake diagnostic pair's summary carries environment_fingerprint matching the gathered env
+[OK] fake diagnostic pair wrote a diagnostic_run_manifest.json before/around server start
+[OK] diagnostic_run_manifest.json carries the correct environment_fingerprint
+[OK] diagnostic_run_manifest.json carries the full file_hashes snapshot
+[OK] diagnostic_run_manifest.json records the diagnostic_block_id
+[OK] diagnostic_run_manifest semantic validator accepts the exact stored manifest
+[OK] diagnostic_run_manifest semantic validator rejects a wrong host
+[OK] stabilization semantic validator accepts the exact functional artifact
+[OK] stabilization semantic validator rejects functional_passed=False
+[OK] episode result qwen_off12_k8_trigger16_no_burst_rep01.json carries environment_fingerprint in server_metadata
+[OK] episode result qwen_off12_k8_trigger16_prefill_burst_rep01.json carries environment_fingerprint in server_metadata
+[OK] a one-byte-equivalent mutation of _active_cohort.py's recorded hash changes the fingerprint that would be stored
+[OK] fake diagnostic pair reports integrity_verified is True (returned value)
+[OK] fake diagnostic pair reports diagnostic_valid consistent with its classification
+[OK] on-disk diagnostic_pair_summary.json makes NO self-referential integrity_verified claim (non-circular)
+[OK] on-disk diagnostic_pair_summary.json instead carries non-circular integrity metadata
+[OK] fake diagnostic pair wrote a final integrity manifest
+[OK] final integrity manifest lists diagnostic_pair_summary.json among its covered files
+[OK] final integrity manifest lists diagnostic_pair_summary.txt among its covered files
+[OK] final integrity manifest does NOT list itself (no recursive self-hash)
+[OK] final integrity manifest verifies with STRICTLY ZERO errors against the complete, finished output tree
+[OK] integrity manifest has exactly one entry for diagnostic_pair_summary.json
+[OK] integrity manifest's recorded hash for diagnostic_pair_summary.json matches its actual on-disk content (proves the manifest was built AFTER the summary was written, not before)
+[OK] tampering diagnostic_pair_summary.json is detected by the final integrity manifest
+[OK] tampering diagnostic_pair_summary.txt is detected by the final integrity manifest
+[OK] an extra, unlisted file in the output tree is detected by the final integrity manifest
+[OK] a nested integrity_manifest.json (nested/integrity_manifest.json) is detected as an unexpected file, not silently excluded by basename
+[OK] a deeply nested a/b/c/integrity_manifest.json is also detected as unexpected
+[OK] after removing the nested test files, the manifest verifies cleanly again
+[OK] pre-manifest whitelist rejects an unexpected file before manifest construction
+[OK] manifest builder never blesses an unexpected pre-existing file
+[OK] verification detects the unlisted pre-existing file after strict manifest construction
+[OK] _validate_diagnostic_artifact_counts reports zero errors for the complete, well-formed tree
+[OK] _validate_diagnostic_artifact_counts fails closed when an extra stabilization file is present
+[OK] verify_diagnostic_integrity_manifest with expected counts also fails closed on an extra stabilization file
+[OK] _validate_diagnostic_artifact_counts fails closed when an episode file is missing
+[OK] diagnostic integrity manifest verification fails closed after tampering an episode file
+[OK] re-running run_diagnostic_pair against the same (now non-empty) directory is refused
+[OK] classifier: A_OUTPUT_LEVEL_OVERLAP when burst output precedes the last active victim
+[OK] classifier: C_BURST_OUTPUT_AFTER_ALL_VICTIMS when burst output follows every victim
+[OK] classifier: B_NO_OUTPUT_LEVEL_OVERLAP_WITH_FIRST_COHORT otherwise
+[OK] classifier: D when a result is missing
+[OK] classifier: D when trigger.status != 'ok'
+[OK] classifier: D when active_cohort_size != 8
+[OK] classifier: D when a victim status != 'complete'
+[OK] classifier: D when a burst request status != 'complete'
+[OK] classifier: D when all_20_streams_open_before_first_token is not true
+[OK] classifier: D when validation_errors is non-empty
+[OK] classifier: D when no_client_admission_semaphore_used is False
+[OK] classifier: D when active_cohort_size==8 but only 7 active indices are actually listed
+[OK] classifier: D when the active index list contains a duplicate
+[OK] classifier: D when the active index list contains an out-of-range value
+[OK] classifier: D when a non-cohort victim has decode_tokens_received_at_trigger == 1 (nonzero)
+[OK] classifier: D when an active-cohort victim completes at/before the trigger
+[OK] classifier: D when an active-cohort victim's token_16_perf_ns is null
+[OK] classifier: D when a victim stream-open timestamp is null while the aggregate flag is falsely kept true
+[OK] classifier: D when a burst request's canonical dispatch timestamp is null
+[OK] classifier: D when a burst request's dispatch timestamp is AT (not strictly after) the trigger
+[OK] classifier: D when a burst alias field disagrees with its own canonical source field
+[OK] classifier: D when a victim_requests entry is not a dict
+[OK] Blocker B: D when an active-cohort victim's token_16_perf_ns is a valid int but AFTER the trigger
+[OK] Blocker B: D when trigger_perf_ns is greater than max(active token_16_perf_ns)
+[OK] Blocker B: D when trigger_perf_ns is less than max(active token_16_perf_ns)
+[OK] Blocker B: D when a non-cohort victim's first_token_perf_ns is strictly BEFORE the trigger
+[OK] Blocker B: D when a non-cohort victim's first_token_perf_ns is exactly AT the trigger
+[OK] Blocker B: D when an active-cohort victim's completion is exactly AT the trigger
+[OK] Blocker C: D when an active victim's server_exposure_group is wrong
+[OK] Blocker C: D when a non-cohort victim's server_exposure_group is wrong
+[OK] Blocker C: D when was_dispatched_at_trigger is falsely set to False
+[OK] Blocker C: D when an active victim's had_first_token_at_trigger is falsely False
+[OK] Blocker C: D when a non-cohort victim's had_first_token_at_trigger is falsely True
+[OK] Blocker C: D when request_dispatch_ns is missing
+[OK] Blocker C: D when first_token_receive_ns is missing
+[OK] Blocker C: D when stream_end_ns is missing
+[OK] Blocker C: D when task_created_perf_ns is missing
+[OK] Blocker C: D when victim field 'request_index' is missing
+[OK] Blocker C: D when victim field 'status' is missing
+[OK] Blocker C: D when victim field 'task_created_ns' is missing
+[OK] Blocker C: D when victim field 'request_dispatch_ns' is missing
+[OK] Blocker C: D when victim field 'first_token_receive_ns' is missing
+[OK] Blocker C: D when victim field 'stream_end_ns' is missing
+[OK] Blocker C: D when victim field 'task_created_perf_ns' is missing
+[OK] Blocker C: D when victim field 'http_dispatch_start_perf_ns' is missing
+[OK] Blocker C: D when victim field 'stream_open_or_response_headers_perf_ns' is missing
+[OK] Blocker C: D when victim field 'first_token_perf_ns' is missing
+[OK] Blocker C: D when victim field 'token_16_perf_ns' is missing
+[OK] Blocker C: D when victim field 'stream_end_perf_ns' is missing
+[OK] Blocker C: D when victim field 'was_dispatched_at_trigger' is missing
+[OK] Blocker C: D when victim field 'had_first_token_at_trigger' is missing
+[OK] Blocker C: D when victim field 'server_exposure_group' is missing
+[OK] Blocker C: D when victim field 'decode_tokens_received_at_trigger' is missing
+[OK] Blocker C: D when victim field 'dispatch_to_first_token_ms' is missing
+[OK] Blocker C: D when victim field 'timestamp_monotonicity_errors' is missing
+[OK] Blocker C: D when victim field 'server_max_num_seqs' is missing
+[OK] Blocker C: D when the task_created alias contradicts its canonical source
+[OK] Blocker C: D when the dispatch alias contradicts its canonical source
+[OK] Blocker C: D when the first-token alias contradicts its canonical source
+[OK] Blocker C: D when the stream-end alias contradicts its canonical source
+[OK] Blocker C: D when dispatch_to_first_token_ms contradicts its reconstruction
+[OK] Blocker C: D when the stored timestamp_monotonicity_errors is non-empty
+[OK] Blocker C: D when the raw timestamps are genuinely out of order (independently reconstructed monotonicity)
+[OK] Blocker C: D when record_type is wrong
+[OK] final pass: D when a victim record carries server_max_num_seqs != 8
+[OK] final pass: D when a burst record has non-empty timestamp_monotonicity_errors
+[OK] final pass: D when a burst record is missing timestamp_monotonicity_errors
+[OK] final pass: D when server_metadata.model_key is inconsistent with the real diagnostic launch
+[OK] final pass: D when server_metadata.model_full_id is inconsistent with the real diagnostic launch
+[OK] final pass: D when server_metadata.offload_gb is inconsistent with the real diagnostic launch
+[OK] final pass: D when server_metadata.server_max_num_seqs is inconsistent with the real diagnostic launch
+[OK] final pass: D when server_metadata.host is inconsistent with the real diagnostic launch
+[OK] final pass: D when server_metadata.port is inconsistent with the real diagnostic launch
+[OK] final pass: D when server_metadata.server_command is inconsistent with the real diagnostic launch
+[OK] classifier: positive A fixture still classifies correctly after Blocker B/C reconstruction
+[OK] classifier: positive B fixture still classifies correctly after Blocker B/C reconstruction
+[OK] classifier: positive C fixture still classifies correctly after Blocker B/C reconstruction
+[OK] Section 6: a result with 5 independent, simultaneous mutations still classifies as D (no exception)
+[OK] Section 6: the identity error (wrong episode_id) is present among the collected reasons
+[OK] Section 6: the exposure-group error is present among the collected reasons
+[OK] Section 6: the non-cohort decode-token-count error is present among the collected reasons
+[OK] Section 6: the burst-dispatch-at-trigger error is present among the collected reasons
+[OK] Section 6: the top-level validation_errors error is present among the collected reasons
+[OK] Section 6: more than one reason was actually collected (not stopped at the first)
+[OK] strict JSON: D when validation_errors is None instead of exactly []
+[OK] strict JSON: D when validation_errors is {} instead of exactly []
+[OK] strict JSON: D when validation_errors is '' instead of exactly []
+[OK] strict JSON: D when validation_errors is () instead of exactly []
+[OK] strict JSON: D when validation_errors is {'bad'} instead of exactly []
+[OK] strict JSON: D when validation_errors is missing
+[OK] strict JSON: non-int request_dispatch_ns=None yields D rather than an exception
+[OK] strict JSON: non-int request_dispatch_ns='bad' yields D rather than an exception
+[OK] strict JSON: unhashable victim request_index=[] yields D rather than an exception
+[OK] strict JSON: unhashable burst request_index={} yields D rather than an exception
+[OK] strict JSON: victim_requests request_index=0.0 is rejected despite 0.0 == 0
+[OK] strict JSON: burst_requests request_index=0.0 is rejected despite 0.0 == 0
+[OK] strict JSON: non-dict transport_concurrency_evidence yields D rather than AttributeError
+[OK] strict JSON: victim server_max_num_seqs=8.0 is rejected despite 8.0 == 8
+[OK] strict JSON: trigger.active_cohort_size=8.0 is rejected despite 8.0 == 8
+[OK] strict JSON: non-cohort decode_tokens_received_at_trigger=0.0 is rejected
+[OK] strict JSON: stored all_20_streams_open_before_first_token=1 is rejected as non-bool
+[OK] strict JSON: schedule_row.offload_gb=12.0 is rejected despite numeric equality
+[OK] strict JSON: float result_schema_version is rejected despite numeric equality
+[OK] strict JSON: server_metadata.offload_gb=12.0 is rejected as the wrong type
+[OK] strict JSON: server_metadata.server_max_num_seqs=8.0 is rejected as the wrong type
+[OK] strict JSON: server_metadata.port=8000.0 is rejected as the wrong type
+[OK] identity: D when episode_id is wrong
+[OK] identity: D when block_id is wrong
+[OK] identity: D when schedule_row.offload_gb is changed
+[OK] identity: D when schedule_row.server_max_num_seqs is changed
+[OK] identity: D when schedule_row.repeat is changed
+[OK] identity: D when condition is swapped (prefill_burst file claims no_burst)
+[OK] identity: D when run_mode is wrong
+[OK] identity: D when schedule_fingerprint is wrong
+[OK] identity: D when environment_fingerprint is wrong
+[OK] identity: D when schedule_row is incomplete (missing a field)
+[OK] identity: D when result_schema_version is wrong
+[OK] identity: D when runner_version is wrong
+[OK] identity: D when the no_burst file's episode_id is wrong
+[OK] identity: D when the no_burst file's schedule_fingerprint is wrong
+[OK] identity: D when the two files' schedule_fingerprints disagree with each other (and thus with the expected one)
+[OK] classifier: positive A fixture still classifies correctly after identity binding
+[OK] classifier: positive B fixture still classifies correctly after identity binding
+[OK] classifier: positive C fixture still classifies correctly after identity binding
+[OK] compute_paired_effect_summary marks itself available for a valid pair
+[OK] compute_paired_effect_summary never attaches an inferential CI field
+[OK] compute_paired_effect_summary reports unavailable when a result is missing
+[OK] request validity: victim validation_errors mutation yields D
+[OK] request validity: burst validation_errors mutation yields D
+[OK] request validity: victim http_status mutation yields D
+[OK] request validity: burst http_status mutation yields D
+[OK] request validity: victim timed_out mutation yields D
+[OK] request validity: burst timed_out mutation yields D
+[OK] request validity: victim cancelled mutation yields D
+[OK] request validity: burst cancelled mutation yields D
+[OK] request validity: victim done_received mutation yields D
+[OK] request validity: burst done_received mutation yields D
+[OK] request validity: victim error_type mutation yields D
+[OK] request validity: burst error_type mutation yields D
+[OK] request validity: victim error_message mutation yields D
+[OK] request validity: burst error_message mutation yields D
+[OK] request validity: victim finish_reason mutation yields D
+[OK] request validity: burst finish_reason mutation yields D
+[OK] request validity: victim output_token_ids mutation yields D
+[OK] request validity: burst output_token_ids mutation yields D
+[OK] request validity: victim usage mutation yields D
+[OK] request validity: burst usage mutation yields D
+[OK] workload identity: victim role mutation yields D
+[OK] workload identity: victim request_id mutation yields D
+[OK] workload identity: victim prompt_seed mutation yields D
+[OK] workload identity: victim generation_seed mutation yields DWarning: metrics_transport failed to close cleanly: RuntimeError: synthetic close() failure
+Warning: completion_transport failed to close cleanly: RuntimeError: synthetic close() failure
+Warning: metrics_transport failed to close cleanly: RuntimeError: synthetic close() failure
+Warning: completion_transport failed to close cleanly: RuntimeError: synthetic close() failure
+ok
+test_all_checks_pass (test_server_waiting_trigger_timing._MainSuiteTestCase.test_all_checks_pass) ... 
+[OK] workload identity: victim prompt_sha256 mutation yields D
+[OK] workload identity: victim prompt_token_ids_sent mutation yields D
+[OK] workload identity: victim prompt_token_ids_returned mutation yields D
+[OK] workload identity: burst role mutation yields D
+[OK] workload identity: burst request_id mutation yields D
+[OK] effect consistency: internally impossible TPOT/ITL values force D in the main classifier
+[OK] effect consistency: direct effect summary reports unavailable for impossible TPOT/ITL values
+[OK] effect consistency: itl_available false yields D
+[OK] effect consistency: ITL length wrong yields D
+[OK] effect consistency: last-token timestamp wrong yields D
+[OK] strict JSON: burst raw request_dispatch_ns as numerically equal float yields D
+[OK] strict JSON: burst raw first_token_receive_ns as numerically equal float yields D
+[OK] strict JSON: burst raw stream_end_ns as numerically equal float yields D
+[OK] trigger identity: server_max_num_seqs mutation yields D
+[OK] trigger identity: trigger_after_decode_tokens mutation yields D
+[OK] trigger identity: cohort_freeze_ns mutation yields D
+[OK] trigger identity: positive but non-reconstructed cohort_freeze_ns yields D
+[OK] metrics quality: invalid object None yields D
+[OK] metrics quality: invalid object {} yields D
+[OK] metrics quality: invalid object {'metrics_quality_status': 'wrong'} yields D
+[OK] trigger evidence: active decode_tokens_received_at_trigger above output length yields D
+[OK] transport evidence: no_burst peak above exactly 20 yields D
+[OK] transport evidence: physically impossible prefill_burst peak yields D
+[OK] instrumentation identity: timing_instrumentation_name mutation yields D
+[OK] instrumentation identity: timing_instrumentation_version mutation yields D
+[OK] stabilization identity: functional_passed mutation yields D
+[OK] stabilization identity: block_id mutation yields D
+[OK] stabilization identity: path mutation yields D
+[OK] transport evidence: victim_stream_open_count mutation yields D
+[OK] transport evidence: earliest_victim_first_token_ns mutation yields D
+[OK] transport evidence: peak_concurrent_open_completion_streams mutation yields D
+[OK] transport evidence: completion_pool_limits mutation yields D
+[OK] server metadata: completion_pool_limits mutation yields D
+[OK] effect summary: malformed itl_ms returns available=False without raising
+[OK] effect summary: unhashable active indices return available=False without raising
+[OK] effect summary: malformed TPOT returns available=False without raising
+[OK] full D path: run_diagnostic_pair skips effect computation and returns unavailable summary
+[OK] full path: wrong stored workload identity forces D before final attestation
+[OK] full path: internally impossible effect values force D and unavailable effect summary
+[OK] full path: semantically failed stabilization artifact forces D
+[OK] full path: semantically inconsistent diagnostic_run_manifest forces D
+[OK] burst timing aliases exactly mirror their source timestamps
+[OK] well-formed burst timestamps produce zero monotonicity errors
+[OK] an out-of-order burst timestamp (dispatch after first-token) is caught as a monotonicity violation
+[OK] B3: true open-stream peak stays 0 while 3 requests are blocked before response headers
+[OK] B3: peak_inflight_completion_attempts correctly reflects the 3 blocked dispatch attempts
+[OK] B3: get_diagnostics() exposes both the true open-stream peak and the in-flight-attempts peak under distinct, honestly-named keys
+[OK] N1: completion transport that already started IS closed even when metrics_transport.start() then fails
+[OK] N1: metrics transport that never successfully started is not closed
+[OK] N1: the original start() failure still propagates to the caller
+[OK] N1: if the completion transport itself fails to start, neither transport is closed (metrics never started)
+[OK] N1: metrics_transport.start() is never even attempted if completion transport failed first
+[OK] N1: happy path -- both transports start and both close
+[OK] N1: happy path raises nothing
+[OK] Blocker3: metrics_transport.aclose() raising does NOT suppress completion_transport.aclose()
+[OK] Blocker3: metrics_transport.aclose() was attempted (and failed) as expected
+[OK] Blocker3: the metrics-close error is visibly reported on the result
+[OK] Blocker3: completion_transport.aclose() raising does NOT suppress metrics_transport.aclose()
+[OK] Blocker3: completion_transport.aclose() was attempted (and failed) as expected
+[OK] Blocker3: the completion-close error is visibly reported on the result
+[OK] Blocker3: both close attempts happen even when both raise
+[OK] Blocker3: both errors are present in the report when both closes fail
+[OK] Blocker3: (re-affirmed) happy path -- both transports close successfully with zero reported errors
+[OK] Blocker3/SIGTERM-fake: the diagnostic run reports interrupted overall_status
+[OK] Blocker3/SIGTERM-fake: no server was ever started (interrupt fired before server start)
+[OK] Blocker3/SIGTERM-fake: the outer completion transport was still closed
+[OK] Blocker3/SIGTERM-fake: the outer metrics transport was still closed
+[OK] original run_prefill_confirmation.py hash unchanged from the audited baseline
+==============================================================================
+342/342 checks passed
+test_server_waiting_trigger_timing.py
+==============================================================================
+_active_cohort.py self-test
+==============================================================================
+[OK] phase1: K=4 status ok
+[OK] phase1: K=4 cohort is data-driven (earliest 4 by timestamp), not request_index<4
+[OK] phase1: cohort_freeze_ns is the K-th ranked timestamp
+[OK] phase1: K=8 status ok
+[OK] phase1: K=8 cohort has exactly 8 members
+[OK] phase1: deterministic ordering across repeated calls with identical input
+[OK] phase1: equal K-th/(K+1)-th timestamps -> ambiguous_active_cohort_boundary
+[OK] phase1: ambiguous result never carries an arbitrarily-chosen cohort
+[OK] phase1: fewer than K observed -> insufficient_data
+[OK] phase2: happy path returns 'ok'
+[OK] phase2: logical trigger equals the max of the cohort's 16th-token timestamps
+[OK] phase2: active cohort correctly frozen as the data-driven set
+[OK] phase2: a non-cohort token before the logical trigger invalidates the episode
+[OK] phase2: insufficient first-token events within the timeout produce a clean status, no hang
+[OK] issue4: cohort member whose completion_ns <= logical_trigger_ns is caught by timestamp, not task.done()
+[OK] issue1: watcher returns 'ok' once K first-token events are recorded
+[OK] issue1: no 50ms-poll-granularity delay (elapsed=10.6ms, expected well under 50ms of slack beyond the ~10ms the test itself sleeps)
+[OK] issue2: cohort-freeze debounce catches a sibling that was ready-but-not-yet-scheduled and correctly includes it as the actual earliest member
+[OK] issue2: cohort_freeze_ns reflects the debounced (correct) cohort, not the premature one
+==============================================================================
+19/19 checks passed
+[OK] _active_cohort.py self-test suite passes (19 checks)
+[OK] K=4: episode status complete
+[OK] K=4: trigger status ok
+[OK] K=4: active cohort == the designed (scrambled, non-contiguous) fast set
+[OK] K=4: active cohort is NOT the naive request_index<4 assumption
+[OK] K=8: episode status complete
+[OK] K=8: active cohort == the designed (scrambled, non-contiguous) fast set
+[OK] K=8: active cohort is NOT the naive request_index<8 assumption
+[OK] K=4: trigger_perf_ns equals cohort_freeze_ns recorded by the watcher
+[OK] K=4: every cohort member has >=16 decode tokens at the trigger
+[OK] K=8: trigger_perf_ns equals cohort_freeze_ns recorded by the watcher
+[OK] K=8: every cohort member has >=16 decode tokens at the trigger
+[OK] K=4: no request ever has a semaphore_acquired_ns value
+[OK] K=4: all 20 victim requests have a request_dispatch_ns
+[OK] K=4: all 20 victim requests were dispatched before the trigger
+[OK] K=4: exposure groups partition exactly into cohort/non-cohort
+[OK] K=8: no request ever has a semaphore_acquired_ns value
+[OK] K=8: all 20 victim requests have a request_dispatch_nsok
+
+----------------------------------------------------------------------
+Ran 24 tests in 13.655s
+
+OK
+
+[OK] K=8: all 20 victim requests were dispatched before the trigger
+[OK] K=8: exposure groups partition exactly into cohort/non-cohort
+[OK] validator: fully-dispatched, well-formed cohort passes with zero errors
+[OK] validator: an undispatched-at-trigger request invalidates the episode
+[OK] validator: a non-cohort request with decode tokens at trigger invalidates the episode
+[OK] validator: a cohort member that completed at/before the trigger invalidates the episode
+[OK] validator: a burst request starting at/before the trigger invalidates the episode
+[OK] metrics parser: running == 8.0
+[OK] metrics parser: waiting == 12.0
+[OK] metrics parser: version-tolerant fallback metric names also parse
+[OK] metrics parser: sums across multiple engine-labelled lines
+[OK] metrics quality: corroborated when matching and fresh
+[OK] metrics quality: unavailable with no sample
+[OK] metrics quality: stale for an old sample
+[OK] metrics quality: contradictory when running/waiting don't match K
+[OK] metrics quality: unparsable on a transport error
+[OK] MetricsSampler.nearest_sample_before: excludes a scrape that started pre-trigger but responded post-trigger
+[OK] MetricsSampler.nearest_sample_before: the same sample IS eligible once the trigger is after its response
+[OK] an episode with a real (possibly non-corroborating) metrics sample still reaches 'complete' status purely from the streaming-derived invariants
+[OK] metrics_quality_status is present and is one of the five defined states
+==============================================================================
+38/38 checks passed

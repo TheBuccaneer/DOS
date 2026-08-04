@@ -1,0 +1,39 @@
+Qwen campaign: paper-safe result summary
+
+Primary finding
+---------------
+Across four repeats per cell, all max_num_seqs=4 blocks were classified
+as C and all max_num_seqs=8 blocks as B, at both 0 and 12 GiB CPU
+offload. Thus, in this experiment, the client-visible overlap class was
+associated with sequence capacity rather than offload state.
+
+Temporal amplification by offload
+---------------------------------
+At k=4, the median interval from completion of the initially active cohort
+to first burst output increased from 6.23 s to
+433.97 s (69.6x).
+
+At k=8, the same interval increased from 2.57 s
+to 141.93 s (55.2x).
+
+Active-cohort decode behavior
+-----------------------------
+The largest absolute deviation of a cell-median TPOT ratio from 1 was
+0.085%. These values are descriptive and do not establish a
+universal null effect.
+
+Outlier
+-------
+qwen_off12_k8_rep01 showed a completion-median increase of approximately
+2083 ms, almost entirely attributable to TTFT/start-phase displacement
+rather than token-span, TPOT, or post-token stream tail.
+
+Required scope boundary
+-----------------------
+A/B/C describe client-visible output timing only. They do not identify
+internal scheduler admission or internal prefill-start time.
+
+The active cohorts were dynamically identified and differed in concrete
+request indices across paired episodes. Effect values therefore compare
+active-cohort medians within paired episodes; they are not identity-matched
+request-level causal effects.

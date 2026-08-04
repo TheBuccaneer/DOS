@@ -1,0 +1,9 @@
+installer_version=install-llama-server-waiting-v1
+installed_utc=2026-08-04T13:24:02+00:00
+project=/home/rock/projects/DOS
+git_commit=47fd0c91f29b34cd6c8a61b8c4375a4081fc241a
+python=Python 3.13.7
+schedule_fingerprint=sha256:eaf7d27c0e1d5d19cae5fa5ea7e4c5495cd1391692e382ecf4dd0c757c1754e0
+code_dir=/home/rock/projects/DOS/new/scripts/server_waiting_confirmation_llama
+schedule_dir=/home/rock/projects/DOS/new/runs/server_waiting_confirmation/llama/schedule
+real_measurement_started=no

@@ -1,0 +1,406 @@
+--- rawtrace_patch/new/scripts/server_waiting_confirmation/audit_server_waiting_diagnostic.py	2026-07-21 14:45:02.000000000 +0000
++++ rawtrace_final/new/scripts/server_waiting_confirmation/audit_server_waiting_diagnostic.py	2026-07-21 15:15:26.123633073 +0000
+@@ -158,6 +158,50 @@
+     return h.hexdigest()
+ 
+ 
++
++
++EnvironmentFileHashProvider = Callable[[Any, Path], dict[str, str]]
++
++
++def _default_environment_file_hash_provider(runner: Any, schedule_dir: Path) -> dict[str, str]:
++    """Hash the exact source and schedule files executed by the audited run.
++
++    The persisted manifest is not trusted as the source of these digests.  A
++    missing/unreadable source is a technical audit failure; a digest mismatch
++    is a scientific/provenance failure reported by the caller.
++    """
++    try:
++        script_dir = Path(runner.__file__).resolve().parent
++    except Exception as exc:
++        raise TechnicalAuditError(f"cannot resolve audited runner path: {exc}") from exc
++    base_dir_value = getattr(runner, "_BASE_DIR", script_dir.parent / "prefill_confirmation")
++    base_dir = Path(base_dir_value).resolve()
++    targets = {
++        "run_server_waiting_confirmation.py": script_dir / "run_server_waiting_confirmation.py",
++        "run_server_waiting_confirmation.sh": script_dir / "run_server_waiting_confirmation.sh",
++        "run_server_waiting_server.sh": script_dir / "run_server_waiting_server.sh",
++        "server_waiting_confirmation_schedule.json": schedule_dir / "server_waiting_confirmation_schedule.json",
++        "server_waiting_confirmation_schedule.csv": schedule_dir / "server_waiting_confirmation_schedule.csv",
++        "server_waiting_confirmation_schedule_audit.txt": schedule_dir / "server_waiting_confirmation_schedule_audit.txt",
++        "_active_cohort.py": script_dir / "_active_cohort.py",
++        "run_prefill_confirmation.py": base_dir / "run_prefill_confirmation.py",
++    }
++    expected_names = getattr(runner, "EXPECTED_ENVIRONMENT_FILE_HASH_NAMES", frozenset(targets))
++    if set(targets) != set(expected_names):
++        raise TechnicalAuditError(
++            "auditor source-hash target set does not match runner expectation: "
++            f"targets={sorted(targets)}, expected={sorted(expected_names)}"
++        )
++    hashes: dict[str, str] = {}
++    for name, path in targets.items():
++        if not path.is_file():
++            raise TechnicalAuditError(f"required provenance source is missing: {name} -> {path}")
++        try:
++            hashes[name] = _sha256_file(path)
++        except OSError as exc:
++            raise TechnicalAuditError(f"cannot hash required provenance source {name}: {exc}") from exc
++    return dict(sorted(hashes.items()))
++
+ def snapshot_tree(root: Path) -> dict[str, dict[str, Any]]:
+     """Return exact regular-file identity for a read-only before/after proof."""
+     if not root.is_dir() or not os.access(root, os.R_OK | os.X_OK):
+@@ -556,18 +600,37 @@
+     last = raw.last_positive_token_receive_ns
+     if first is None or last is None:
+         errors.append("raw trace has no positive output-token event")
+-    aliases = ["first_token_receive_ns", "first_token_perf_ns"]
+-    if role == "burst":
+-        aliases.append("burst_first_token_perf_ns")
+-    for key in aliases:
+-        if key in record and record.get(key) != first:
++    required_first_aliases = ["first_token_receive_ns"]
++    if role == "victim":
++        required_first_aliases.append("first_token_perf_ns")
++    else:
++        required_first_aliases.append("burst_first_token_perf_ns")
++    for key in required_first_aliases:
++        value = record.get(key)
++        if type(value) is not int:
++            errors.append(f"{key} is missing or not a strict integer")
++        elif value != first:
+             errors.append(f"{key} does not match raw first positive token time")
+-    last_aliases = ["last_token_receive_ns", "last_token_perf_ns"]
+-    if role == "burst":
+-        last_aliases.append("burst_last_token_perf_ns")
+-    for key in last_aliases:
+-        if key in record and record.get(key) != last:
+-            errors.append(f"{key} does not match raw last positive token time")
++
++    # Additional aliases are validated whenever the runner records them, but
++    # only the frozen role-specific fields above are mandatory.
++    optional_first_aliases = ["first_token_perf_ns"] if role == "burst" else []
++    for key in optional_first_aliases:
++        if key in record:
++            value = record.get(key)
++            if type(value) is not int or value != first:
++                errors.append(f"{key} does not strictly match raw first positive token time")
++
++    value = record.get("last_token_receive_ns")
++    if type(value) is not int:
++        errors.append("last_token_receive_ns is missing or not a strict integer")
++    elif value != last:
++        errors.append("last_token_receive_ns does not match raw last positive token time")
++    for key in ("last_token_perf_ns", "burst_last_token_perf_ns"):
++        if key in record:
++            value = record.get(key)
++            if type(value) is not int or value != last:
++                errors.append(f"{key} does not strictly match raw last positive token time")
+     if "stream_end_ns" in record and "stream_end_perf_ns" in record             and record.get("stream_end_ns") != record.get("stream_end_perf_ns"):
+         errors.append("stream_end_ns and stream_end_perf_ns aliases disagree")
+     if role == "burst" and "burst_end_perf_ns" in record and "stream_end_perf_ns" in record             and record.get("burst_end_perf_ns") != record.get("stream_end_perf_ns"):
+@@ -761,7 +824,8 @@
+ 
+ 
+ def _validate_manifest_independently(
+-    manifest: object, *, runner: Any, bundle: Any, diagnostic_dir: Path
++    manifest: object, *, runner: Any, bundle: Any, diagnostic_dir: Path,
++    actual_file_hashes: dict[str, str],
+ ) -> list[str]:
+     """Independently bind the persisted pre-start provenance manifest."""
+     if not isinstance(manifest, dict):
+@@ -808,6 +872,17 @@
+             if type(name) is not str or type(digest) is not str or len(digest) != 64 \
+                     or any(c not in "0123456789abcdef" for c in digest):
+                 errors.append(f"diagnostic_run_manifest.file_hashes[{name!r}] is not lowercase SHA-256")
++        if set(file_hashes) != set(actual_file_hashes):
++            errors.append(
++                "diagnostic_run_manifest.file_hashes names do not match the actual audited source/schedule set: "
++                f"stored={sorted(file_hashes)}, actual={sorted(actual_file_hashes)}"
++            )
++        for name in sorted(set(file_hashes) & set(actual_file_hashes)):
++            if file_hashes.get(name) != actual_file_hashes.get(name):
++                errors.append(
++                    f"diagnostic_run_manifest.file_hashes[{name!r}]={file_hashes.get(name)!r} "
++                    f"!= actual on-disk SHA-256 {actual_file_hashes.get(name)!r}"
++                )
+ 
+     output_dir = manifest.get("output_dir")
+     if type(output_dir) is str:
+@@ -900,6 +975,7 @@
+     *,
+     runner_module: Any | None = None,
+     tokenizer_factory: Callable[[str], TokenizerAdapter] = HFTokenizerAdapter,
++    file_hash_provider: EnvironmentFileHashProvider = _default_environment_file_hash_provider,
+ ) -> tuple[int, dict[str, Any]]:
+     """Perform the complete audit and return (exit_code, result)."""
+     try:
+@@ -916,6 +992,12 @@
+         expected_no = next(ep for ep in selected if _ep_get(ep, "condition") == "no_burst")
+         expected_pb = next(ep for ep in selected if _ep_get(ep, "condition") == "prefill_burst")
+ 
++        actual_file_hashes = file_hash_provider(runner, schedule_dir)
++        if not isinstance(actual_file_hashes, dict) or not actual_file_hashes:
++            raise TechnicalAuditError("file_hash_provider returned no source/schedule hashes")
++        if any(type(k) is not str or type(v) is not str for k, v in actual_file_hashes.items()):
++            raise TechnicalAuditError("file_hash_provider returned malformed hash entries")
++
+         model_full_id = _ep_get(expected_pb, "model_id")
+         tokenizer = tokenizer_factory(model_full_id)
+         valid_ids = compute_valid_token_ids(tokenizer)
+@@ -1040,7 +1122,8 @@
+         # Independently reconstruct the pre-start manifest, then reuse the
+         # runner's pure stabilization/reference validators read-only.
+         provenance_errors.extend(_validate_manifest_independently(
+-            manifest, runner=runner, bundle=bundle, diagnostic_dir=diagnostic_dir
++            manifest, runner=runner, bundle=bundle, diagnostic_dir=diagnostic_dir,
++            actual_file_hashes=actual_file_hashes,
+         ))
+         provenance_errors.extend(runner._validate_diagnostic_stabilization_artifact(
+             obj=stabilization,
+@@ -1153,6 +1236,7 @@
+             },
+             "schedule_fingerprint": schedule_fp,
+             "environment_fingerprint": environment_fp,
++            "actual_source_and_schedule_hashes": actual_file_hashes,
+             "integrity_result": {"passed": integrity_ok, "errors": integrity_errors},
+             "provenance_result": {"passed": not provenance_errors, "errors": provenance_errors},
+             "stabilization_result": {"passed": not any("stabilization" in e for e in provenance_errors)},
+--- rawtrace_patch/new/scripts/server_waiting_confirmation/test_audit_server_waiting_diagnostic.py	2026-07-21 14:44:43.000000000 +0000
++++ rawtrace_final/new/scripts/server_waiting_confirmation/test_audit_server_waiting_diagnostic.py	2026-07-21 15:17:11.749802643 +0000
+@@ -7,6 +7,7 @@
+ """
+ from __future__ import annotations
+ 
++import asyncio
+ import copy
+ import hashlib
+ import json
+@@ -381,6 +382,7 @@
+             "server_waiting_schedule_audit.txt": "0" * 64,
+         },
+     }
++    runner.actual_file_hashes = dict(env["file_hashes"])
+     env_fp = runner.compute_environment_fingerprint(env)
+     stab_path = diagnostic / "stabilization" / "qwen_off12_k8_rep01.json"
+     write_json(stab_path, {"status": "complete", "runner_version": runner.RUNNER_VERSION})
+@@ -485,6 +487,7 @@
+         paths["diagnostic"], paths["schedule"], out,
+         runner_module=runner,
+         tokenizer_factory=lambda _model: auditor.FakeTokenizerAdapter(),
++        file_hash_provider=lambda _runner, _schedule: dict(runner.actual_file_hashes),
+     )
+ 
+ 
+@@ -643,7 +646,11 @@
+         td, root, runner, paths = self.with_tree()
+         with td:
+             def missing(_model): raise auditor.TechnicalAuditError("local tokenizer missing")
+-            code,result=auditor.audit_diagnostic(paths["diagnostic"],paths["schedule"],root/"audit",runner_module=runner,tokenizer_factory=missing)
++            code,result=auditor.audit_diagnostic(
++                paths["diagnostic"], paths["schedule"], root/"audit",
++                runner_module=runner, tokenizer_factory=missing,
++                file_hash_provider=lambda _runner, _schedule: dict(runner.actual_file_hashes),
++            )
+             self.assertEqual(code,1)
+             self.assertEqual(result["overall_audit_status"],"TECHNICAL_ERROR")
+ 
+@@ -658,7 +665,11 @@
+     def test_17_output_dir_inside_diagnostic_is_exit_1(self):
+         td, root, runner, paths = self.with_tree()
+         with td:
+-            code,result=auditor.audit_diagnostic(paths["diagnostic"],paths["schedule"],paths["diagnostic"]/"audit",runner_module=runner,tokenizer_factory=lambda _:auditor.FakeTokenizerAdapter())
++            code,result=auditor.audit_diagnostic(
++                paths["diagnostic"], paths["schedule"], paths["diagnostic"]/"audit",
++                runner_module=runner, tokenizer_factory=lambda _: auditor.FakeTokenizerAdapter(),
++                file_hash_provider=lambda _runner, _schedule: dict(runner.actual_file_hashes),
++            )
+             self.assertEqual(code,1)
+ 
+     def test_18_pure_reconstructor_rejects_decreasing_time_and_duplicate_done(self):
+@@ -672,5 +683,184 @@
+         self.assertTrue(any("DONE events" in e for e in raw.errors))
+ 
+ 
++    def test_19_manifest_hashes_must_match_actual_sources(self):
++        td, root, runner, paths = self.with_tree()
++        with td:
++            manifest_path = paths["diagnostic"] / "diagnostic_run_manifest.json"
++            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
++            manifest["file_hashes"]["run_server_waiting_confirmation.py"] = "0" * 64
++            env = {
++                "python_executable": manifest["python_executable"],
++                "python_version": manifest["python_version"],
++                "platform": manifest["platform"],
++                "hostname": manifest["hostname"],
++                "kernel": manifest["kernel"],
++                "git_commit": manifest["git_commit"],
++                "git_dirty": manifest["git_dirty"],
++                "cuda_visible_devices": manifest["CUDA_VISIBLE_DEVICES"],
++                "vllm_version": manifest["vllm_version"],
++                "torch_version": manifest["torch_version"],
++                "transformers_version": manifest["transformers_version"],
++                "httpx_version": manifest["httpx_version"],
++                "gpu_list": manifest["gpu_list"],
++                "resolved_gpu": manifest["resolved_gpu"],
++                "file_hashes": manifest["file_hashes"],
++            }
++            wrong_fp = runner.compute_environment_fingerprint(env)
++            manifest["environment_fingerprint"] = wrong_fp
++            write_json(manifest_path, manifest)
++            for ep_path in (paths["no"], paths["pb"]):
++                mutate_json(ep_path, lambda obj, fp=wrong_fp: obj.get("server_metadata", {}).update(environment_fingerprint=fp))
++            mutate_json(
++                paths["diagnostic"] / "diagnostic_pair_summary.json",
++                lambda obj, fp=wrong_fp: obj.update(environment_fingerprint=fp),
++            )
++            rebuild_integrity(paths["diagnostic"], runner.bundle.fingerprint, wrong_fp)
++            code, result = run_audit(root, runner, paths)
++            self.assertEqual(code, 2, result)
++            self.assertTrue(any("actual on-disk SHA-256" in e for e in result["errors"]), result)
++
++    def test_20_missing_or_malformed_last_token_aliases_fail(self):
++        cases = [
++            ("no", "victim_requests", 0, None),
++            ("no", "victim_requests", 10, None),
++            ("pb", "burst_requests", 0, None),
++            ("no", "victim_requests", 10, 1.0),
++            ("pb", "burst_requests", 0, True),
++        ]
++        for condition, collection, index, replacement in cases:
++            with self.subTest(condition=condition, collection=collection, index=index, replacement=replacement):
++                td, root, runner, paths = self.with_tree()
++                with td:
++                    def change(obj, c=collection, i=index, value=replacement):
++                        record = obj[c][i]
++                        if value is None:
++                            record.pop("last_token_receive_ns", None)
++                        else:
++                            record["last_token_receive_ns"] = value
++                    mutate_json(paths[condition], change)
++                    manifest = json.loads((paths["diagnostic"] / "diagnostic_run_manifest.json").read_text())
++                    rebuild_integrity(paths["diagnostic"], runner.bundle.fingerprint, manifest["environment_fingerprint"])
++                    code, result = run_audit(root, runner, paths)
++                    self.assertEqual(code, 2, result)
++                    self.assertTrue(any("last_token_receive_ns" in e for e in result["errors"]), result)
++
++    def test_21_actual_runner_generated_tree_passes_and_detects_provenance_tamper(self):
++        import generate_server_waiting_schedule as actual_gen
++        import run_server_waiting_confirmation as actual_runner
++        import test_run_server_waiting_confirmation as runner_tests
++
++        base = actual_runner.base
++        with tempfile.TemporaryDirectory() as td:
++            root = Path(td)
++            schedule_dir = root / "schedule"
++            self.assertEqual(actual_gen.main(["--output-dir", str(schedule_dir)]), 0)
++            bundle, bundle_errors = actual_runner.load_and_validate_bundle(schedule_dir)
++            self.assertIsNotNone(bundle, bundle_errors)
++            diag_dir = root / "diagnostic"
++            clock = base.FakeClock()
++            transport = runner_tests._build_fake_transport(bundle, actual_runner.DIAGNOSTIC_BLOCK_ID, 8, clock)
++            metrics = runner_tests._build_fake_metrics_transport(8)
++            env = actual_runner.FakeEnvironmentProbe().gather(schedule_dir)
++            actual_hashes = auditor._default_environment_file_hash_provider(actual_runner, schedule_dir)
++            env["file_hashes"] = dict(actual_hashes)
++            summary = asyncio.run(actual_runner.run_diagnostic_pair(
++                bundle=bundle,
++                output_dir=diag_dir,
++                host="127.0.0.1",
++                port=37998,
++                api_key="fake-key",
++                transport=transport,
++                metrics_transport=metrics,
++                tokenizer=base.FakeTokenizerAdapter(),
++                server_adapter=base.FakeServerProcessAdapter(),
++                sleeper=base.FakeSleeper(),
++                clock=clock,
++                run_server_path=Path(actual_runner.__file__).resolve().parent / "run_server_waiting_server.sh",
++                env=env,
++            ))
++            self.assertTrue(summary.get("diagnostic_valid"), summary)
++            before = auditor.snapshot_tree(diag_dir)
++            code, result = auditor.audit_diagnostic(
++                diag_dir,
++                schedule_dir,
++                root / "audit-pass",
++                runner_module=actual_runner,
++                tokenizer_factory=lambda _model: auditor.FakeTokenizerAdapter(),
++            )
++            self.assertEqual(code, 0, result)
++            self.assertEqual(before, auditor.snapshot_tree(diag_dir))
++
++            # Recreate a fresh tree, then jointly rewrite the stored provenance
++            # chain.  Actual on-disk hashes remain unchanged and must expose it.
++            tampered_dir = root / "diagnostic-tampered"
++            clock2 = base.FakeClock()
++            summary2 = asyncio.run(actual_runner.run_diagnostic_pair(
++                bundle=bundle,
++                output_dir=tampered_dir,
++                host="127.0.0.1",
++                port=37999,
++                api_key="fake-key",
++                transport=runner_tests._build_fake_transport(bundle, actual_runner.DIAGNOSTIC_BLOCK_ID, 8, clock2),
++                metrics_transport=runner_tests._build_fake_metrics_transport(8),
++                tokenizer=base.FakeTokenizerAdapter(),
++                server_adapter=base.FakeServerProcessAdapter(),
++                sleeper=base.FakeSleeper(),
++                clock=clock2,
++                run_server_path=Path(actual_runner.__file__).resolve().parent / "run_server_waiting_server.sh",
++                env=env,
++            ))
++            self.assertTrue(summary2.get("diagnostic_valid"), summary2)
++            manifest_path = tampered_dir / "diagnostic_run_manifest.json"
++            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
++            manifest["file_hashes"]["run_server_waiting_confirmation.py"] = "0" * 64
++            fp_env = {
++                "python_executable": manifest["python_executable"],
++                "python_version": manifest["python_version"],
++                "platform": manifest["platform"],
++                "hostname": manifest["hostname"],
++                "kernel": manifest["kernel"],
++                "git_commit": manifest["git_commit"],
++                "git_dirty": manifest["git_dirty"],
++                "cuda_visible_devices": manifest["CUDA_VISIBLE_DEVICES"],
++                "vllm_version": manifest["vllm_version"],
++                "torch_version": manifest["torch_version"],
++                "transformers_version": manifest["transformers_version"],
++                "httpx_version": manifest["httpx_version"],
++                "gpu_list": manifest["gpu_list"],
++                "resolved_gpu": manifest["resolved_gpu"],
++                "file_hashes": manifest["file_hashes"],
++            }
++            wrong_fp = actual_runner.compute_environment_fingerprint(fp_env)
++            manifest["environment_fingerprint"] = wrong_fp
++            write_json(manifest_path, manifest)
++            for ep_path in sorted((tampered_dir / "episodes").glob("*.json")):
++                mutate_json(ep_path, lambda obj, fp=wrong_fp: obj["server_metadata"].update(environment_fingerprint=fp))
++            stab_path = next((tampered_dir / "stabilization").glob("*.json"))
++            mutate_json(stab_path, lambda obj, fp=wrong_fp: obj["server_metadata"].update(environment_fingerprint=fp))
++            summary_path = tampered_dir / "diagnostic_pair_summary.json"
++            mutate_json(summary_path, lambda obj, fp=wrong_fp: obj.update(environment_fingerprint=fp))
++            summary_obj = json.loads(summary_path.read_text(encoding="utf-8"))
++            (tampered_dir / "diagnostic_pair_summary.txt").write_text(
++                actual_runner.render_diagnostic_text_summary(summary_obj), encoding="utf-8"
++            )
++            integrity = actual_runner.build_diagnostic_integrity_manifest(
++                tampered_dir,
++                schedule_fingerprint=bundle.fingerprint,
++                environment_fingerprint=wrong_fp,
++                clock=base.FakeClock(),
++            )
++            write_json(tampered_dir / "integrity_manifest.json", integrity)
++            code2, result2 = auditor.audit_diagnostic(
++                tampered_dir,
++                schedule_dir,
++                root / "audit-fail",
++                runner_module=actual_runner,
++                tokenizer_factory=lambda _model: auditor.FakeTokenizerAdapter(),
++            )
++            self.assertEqual(code2, 2, result2)
++            self.assertTrue(any("actual on-disk SHA-256" in e for e in result2["errors"]), result2)
++
++
+ if __name__ == "__main__":
+     unittest.main(verbosity=2)

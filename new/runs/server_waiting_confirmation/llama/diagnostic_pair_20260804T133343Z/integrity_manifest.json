@@ -1,0 +1,51 @@
+{
+  "block_summary_count": 0,
+  "environment_fingerprint": "sha256:4f1cf6030a4d46cf60426cbdefe8629128925d022aae6e0d725e35f65416346f",
+  "episode_file_count": 2,
+  "file_count": 8,
+  "files": [
+    {
+      "relative_path": ".server_waiting_confirmation_run_mode",
+      "sha256": "87175ebf93fe8be84a6e7dc2f7bd262c0a6e858a9bf4c819d244ab640e15180f",
+      "size_bytes": 15
+    },
+    {
+      "relative_path": "diagnostic_pair_summary.json",
+      "sha256": "cc63c466d3a311cb370923f7050ae907b94cef3e90123bee3d8bca89a0f5e6df",
+      "size_bytes": 198011
+    },
+    {
+      "relative_path": "diagnostic_pair_summary.txt",
+      "sha256": "38b9673950ce079728912f456b120e0c8e9f2cbe41aba06a62f03120f81ac3b5",
+      "size_bytes": 2694
+    },
+    {
+      "relative_path": "diagnostic_run_manifest.json",
+      "sha256": "fcc962f6b993aea75a9b93edd4f250d51aae3d494bc93c6e1a9159de7aca518c",
+      "size_bytes": 2523
+    },
+    {
+      "relative_path": "episodes/llama_off12_k8_trigger16_no_burst_rep01.json",
+      "sha256": "7198a034fd173e89518892648049cc7acfc424f2438aa0a0d1ac5181cdee0a4e",
+      "size_bytes": 71045822
+    },
+    {
+      "relative_path": "episodes/llama_off12_k8_trigger16_prefill_burst_rep01.json",
+      "sha256": "84a7a3633d4416ff7c031a6014598f513834056d67cdeb87d17ab8d2779d8d20",
+      "size_bytes": 71560107
+    },
+    {
+      "relative_path": "server_logs/llama_off12_k8_rep01.log",
+      "sha256": "8509de8bb27a182ee9574bca963a0a5eaec9c5ee60e9c81556d17a8eab5ca8b5",
+      "size_bytes": 1036041
+    },
+    {
+      "relative_path": "stabilization/llama_off12_k8_rep01.json",
+      "sha256": "fc06648dee981d1ea2838d9f3341f681d5386ad27cffcfd80f330a33eb9b81c0",
+      "size_bytes": 1301897
+    }
+  ],
+  "generated_utc": "2026-08-04T13:55:08.081917+00:00",
+  "schedule_fingerprint": "sha256:eaf7d27c0e1d5d19cae5fa5ea7e4c5495cd1391692e382ecf4dd0c757c1754e0",
+  "stabilization_file_count": 1
+}

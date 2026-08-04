@@ -1,0 +1,80 @@
+{
+  "block_id": "llama_off0_k8_rep01",
+  "cooldown_s": 5.0,
+  "episode_statuses": {
+    "llama_off0_k8_trigger16_no_burst_rep01": "valid_complete",
+    "llama_off0_k8_trigger16_prefill_burst_rep01": "valid_complete"
+  },
+  "executed_episode_ids": [
+    "llama_off0_k8_trigger16_prefill_burst_rep01",
+    "llama_off0_k8_trigger16_no_burst_rep01"
+  ],
+  "overall_status": "block_complete",
+  "post_stabilization_health": {
+    "checked_utc": "2026-08-04T15:05:01.643557+00:00",
+    "error_type": null,
+    "http_status": 200,
+    "ok": true
+  },
+  "readiness": {
+    "capability_summary": {
+      "available": true,
+      "has_completions_path": true,
+      "http_status": 200,
+      "note": "informational only -- the definitive capability check is the stabilization run",
+      "path_count": 21
+    },
+    "detected_model": "meta-llama/Llama-3.1-8B-Instruct",
+    "health_status": 200,
+    "last_health_status": 200,
+    "last_models_status": 200,
+    "last_transient_error_type": "ConnectError",
+    "models_response": {
+      "data": [
+        "meta-llama/Llama-3.1-8B-Instruct"
+      ]
+    },
+    "poll_count": 15,
+    "post_stabilization_health": {
+      "checked_utc": "2026-08-04T15:05:01.643557+00:00",
+      "error_type": null,
+      "http_status": 200,
+      "ok": true
+    },
+    "readiness_duration_s": 28.03975747699951,
+    "readiness_start_utc": "2026-08-04T15:04:25.434608+00:00",
+    "ready_utc": "2026-08-04T15:04:53.477651+00:00",
+    "server_start_utc": "2026-08-04T15:04:25.434590+00:00"
+  },
+  "result_schema_version": 6,
+  "run_mode": "official",
+  "runner_version": "run_server_waiting_confirmation-llama-v1",
+  "schedule_fingerprint": "sha256:eaf7d27c0e1d5d19cae5fa5ea7e4c5495cd1391692e382ecf4dd0c757c1754e0",
+  "server_start": {
+    "cmd": [
+      "bash",
+      "/home/rock/projects/DOS/new/scripts/server_waiting_confirmation_llama/run_server_waiting_server.sh",
+      "llama",
+      "0",
+      "8",
+      "127.0.0.1",
+      "8000"
+    ],
+    "pgid": 32128,
+    "pid": 32128,
+    "start_utc": "2026-08-04T15:04:25.434590+00:00"
+  },
+  "server_stop": {
+    "alive_after_stop": false,
+    "forced_kill": false,
+    "pgid": 32128,
+    "pid": 32128,
+    "port_free_after_stop": true,
+    "stop_end_utc": "2026-08-04T15:05:19.093563+00:00",
+    "stop_error": null,
+    "stop_start_utc": "2026-08-04T15:05:18.692178+00:00",
+    "stop_success": true,
+    "term_sent": true
+  },
+  "stabilization_status": "complete"
+}

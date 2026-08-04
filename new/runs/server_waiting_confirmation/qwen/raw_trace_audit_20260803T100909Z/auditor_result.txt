@@ -1,0 +1,15 @@
+Server-WAITING Raw-Trace Auditor
+============================================================
+auditor_version: audit_server_waiting_diagnostic-v1
+runner_version: run_server_waiting_confirmation-v4
+overall_audit_status: PASS
+scientifically_evaluable: True
+stored_semantic_classification: B_NO_OUTPUT_LEVEL_OVERLAP_WITH_FIRST_COHORT
+raw_output_overlap_classification: B_RAW_OUTPUT_BETWEEN_ACTIVE_AND_ALL
+diagnostic_tree_read_only_verified: True
+
+technical_errors (0):
+
+errors (0):
+
+per_request_status: 44/44 PASS

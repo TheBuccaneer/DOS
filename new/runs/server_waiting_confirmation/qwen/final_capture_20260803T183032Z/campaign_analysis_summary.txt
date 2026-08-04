@@ -1,0 +1,15 @@
+Qwen Server-WAITING Campaign — Raw-SSE Summary
+==========================================================
+technical_pass: True
+errors: 0
+classification_counts: {'B': 8, 'C': 8}
+raw_output_classification_counts: {'B': 8, 'C': 8}
+
+Cells:
+offload=0 k=4 classes={'C': 4} TPOT=1.0008537965120294 ITL=1.0338117126489885 completion_ms=3.5013700000000654 after_active_s=6.234851593 remaining_all_s=-0.40478380199999997
+offload=0 k=8 classes={'B': 4} TPOT=0.9998588911579143 ITL=0.9868062376891247 completion_ms=-3.499290500000143 after_active_s=2.569853601 remaining_all_s=2.169870458
+offload=12 k=4 classes={'C': 4} TPOT=1.000028653145888 ITL=1.000455362320547 completion_ms=4.032060249992355 after_active_s=433.9747706585 remaining_all_s=-12.679800711999999
+offload=12 k=8 classes={'B': 4} TPOT=1.0000156561720037 ITL=1.0005563891599158 completion_ms=8.810108500001661 after_active_s=141.9348594905 remaining_all_s=121.34911419650001
+
+Scope:
+Client-visible output timing only; internal admission and prefill-start times are not observed.

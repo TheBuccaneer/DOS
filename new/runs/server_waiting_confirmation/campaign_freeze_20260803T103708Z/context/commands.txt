@@ -1,0 +1,19 @@
+Validated diagnostic invocation:
+
+./run_server_waiting_confirmation.sh \
+  --diagnostic-pair-only \
+  --model-key qwen \
+  --schedule-dir new/runs/server_waiting_confirmation/qwen/schedule \
+  --output-dir new/runs/server_waiting_confirmation/qwen/diagnostic_pair_20260803T094340Z \
+  --host 127.0.0.1 \
+  --port 8000
+
+Independent audit invocation:
+
+python audit_server_waiting_diagnostic.py \
+  --diagnostic-dir new/runs/server_waiting_confirmation/qwen/diagnostic_pair_20260803T094340Z \
+  --schedule-dir new/runs/server_waiting_confirmation/qwen/schedule \
+  --audit-output-dir new/runs/server_waiting_confirmation/qwen/raw_trace_audit_20260803T100909Z
+
+The full campaign command is intentionally not recorded as executed,
+because no full campaign had been started at freeze time.

@@ -1,0 +1,32 @@
+Mon Aug  3 12:37:09 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.173.02             Driver Version: 580.173.02     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 3090        Off |   00000000:01:00.0  On |                  N/A |
+| 58%   46C    P5             92W /  370W |    1000MiB /  24576MiB |      2%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            3311      G   /usr/bin/ksecretd                         4MiB |
+|    0   N/A  N/A            3471      G   /usr/bin/kwin_wayland                   150MiB |
+|    0   N/A  N/A            3504      G   /usr/bin/Xwayland                        10MiB |
+|    0   N/A  N/A            3545      G   /usr/bin/ksmserver                        4MiB |
+|    0   N/A  N/A            3547      G   /usr/bin/kded6                            4MiB |
+|    0   N/A  N/A            3575      G   /usr/bin/plasmashell                    180MiB |
+|    0   N/A  N/A            3618      G   /usr/bin/kaccess                          4MiB |
+|    0   N/A  N/A            3621      G   ...it-kde-authentication-agent-1          4MiB |
+|    0   N/A  N/A            3736      G   ...-gnu/libexec/DiscoverNotifier          4MiB |
+|    0   N/A  N/A            3827      G   ...ibexec/xdg-desktop-portal-kde          4MiB |
+|    0   N/A  N/A           11323      G   ...linux-gnu/libexec/baloorunner          4MiB |
+|    0   N/A  N/A           26897      G   .../8702/usr/lib/firefox/firefox        338MiB |
+|    0   N/A  N/A           36368      G   /usr/bin/konsole                          4MiB |
++-----------------------------------------------------------------------------------------+

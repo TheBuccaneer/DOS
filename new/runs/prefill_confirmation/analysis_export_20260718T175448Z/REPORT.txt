@@ -1,0 +1,52 @@
+Prefill-Confirmation Compact Export v2 (Schema-5 aware)
+============================================================================
+Generated UTC: 2026-07-18T17:55:01.703759+00:00
+llama: /home/rock/projects/DOS/new/runs/prefill_confirmation/llama/results/official_initial8_20260717T083031Z
+qwen: /home/rock/projects/DOS/new/runs/prefill_confirmation/qwen/results/official_initial8_20260718T052207Z
+
+VALIDATION
+----------------------------------------------------------------------------
+PASS: both initial-8 campaigns complete, structurally valid, and hashes match
+
+Episode rows:       192
+Victim rows:        3840
+Paired blocks:      96
+Stabilization rows: 96
+
+PRIMARY PAIRED EFFECT: log(TPOT_burst / TPOT_no_burst)
+----------------------------------------------------------------------------
+llama offload= 0 conc=4: n=8 geometric slowdown=-0.251754538% mean95%=[-3.062667503%, 3.04687156%] positive=4/8
+llama offload= 0 conc=8: n=8 geometric slowdown=10.133510979% mean95%=[6.533761278%, 13.862575795%] positive=8/8
+llama offload= 8 conc=4: n=8 geometric slowdown=2.10598771% mean95%=[0.498644074%, 3.510477606%] positive=6/8
+llama offload= 8 conc=8: n=8 geometric slowdown=7.656047845% mean95%=[6.229251231%, 8.397391429%] positive=8/8
+llama offload=12 conc=4: n=8 geometric slowdown=0.988894882% mean95%=[-0.675515615%, 2.631602803%] positive=5/8
+llama offload=12 conc=8: n=8 geometric slowdown=6.485830981% mean95%=[4.175034239%, 8.387751902%] positive=8/8
+qwen  offload= 0 conc=4: n=8 geometric slowdown=1.581857842% mean95%=[-1.130460179%, 4.190689883%] positive=5/8
+qwen  offload= 0 conc=8: n=8 geometric slowdown=9.381935906% mean95%=[5.346472422%, 13.643034151%] positive=8/8
+qwen  offload= 8 conc=4: n=8 geometric slowdown=1.512215488% mean95%=[-0.091190297%, 3.005663672%] positive=6/8
+qwen  offload= 8 conc=8: n=8 geometric slowdown=7.913514157% mean95%=[6.490390232%, 8.91093143%] positive=8/8
+qwen  offload=12 conc=4: n=8 geometric slowdown=1.943434068% mean95%=[1.463764315%, 2.223035745%] positive=8/8
+qwen  offload=12 conc=8: n=8 geometric slowdown=8.109169904% mean95%=[6.668451939%, 9.133774861%] positive=8/8
+
+PRIMARY STATE × BURST: difference of paired log TPOT ratios
+----------------------------------------------------------------------------
+llama offload12_minus_offload0 conc=4: n=8 relative interaction=1.243780695% mean95%=[-1.895616084%, 4.651390379%] positive=4/8
+llama offload12_minus_offload0 conc=8: n=8 relative interaction=-3.312052767% mean95%=[-7.062274296%, 0.40574608%] positive=3/8
+llama offload8_minus_offload0 conc=4: n=8 relative interaction=2.363692952% mean95%=[-1.792941957%, 5.937302152%] positive=6/8
+llama offload8_minus_offload0 conc=8: n=8 relative interaction=-2.249508902% mean95%=[-4.871111288%, 0.594815525%] positive=3/8
+qwen  offload12_minus_offload0 conc=4: n=8 relative interaction=0.355945671% mean95%=[-2.469223784%, 3.372489442%] positive=5/8
+qwen  offload12_minus_offload0 conc=8: n=8 relative interaction=-1.163597985% mean95%=[-4.445101755%, 2.067053554%] positive=4/8
+qwen  offload8_minus_offload0 conc=4: n=8 relative interaction=-0.068557866% mean95%=[-3.790565815%, 3.75406517%] positive=3/8
+qwen  offload8_minus_offload0 conc=8: n=8 relative interaction=-1.342471895% mean95%=[-5.772451339%, 2.385467412%] positive=5/8
+
+QUEUE/WAVE SECONDARIES INCLUDED
+----------------------------------------------------------------------------
+later/active-wave queue wait, E2EL-from-task-creation, exposure-group summaries
+Llama-vs-Qwen comparisons are exported as UNPAIRED bootstrap contrasts.
+
+STABILIZATION DRIFT (second half relative to first half)
+----------------------------------------------------------------------------
+TPOT: n=96, median=-0.000108275, p95(abs)=0.077598496, max(abs)=0.078360537
+TTFT: n=96, median=0.401654542, p95(abs)=0.633497399, max(abs)=0.836833368
+
+Upload the generated ZIP for the full scientific interpretation.

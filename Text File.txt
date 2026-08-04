@@ -1,0 +1,229 @@
+Ja — **das ist jetzt ein starkes und deutlich belastbareres Ergebnis**.
+
+## Technischer Status
+
+Alle entscheidenden Prüfungen sind bestanden:
+
+```text
+COMPLETENESS_PASS=true
+RAW_RECONSTRUCTION_PASS=true
+SCIENTIFIC_SUMMARY_READY=true
+COMMAND_RC=0
+```
+
+Damit sind die Kampagne vollständig, die Roh-SSE-Daten rekonstruierbar und alle 16 Paare wissenschaftlich auswertbar. Es gibt keine Klasse D und keine fehlenden oder ungültigen Paare.
+
+## Zentrales wissenschaftliches Ergebnis
+
+```text
+A: 0
+B: 8
+C: 8
+D: 0
+```
+
+Das Muster ist perfekt zellstabil:
+
+| Konfiguration                | Ergebnis     |
+| ---------------------------- | ------------ |
+| `max_num_seqs=4`, Offload 0  | 4/4 Klasse C |
+| `max_num_seqs=4`, Offload 12 | 4/4 Klasse C |
+| `max_num_seqs=8`, Offload 0  | 4/4 Klasse B |
+| `max_num_seqs=8`, Offload 12 | 4/4 Klasse B |
+
+Das repliziert das frühere Muster vollständig. Die **Overlap-Klasse hängt in diesen Messungen von `max_num_seqs` ab, nicht vom Offload-Zustand**:
+
+* `k=4`: Der Burst erzeugt erst Output, nachdem alle vorbestehenden Requests beendet sind.
+* `k=8`: Der Burst erzeugt nach Ende der ursprünglichen aktiven Kohorte Output, während spätere vorbestehende Requests noch laufen.
+* Kein einziger Lauf zeigt Burst-Output während der ursprünglichen aktiven Kohorte.
+
+## Offload verändert trotzdem sehr stark die Zeitachse
+
+Bei `k=8`:
+
+```text
+Offload 0:
+Burst etwa 2,57 s nach Ende der aktiven Kohorte
+noch etwa 2,17 s bis zum Ende aller Victims
+
+Offload 12:
+Burst etwa 141,93 s nach Ende der aktiven Kohorte
+noch etwa 121,35 s bis zum Ende aller Victims
+```
+
+Bei `k=4`:
+
+```text
+Offload 0:
+Burst etwa 6,23 s nach Ende der aktiven Kohorte
+etwa 0,40 s nach Ende aller Victims
+
+Offload 12:
+Burst etwa 433,97 s nach Ende der aktiven Kohorte
+etwa 12,68 s nach Ende aller Victims
+```
+
+Offload verändert also nicht die Klasse, aber **streckt das gesamte Warteschlangen- und Output-Regime massiv**.
+
+## Wirkung auf die aktive Kohorte
+
+Die medianen TPOT-Ratios liegen extrem nahe bei 1:
+
+```text
+off0,  k4: 1.000854   (+0,085 %)
+off0,  k8: 0.999859   (−0,014 %)
+off12, k4: 1.000029   (+0,003 %)
+off12, k8: 1.000016   (+0,002 %)
+```
+
+Damit gibt es weiterhin **keinen Hinweis auf eine persistente TPOT-Verschlechterung der bereits aktiven Kohorte**.
+
+Auch die Completion-Mediane unterscheiden sich nur um wenige Millisekunden:
+
+```text
++3,50 ms
+−3,50 ms
++4,03 ms
++8,81 ms
+```
+
+Die Max-ITL-Ratio bei `off0/k4` liegt mit `1.033812` etwas höher, also ungefähr +3,4 %, aber nicht in einer Größenordnung wie der massive zeitliche Queue-Effekt.
+
+## Der einzelne Ausreißer
+
+```text
+qwen_off12_k8_rep01
+```
+
+Der sollte separat im Raw Trace angesehen werden. Entscheidend ist aber:
+
+* Er erzeugt keine Klasse D.
+* Die Rohrekonstruktion besteht.
+* Das 4/4-Klassenmuster bleibt erhalten.
+* Die Zellmediane bleiben nahe 1.
+
+Er ist daher ein Tail-/Completion-Befund, kein Grund, die Kampagne zu verwerfen.
+
+## Paper-sichere Kernaussage
+
+> Across four repeats per cell, client-visible burst output followed a perfectly repeatable concurrency-dependent regime: all `max_num_seqs=4` blocks were classified as C, whereas all `max_num_seqs=8` blocks were classified as B, independently of whether CPU offloading was disabled or set to 12 GiB. CPU offloading did not change the overlap class, but expanded the absolute post-trigger waiting intervals from seconds to hundreds of seconds. Median active-cohort TPOT ratios remained close to one in all cells.
+
+Und weiterhin zwingend:
+
+> Die Klassen beziehen sich nur auf **client-sichtbaren Output**. Sie beweisen nicht, wann der Scheduler intern Admission oder Prefill begonnen hat.
+
+**Gesamturteil:** Das ist ein gutes, reproduziertes Ergebnis. Es stützt weniger die Hypothese eines direkten Offload-Schadens an laufenden Requests, dafür aber sehr klar einen **konfigurationsabhängigen Output- und Warteschlangenregimewechsel**, dessen zeitliche Ausprägung durch Offload drastisch verstärkt wird.
+
+
+Das ist jetzt der **maßgebliche Re-Audit-Befund**. Technisch ist die Kampagne sauber:
+
+* äußeres Manifest: **PASS**
+* 32/32 Episoden, 16/16 Blöcke, 16/16 Stabilisierungsläufe
+* 704 Requests und 43.392 Raw-SSE-Events vollständig rekonstruiert
+* 32/32 Triggerzustände serverseitig bestätigt
+* 0 Raw-Fehler, 0 Warnungen
+* Stream-End- und Raw-Token-Klassifikation stimmen in allen Blöcken überein
+* `COMMAND_RC=0`
+
+## Wissenschaftlicher Hauptbefund
+
+Das Muster ist vollständig wiederholbar:
+
+```text
+k=4, Offload 0:   4/4 C
+k=4, Offload 12:  4/4 C
+k=8, Offload 0:   4/4 B
+k=8, Offload 12:  4/4 B
+```
+
+Also:
+
+```text
+A: 0
+B: 8
+C: 8
+D: 0
+```
+
+Die client-sichtbare Output-Klasse wird in diesem Experiment durch `max_num_seqs` bestimmt, nicht durch den Offload-Zustand.
+
+## Was Offload trotzdem massiv verändert
+
+Offload verändert nicht B versus C, aber die **Zeitdauer des Regimes**:
+
+| Zelle           | Burst nach Ende der aktiven Kohorte |
+| --------------- | ----------------------------------: |
+| Offload 0, k=4  |                              6,23 s |
+| Offload 12, k=4 |                            433,97 s |
+| Offload 0, k=8  |                              2,57 s |
+| Offload 12, k=8 |                            141,93 s |
+
+Das entspricht ungefähr:
+
+```text
+k=4: 69,6-fache Verlängerung
+k=8: 55,2-fache Verlängerung
+```
+
+Das ist der stärkste Offload-Befund: **keine Klassenänderung, aber eine Streckung von Sekunden auf Minuten.**
+
+## Aktive Decode-Phase
+
+Die TPOT-Zellmediane bleiben sehr nahe bei 1:
+
+```text
+off0/k4:   1.000854
+off0/k8:   0.999859
+off12/k4:  1.000029
+off12/k8:  1.000016
+```
+
+Die größte Abweichung beträgt nur **0,085 %**. Auch Token-Span und Post-Token-Tail zeigen im Zellmedian nur sehr kleine Unterschiede. Damit gibt es keinen Hinweis auf eine der enormen Queue-Streckung vergleichbare persistente Decode-Degradation der aktiven Kohorte.
+
+Das ist aber weiterhin ein deskriptiver Befund, kein universeller Nulleffekt-Beweis.
+
+## Der Ausreißer ist geklärt
+
+`qwen_off12_k8_rep01` zeigt:
+
+```text
+Completion-Delta:   +2083,104 ms
+TTFT-Delta:         +2080,476 ms
+Token-Span-Delta:      +2,157 ms
+Tail-Delta:             +0,007 ms
+```
+
+Die rund zwei Sekunden entstehen praktisch vollständig in der **TTFT-/Startphase**, nicht im Decode und nicht nach dem letzten Token. Der Block bleibt valide und darf nicht ausgeschlossen werden.
+
+## Wichtige methodische Grenze
+
+In allen 16 Paaren unterscheiden sich die konkreten aktiven Request-Indizes zwischen `no_burst` und `prefill_burst`.
+
+Das ist kein technischer Fehler: Die Kohorte wird dynamisch aus dem tatsächlichen Triggerzustand gebildet. Es bedeutet aber:
+
+> Die Effektzahlen vergleichen die Mediane zweier jeweils gültiger aktiver Kohorten. Sie sind keine Request-für-Request-Matches derselben acht Requests.
+
+Deshalb sollte das Paper nicht von „paired requests“ oder einem individuellen kausalen Request-Effekt sprechen. Zulässig sind „paired episodes“ beziehungsweise „within-block comparison of active-cohort medians“.
+
+## Reihenfolgeeffekt
+
+Die 2/2-Gegenbalancierung funktioniert. Allerdings zeigen einige kleinen Completion- und TPOT-Unterschiede unterschiedliche Vorzeichen je Reihenfolge. Besonders bei `off12/k8` wird die Reihenfolgezusammenfassung durch den einen TTFT-Ausreißer beeinflusst:
+
+```text
+no_burst zuerst:      Completion-Median +1047,60 ms
+prefill_burst zuerst: Completion-Median    +1,38 ms
+```
+
+Das bestätigt: kleine Completion-Differenzen nicht als robusten Burst-Effekt verkaufen. Die B/C-Klassen und die großen Zeitmargen bleiben davon unberührt.
+
+## Paper-sichere Kernaussage
+
+> Across four repeats per cell, the client-visible burst-output regime was perfectly associated with the configured sequence capacity: all `max_num_seqs=4` blocks were classified as C, whereas all `max_num_seqs=8` blocks were classified as B, independently of CPU offloading. Offloading did not change the overlap class but increased the interval between completion of the initially active cohort and first burst output by factors of approximately 55–70. Active-cohort TPOT medians remained within 0.085% of the corresponding no-burst condition.
+
+Danach die Scope-Grenze:
+
+> These classes describe client-visible output timing only. They do not reveal internal admission or prefill-start times. Episode comparisons use dynamically identified active cohorts and are not request-identity-matched effects.
+
+## Nächster Schritt
+
+Qwen muss nicht erneut gemessen werden. Jetzt sollten wir aus `blocks.csv` und `cells.csv` die endgültige Ergebnistabelle und zwei Paper-Abbildungen erstellen. Danach ist Llama nur noch eine optionale Modellgeneralisierung, keine notwendige Reparaturmessung.

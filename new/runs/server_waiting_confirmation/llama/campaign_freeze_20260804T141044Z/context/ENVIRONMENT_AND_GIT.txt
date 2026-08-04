@@ -1,0 +1,25 @@
+freeze_created_utc=2026-08-04T14:10:44+00:00
+git_commit=47fd0c91f29b34cd6c8a61b8c4375a4081fc241a
+git_branch=main
+git_status_begin
+?? FROZEN_SHORT_PAPER_PROTOCOL_2026-07-18.md
+?? PACKAGE_STATUS.md
+?? "Text File.txt"
+?? new/backups/
+?? new/paper_artifacts/
+?? new/runs/prefill_confirmation/analysis_export_20260718T175448Z/
+?? new/runs/prefill_confirmation/log_audit_20260718T184538Z/
+?? new/runs/prefill_confirmation/prefill_confirmation_compact_20260718T175448Z.zip
+?? new/runs/server_waiting_confirmation/
+?? new/scripts/prefill_confirmation/audit_prefill_server_logs.sh
+?? new/scripts/prefill_confirmation/export_prefill_confirmation_results_v2.py
+?? new/scripts/server_waiting_confirmation/
+?? new/scripts/server_waiting_confirmation_llama/
+?? new/tree.txt
+git_status_end
+python=Python 3.13.7
+vllm=0.17.1
+torch=2.10.0+cu128
+transformers=4.57.6
+cuda_visible_devices=0
+0, NVIDIA GeForce RTX 3090, GPU-5be23054-752f-101a-2506-deb2685e834c, 24576 MiB, 580.173.02

@@ -1,0 +1,45 @@
+Prefill-confirmation server-log audit
+Generated UTC: 2026-07-18T18:45:38+00:00
+Host: rock-tobefilledbyoem
+
+================================================================
+MODEL: llama
+ROOT:  /home/rock/projects/DOS/new/runs/prefill_confirmation/llama/results/official_initial8_20260717T083031Z
+LOGDIR: /home/rock/projects/DOS/new/runs/prefill_confirmation/llama/results/official_initial8_20260717T083031Z/server_logs
+LOG_FILES: 48
+STRICT_PREEMPTION_OR_KV_FAILURE_HITS: 0
+BROAD_SCHEDULER_OR_KV_CONTEXT_HITS:   3902
+ERROR_OR_FATAL_HITS:                 0
+MODEL_AUDIT: PASS_NO_STRICT_INDICATOR
+
+================================================================
+MODEL: qwen
+ROOT:  /home/rock/projects/DOS/new/runs/prefill_confirmation/qwen/results/official_initial8_20260718T052207Z
+LOGDIR: /home/rock/projects/DOS/new/runs/prefill_confirmation/qwen/results/official_initial8_20260718T052207Z/server_logs
+LOG_FILES: 48
+STRICT_PREEMPTION_OR_KV_FAILURE_HITS: 0
+BROAD_SCHEDULER_OR_KV_CONTEXT_HITS:   4144
+ERROR_OR_FATAL_HITS:                 0
+MODEL_AUDIT: PASS_NO_STRICT_INDICATOR
+
+================================================================
+OVERALL
+TOTAL_LOG_FILES: 96
+MISSING_LOG_DIRECTORIES_OR_EMPTY_SETS: 0
+STRICT_PREEMPTION_OR_KV_FAILURE_HITS: 0
+BROAD_SCHEDULER_OR_KV_CONTEXT_HITS:   8046
+ERROR_OR_FATAL_HITS:                 0
+
+AUDIT_RESULT: PASS_NO_LOGGED_PREEMPTION_OR_FATAL_FAILURE
+
+Interpretation:
+- No strict runtime preemption/KV-capacity failure indicator was found.
+- This supports the statement 'no logged preemption event occurred'.
+- It does NOT by itself prove that KV-cache utilization was always far from capacity.
+
+Artifacts:
+- Summary:      /home/rock/projects/DOS/new/runs/prefill_confirmation/log_audit_20260718T184538Z/SUMMARY.txt
+- Strict hits:  /home/rock/projects/DOS/new/runs/prefill_confirmation/log_audit_20260718T184538Z/strict_preemption_hits.txt
+- Broad hits:   /home/rock/projects/DOS/new/runs/prefill_confirmation/log_audit_20260718T184538Z/broad_scheduler_kv_hits.txt
+- Error hits:   /home/rock/projects/DOS/new/runs/prefill_confirmation/log_audit_20260718T184538Z/error_warning_hits.txt
+- Log index:    /home/rock/projects/DOS/new/runs/prefill_confirmation/log_audit_20260718T184538Z/log_index.tsv

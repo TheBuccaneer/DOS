@@ -1,0 +1,19 @@
+created_utc=2026-08-04T12:51:39+00:00
+project=/home/rock/projects/DOS
+
+immutable_evidence=/home/rock/projects/DOS/new/runs/server_waiting_confirmation/qwen/final_capture_20260803T183032Z
+evidence_outer_manifest=/home/rock/projects/DOS/new/runs/server_waiting_confirmation/qwen/final_capture_20260803T183032Z/BUNDLE_SHA256SUMS.txt
+
+reaudit_source=/home/rock/Downloads/qwen_full_reaudit_20260804T124059Z
+paper_results_source=/home/rock/Downloads/qwen_paper_results_20260804T124805Z
+
+git_commit=47fd0c91f29b34cd6c8a61b8c4375a4081fc241a
+git_branch=main
+
+campaign_status=complete
+episodes=32
+blocks=16
+requests_reconstructed=704
+raw_sse_events_reconstructed=43392
+classification_counts=B8,C8
+scope=client-visible output only

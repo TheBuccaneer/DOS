@@ -1,0 +1,5 @@
+Offload_GiB,max_num_seqs,Class_distribution,Median_TPOT_ratio,Median_max_ITL_ratio,Median_completion_delta_ms,Median_TTFT_delta_ms,Median_token_span_delta_ms,Median_tail_delta_ms,Median_burst_after_active_s,Median_remaining_until_all_s
+0,4,C4,1.000854,1.033812,3.50,1.62,1.04,0.06,6.23,-0.40
+0,8,B4,0.999859,0.986806,-3.50,-3.36,-0.18,-0.06,2.57,2.17
+12,4,C4,1.000029,1.000455,4.03,-3.78,2.68,-0.06,433.97,-12.68
+12,8,B4,1.000016,1.000556,8.81,3.65,1.47,-0.02,141.93,121.35

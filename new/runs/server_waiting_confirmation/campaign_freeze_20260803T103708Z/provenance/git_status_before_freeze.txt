@@ -1,0 +1,11 @@
+?? FROZEN_SHORT_PAPER_PROTOCOL_2026-07-18.md
+?? PACKAGE_STATUS.md
+?? new/backups/
+?? new/runs/prefill_confirmation/analysis_export_20260718T175448Z/
+?? new/runs/prefill_confirmation/log_audit_20260718T184538Z/
+?? new/runs/prefill_confirmation/prefill_confirmation_compact_20260718T175448Z.zip
+?? new/runs/server_waiting_confirmation/
+?? new/scripts/prefill_confirmation/audit_prefill_server_logs.sh
+?? new/scripts/prefill_confirmation/export_prefill_confirmation_results_v2.py
+?? new/scripts/server_waiting_confirmation/
+?? new/tree.txt

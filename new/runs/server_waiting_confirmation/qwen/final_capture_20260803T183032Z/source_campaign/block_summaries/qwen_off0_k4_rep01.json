@@ -1,0 +1,80 @@
+{
+  "block_id": "qwen_off0_k4_rep01",
+  "cooldown_s": 5.0,
+  "episode_statuses": {
+    "qwen_off0_k4_trigger16_no_burst_rep01": "valid_complete",
+    "qwen_off0_k4_trigger16_prefill_burst_rep01": "valid_complete"
+  },
+  "executed_episode_ids": [
+    "qwen_off0_k4_trigger16_prefill_burst_rep01",
+    "qwen_off0_k4_trigger16_no_burst_rep01"
+  ],
+  "overall_status": "block_complete",
+  "post_stabilization_health": {
+    "checked_utc": "2026-08-03T18:31:39.674072+00:00",
+    "error_type": null,
+    "http_status": 200,
+    "ok": true
+  },
+  "readiness": {
+    "capability_summary": {
+      "available": true,
+      "has_completions_path": true,
+      "http_status": 200,
+      "note": "informational only -- the definitive capability check is the stabilization run",
+      "path_count": 21
+    },
+    "detected_model": "Qwen/Qwen2.5-7B-Instruct",
+    "health_status": 200,
+    "last_health_status": 200,
+    "last_models_status": 200,
+    "last_transient_error_type": "ConnectError",
+    "models_response": {
+      "data": [
+        "Qwen/Qwen2.5-7B-Instruct"
+      ]
+    },
+    "poll_count": 25,
+    "post_stabilization_health": {
+      "checked_utc": "2026-08-03T18:31:39.674072+00:00",
+      "error_type": null,
+      "http_status": 200,
+      "ok": true
+    },
+    "readiness_duration_s": 48.07130673099999,
+    "readiness_start_utc": "2026-08-03T18:30:43.850924+00:00",
+    "ready_utc": "2026-08-03T18:31:31.932876+00:00",
+    "server_start_utc": "2026-08-03T18:30:43.850905+00:00"
+  },
+  "result_schema_version": 6,
+  "run_mode": "official",
+  "runner_version": "run_server_waiting_confirmation-v4",
+  "schedule_fingerprint": "sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557",
+  "server_start": {
+    "cmd": [
+      "bash",
+      "/home/rock/projects/DOS/new/scripts/server_waiting_confirmation/run_server_waiting_server.sh",
+      "qwen",
+      "0",
+      "4",
+      "127.0.0.1",
+      "8000"
+    ],
+    "pgid": 7629,
+    "pid": 7629,
+    "start_utc": "2026-08-03T18:30:43.850905+00:00"
+  },
+  "server_stop": {
+    "alive_after_stop": false,
+    "forced_kill": false,
+    "pgid": 7629,
+    "pid": 7629,
+    "port_free_after_stop": true,
+    "stop_end_utc": "2026-08-03T18:32:01.742794+00:00",
+    "stop_error": null,
+    "stop_start_utc": "2026-08-03T18:32:01.341396+00:00",
+    "stop_success": true,
+    "term_sent": true
+  },
+  "stabilization_status": "complete"
+}

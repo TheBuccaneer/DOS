@@ -1,0 +1,8 @@
+closure_zip=/home/rock/Downloads/SERVER_WAITING_RAW_TRACE_AUDITOR_V1_FINAL_CLOSURE_2026-07-21.zip
+closure_zip_sha256=b6fbf2af27269ed1d979d3c083d34d69d965e93f28ec298886b3549a5b77330d
+expected_closure_zip_sha256=b6fbf2af27269ed1d979d3c083d34d69d965e93f28ec298886b3549a5b77330d
+
+-rwxr-xr-x 755 277862 2026-07-21 17:14:19.000000000 +0200 /home/rock/projects/DOS/new/scripts/prefill_confirmation/run_prefill_confirmation.py
+-rw------- 600 252174 2026-07-21 16:35:37.000000000 +0200 /home/rock/projects/DOS/new/scripts/server_waiting_confirmation/run_server_waiting_confirmation.py
+-rwxr-xr-x 755 3548 2026-07-21 15:28:02.000000000 +0200 /home/rock/projects/DOS/new/scripts/server_waiting_confirmation/run_server_waiting_confirmation.sh
+-rwxr-xr-x 755 3646 2026-07-21 15:28:02.000000000 +0200 /home/rock/projects/DOS/new/scripts/server_waiting_confirmation/run_server_waiting_server.sh

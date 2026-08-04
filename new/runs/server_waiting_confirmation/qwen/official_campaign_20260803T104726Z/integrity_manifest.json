@@ -1,0 +1,421 @@
+{
+  "block_summary_count": 16,
+  "environment_fingerprint": "sha256:089fafc2a7071a10e227c980e6e1f8d408b78072dc7e71f95cc0d476fbfe6015",
+  "episode_file_count": 32,
+  "file_count": 82,
+  "files": [
+    {
+      "relative_path": ".server_waiting_confirmation_run_mode",
+      "sha256": "6896191a14f6c66534bac457f50996b9330cd702cb6dbaae4c08d1d213e93d98",
+      "size_bytes": 8
+    },
+    {
+      "relative_path": "block_summaries/qwen_off0_k4_rep01.json",
+      "sha256": "09f2b8dfdbe5a341ac71f058c96d27b9ae4f9884d08bf5a6cef87e2aee377aa3",
+      "size_bytes": 2401
+    },
+    {
+      "relative_path": "block_summaries/qwen_off0_k4_rep02.json",
+      "sha256": "196d8c07d056db0b7a7b33e067336d23cb5d0cdd776ffc88f8d5df119d6dfec4",
+      "size_bytes": 2402
+    },
+    {
+      "relative_path": "block_summaries/qwen_off0_k4_rep03.json",
+      "sha256": "93516212652fe7f6dbcdba152031d6ba1b46a551af674ff795f149b51d9afe8a",
+      "size_bytes": 2401
+    },
+    {
+      "relative_path": "block_summaries/qwen_off0_k4_rep04.json",
+      "sha256": "1cfbcd08a042a06a7f53b4f43244d49d009f962316557d3dc9c36109af7beb30",
+      "size_bytes": 2402
+    },
+    {
+      "relative_path": "block_summaries/qwen_off0_k8_rep01.json",
+      "sha256": "94a04135543e57cbac25130a25a6f15c3082af15b1f37d783e28db28f2c0247c",
+      "size_bytes": 2402
+    },
+    {
+      "relative_path": "block_summaries/qwen_off0_k8_rep02.json",
+      "sha256": "d22ee36ffce26c650829a73fd769093f4b749fc97fbc14f34af8fd1ed9733b36",
+      "size_bytes": 2402
+    },
+    {
+      "relative_path": "block_summaries/qwen_off0_k8_rep03.json",
+      "sha256": "f490280be1f2a6570a94eaadc83edfea72133f3a0f48b64add196b101ceee0d5",
+      "size_bytes": 2400
+    },
+    {
+      "relative_path": "block_summaries/qwen_off0_k8_rep04.json",
+      "sha256": "5dad80c748a4916e732cddae1adbbb8ce72cf6577cc9b771bdec3911149be5de",
+      "size_bytes": 2402
+    },
+    {
+      "relative_path": "block_summaries/qwen_off12_k4_rep01.json",
+      "sha256": "b3fa3ce7524ecd9f2820abd13ecdd8f0ba17f9a7cc22ce7f5a0ac26aa0c03ee2",
+      "size_bytes": 2407
+    },
+    {
+      "relative_path": "block_summaries/qwen_off12_k4_rep02.json",
+      "sha256": "7c8f79eb6e7a847acdea98a13636b6384cc98a87ee85413d782b6eeaa861fa48",
+      "size_bytes": 2407
+    },
+    {
+      "relative_path": "block_summaries/qwen_off12_k4_rep03.json",
+      "sha256": "c6d04d14d939cf592a3779b719753187250d2b715e799ab6eed8d6e8ae5b5b71",
+      "size_bytes": 2407
+    },
+    {
+      "relative_path": "block_summaries/qwen_off12_k4_rep04.json",
+      "sha256": "8943b7956cbd119d29f321877cc298c4eabb62d168178ab50347ff8f992404c1",
+      "size_bytes": 2406
+    },
+    {
+      "relative_path": "block_summaries/qwen_off12_k8_rep01.json",
+      "sha256": "1ee0db6c8fb04a317b2d6fb14aadd7078a16dc3175bd1f22009bfcdf97d9c59e",
+      "size_bytes": 2407
+    },
+    {
+      "relative_path": "block_summaries/qwen_off12_k8_rep02.json",
+      "sha256": "7590e5660025912669c96a50e7a1db5454f476273f187dcdf5b50d518bcc33e3",
+      "size_bytes": 2407
+    },
+    {
+      "relative_path": "block_summaries/qwen_off12_k8_rep03.json",
+      "sha256": "2ff11f89505df45a2a0a704e4a278b31bd509015dc209210c251aedd27f7a65c",
+      "size_bytes": 2407
+    },
+    {
+      "relative_path": "block_summaries/qwen_off12_k8_rep04.json",
+      "sha256": "c7801df9e0fd0702b4d93940126752d1bbcd58f821f9d2e0d14bad5573b9ce7e",
+      "size_bytes": 2407
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k4_trigger16_no_burst_rep01.json",
+      "sha256": "6b0cdaf7caa72d1fa4bb4c9e00648e0d72ed4a8d977ddbcd00b9e9a6c54a8b08",
+      "size_bytes": 2317492
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k4_trigger16_no_burst_rep02.json",
+      "sha256": "66ecb34dd04c3389a0283c19364bcd43e960cff35b42a497e075e283608eacf6",
+      "size_bytes": 2328918
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k4_trigger16_no_burst_rep03.json",
+      "sha256": "20acc09b13a6a592542a1156e81348ab0f2a94da56b9ac8a75bf29eb49f8a08d",
+      "size_bytes": 2329663
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k4_trigger16_no_burst_rep04.json",
+      "sha256": "476f5ac79770a85030f2bdfc59de2fccdb7046cf95872c8578694d0bce1d9b8a",
+      "size_bytes": 2326676
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k4_trigger16_prefill_burst_rep01.json",
+      "sha256": "fed7e98d537c1dd1d20886c6533411f73b24af5078947ba811612483f96f7a59",
+      "size_bytes": 2837528
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k4_trigger16_prefill_burst_rep02.json",
+      "sha256": "853acb16ac2444e9fe539dbccfcf712eaa58bd4b82afadaaf5f1dd1e694d6cc8",
+      "size_bytes": 2850280
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k4_trigger16_prefill_burst_rep03.json",
+      "sha256": "6471b724d9c7f175251d100e03611f6ba7cc39e9b3a1e05f376253000c446fc4",
+      "size_bytes": 2851054
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k4_trigger16_prefill_burst_rep04.json",
+      "sha256": "b1700e98189a32bb11b26586301080112a7221019e09318fbff23184e398bc49",
+      "size_bytes": 2846092
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k8_trigger16_no_burst_rep01.json",
+      "sha256": "dd6ad5f64d800fb815b1b73a0f4a1df244b179de10335b71e44ded65260b6926",
+      "size_bytes": 2691432
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k8_trigger16_no_burst_rep02.json",
+      "sha256": "336fcb321d7d422cf84adcf9d40698893bf57585f783c44d1788dfe14c91954c",
+      "size_bytes": 2702193
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k8_trigger16_no_burst_rep03.json",
+      "sha256": "e80a47b4be2110df1862696d94d5d5cd65a0b77e82fc5c4b744645a6c57c446c",
+      "size_bytes": 2704545
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k8_trigger16_no_burst_rep04.json",
+      "sha256": "03442236513d9a4bacc8c38ea66ad8c9f5948bd91700f6a302b85c5ca9ba4b8e",
+      "size_bytes": 2698636
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k8_trigger16_prefill_burst_rep01.json",
+      "sha256": "11fc07c59f0681ac407ca7c343a363a44f0c509e4d7ad936d58f5e29cbf83f77",
+      "size_bytes": 3211586
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k8_trigger16_prefill_burst_rep02.json",
+      "sha256": "a2d387bba9cebf2083a82972931c4526a2fae18e91f63bc2b821f90c3617f20e",
+      "size_bytes": 3223820
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k8_trigger16_prefill_burst_rep03.json",
+      "sha256": "6b977acbb0f44604534d538f57ced01f9f78817ee85834ea3917881840205a28",
+      "size_bytes": 3222628
+    },
+    {
+      "relative_path": "episodes/qwen_off0_k8_trigger16_prefill_burst_rep04.json",
+      "sha256": "c5e42f65d506660f2d5a80c209f1bd15d392fb056e402e89e4ff0a3aede22143",
+      "size_bytes": 3218573
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k4_trigger16_no_burst_rep01.json",
+      "sha256": "cb28541573fd6cd7345df80bfeb6f4077bcbfec846e22bc582dabc2fcd218ec3",
+      "size_bytes": 58192852
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k4_trigger16_no_burst_rep02.json",
+      "sha256": "75bb9be5725a1a59ec363d8be09a9ac0a6f358d3dfa82a71bb757c5d71286393",
+      "size_bytes": 54857188
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k4_trigger16_no_burst_rep03.json",
+      "sha256": "d91c502a47c3ead825f270b11a38c5e51ce119bf36f6b34c7c4ea1350bfa6d31",
+      "size_bytes": 58116167
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k4_trigger16_no_burst_rep04.json",
+      "sha256": "21505fd4514d0ffccd07a059a4805243c8b78cda0b89a36559dba76be824748e",
+      "size_bytes": 58389843
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k4_trigger16_prefill_burst_rep01.json",
+      "sha256": "7836533fc5f834d81a62782b08236659ce8c1e6c3d7db7e020cc6e9bbc31c49c",
+      "size_bytes": 58619505
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k4_trigger16_prefill_burst_rep02.json",
+      "sha256": "82d80d1cd2c1a4676c5e91edce4ba8a59d1d07e41c333dcdcd8e6ba1649fb26b",
+      "size_bytes": 58728532
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k4_trigger16_prefill_burst_rep03.json",
+      "sha256": "fe84a128f868f91d0384d2ec7734cfd8993169f0a4f77390a150f371c472a25b",
+      "size_bytes": 58727873
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k4_trigger16_prefill_burst_rep04.json",
+      "sha256": "56a883fb90960252e07eaa120993dcbe220d8b0290c6a78fc9e013faa07db1f8",
+      "size_bytes": 58814910
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k8_trigger16_no_burst_rep01.json",
+      "sha256": "6cf63ec7c4e67ba47e8b0929739651ad38863385a84b6f3292f0076173fe28f6",
+      "size_bytes": 67490805
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k8_trigger16_no_burst_rep02.json",
+      "sha256": "be64872eca08f79cc3246546d2ee4a26df67252e949f1c05e76ca5f65f5fb10c",
+      "size_bytes": 71313782
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k8_trigger16_no_burst_rep03.json",
+      "sha256": "fc022e39a0cb747c7ec3f6825fecab7bbc06c24da8d42a394cc4a25e127ba173",
+      "size_bytes": 71217861
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k8_trigger16_no_burst_rep04.json",
+      "sha256": "edb98c35464d9e6986d490e07cba1b5fa96d03151d317515d1aa387e1eb9078d",
+      "size_bytes": 71125560
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k8_trigger16_prefill_burst_rep01.json",
+      "sha256": "c88cb12552828627ad0dabb8ce8331a30527bcee9be86a8a703e081722f1bd60",
+      "size_bytes": 71452332
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k8_trigger16_prefill_burst_rep02.json",
+      "sha256": "0d64eaf2437f51a7eb24b4b039de1af1fd17254f3b02d66d3b69f58c43c03eb5",
+      "size_bytes": 71652757
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k8_trigger16_prefill_burst_rep03.json",
+      "sha256": "86ffa3d6285de73872090165a05266c1571774490807e9659c3fa7cf27ac5245",
+      "size_bytes": 71743598
+    },
+    {
+      "relative_path": "episodes/qwen_off12_k8_trigger16_prefill_burst_rep04.json",
+      "sha256": "cf26c136915cfc681e514f809a8276d8fe381b58ea7fcae6b71d63dddd768b58",
+      "size_bytes": 71644991
+    },
+    {
+      "relative_path": "official_run_manifest.json",
+      "sha256": "304261571750ac8f400db0f47ab3913e0b7dc729bd943e37d474c3648041c34d",
+      "size_bytes": 2456
+    },
+    {
+      "relative_path": "server_logs/qwen_off0_k4_rep01.log",
+      "sha256": "034f0cf657517b7945059f58176d79579a62baf4d8b068ed33f63f8cdfcfb736",
+      "size_bytes": 43960
+    },
+    {
+      "relative_path": "server_logs/qwen_off0_k4_rep02.log",
+      "sha256": "cde9dda0ad6998c4ec103486701bee7a924c6b1a57d046a6a9051df6499ca044",
+      "size_bytes": 43721
+    },
+    {
+      "relative_path": "server_logs/qwen_off0_k4_rep03.log",
+      "sha256": "9f0ba6c2b683bc15bbc9dbab232da2f8a3416935e197bb8710906a138d37d494",
+      "size_bytes": 43319
+    },
+    {
+      "relative_path": "server_logs/qwen_off0_k4_rep04.log",
+      "sha256": "79ccb2bc418ba07a0cb6e806a8771ae22c48e27596d3deca6c7e2a3a2e04ace6",
+      "size_bytes": 43885
+    },
+    {
+      "relative_path": "server_logs/qwen_off0_k8_rep01.log",
+      "sha256": "de92a33e4e2aa0a18a66d194d22d523f6c68be4b26a357b6b85ac58fa3952083",
+      "size_bytes": 36211
+    },
+    {
+      "relative_path": "server_logs/qwen_off0_k8_rep02.log",
+      "sha256": "9147ed56284057dc69635bad63861095ff1a878d91e9e07eebc067a48691e138",
+      "size_bytes": 35811
+    },
+    {
+      "relative_path": "server_logs/qwen_off0_k8_rep03.log",
+      "sha256": "23a06f6fbfd0767039f73b9a1e09b607b3525ee6d0ac1be43a4f644c962d4084",
+      "size_bytes": 35892
+    },
+    {
+      "relative_path": "server_logs/qwen_off0_k8_rep04.log",
+      "sha256": "88c6e28ae1d76a268504df198112de4ab97d66a4560c26b183c6fb9eeda570cf",
+      "size_bytes": 35811
+    },
+    {
+      "relative_path": "server_logs/qwen_off12_k4_rep01.log",
+      "sha256": "f0797d39fcaa5c96b848642ad9e3a49b2082ae5c592115ddfa17f0b3dfc26d69",
+      "size_bytes": 1700853
+    },
+    {
+      "relative_path": "server_logs/qwen_off12_k4_rep02.log",
+      "sha256": "202a9744f8fa5d1f6cf0a8b2b2ddf78f8e117fc19f32788b7e8028062680174b",
+      "size_bytes": 1686118
+    },
+    {
+      "relative_path": "server_logs/qwen_off12_k4_rep03.log",
+      "sha256": "258b18ddc62843705b918cf0f0cf2c80837326ba0dfae48ee48e17de7a52207c",
+      "size_bytes": 1700452
+    },
+    {
+      "relative_path": "server_logs/qwen_off12_k4_rep04.log",
+      "sha256": "34e031801512fc406a008fc4d622f29ca1919955529687565c0419f606d5f646",
+      "size_bytes": 1704418
+    },
+    {
+      "relative_path": "server_logs/qwen_off12_k8_rep01.log",
+      "sha256": "35457cca76c04b81622cb6f2727b2a3eb6a0e8795e228f6188c32304cf03e3bb",
+      "size_bytes": 1070212
+    },
+    {
+      "relative_path": "server_logs/qwen_off12_k8_rep02.log",
+      "sha256": "5e121bb310f6ecff7cdcb7b31fcdb25fdd5dfd35b2c719e3b6f58f90549bf052",
+      "size_bytes": 1082117
+    },
+    {
+      "relative_path": "server_logs/qwen_off12_k8_rep03.log",
+      "sha256": "add641230338202e209e7c76ea3416dddf6a418b76c35232ce3c14c3b343dbde",
+      "size_bytes": 1083731
+    },
+    {
+      "relative_path": "server_logs/qwen_off12_k8_rep04.log",
+      "sha256": "0dfbae648a34809c4b576b6582345ba3b63842501019e796c296fac8ac99e0ae",
+      "size_bytes": 1082355
+    },
+    {
+      "relative_path": "stabilization/qwen_off0_k4_rep01.json",
+      "sha256": "e485b0d85a8f72a17ed366c033f58fd0a5cf78683163bb4f71f15dc116eff831",
+      "size_bytes": 1286883
+    },
+    {
+      "relative_path": "stabilization/qwen_off0_k4_rep02.json",
+      "sha256": "e0c095dd143c1bc39c7be283308e994fd2e70b5b18977250d7a6411e46a27599",
+      "size_bytes": 1291141
+    },
+    {
+      "relative_path": "stabilization/qwen_off0_k4_rep03.json",
+      "sha256": "46b5f63ca563f55748dbe36f5a3f5d30e44da44cd78a499bd8c67cff724a3017",
+      "size_bytes": 1289869
+    },
+    {
+      "relative_path": "stabilization/qwen_off0_k4_rep04.json",
+      "sha256": "044194dc6d6a399627700ab8dbd85036d5af7e50c9a4c856be7173f2d369843f",
+      "size_bytes": 1293411
+    },
+    {
+      "relative_path": "stabilization/qwen_off0_k8_rep01.json",
+      "sha256": "c1edebaaf1cccb5576a594709a65b758ac8e68153fd3dcdc4cdf925456785035",
+      "size_bytes": 1280162
+    },
+    {
+      "relative_path": "stabilization/qwen_off0_k8_rep02.json",
+      "sha256": "239f1ce475be188b229f7fc8307f3fa00cc1e15eee2e2a6fb3ba8d7d9d4fd734",
+      "size_bytes": 1279394
+    },
+    {
+      "relative_path": "stabilization/qwen_off0_k8_rep03.json",
+      "sha256": "85ecabc7374c7ed5d0f75b38631d437400d146fc45b9b8abba2e6b4a4aa78c7f",
+      "size_bytes": 1281129
+    },
+    {
+      "relative_path": "stabilization/qwen_off0_k8_rep04.json",
+      "sha256": "3b4d52999222fb7f146c21a611820c7f84cdf9a3367c4cc7862f1faad44beecb",
+      "size_bytes": 1285912
+    },
+    {
+      "relative_path": "stabilization/qwen_off12_k4_rep01.json",
+      "sha256": "3cf9601ce017ccd262f6138e895aa0323902279debbae1585049fa33c890769f",
+      "size_bytes": 1282904
+    },
+    {
+      "relative_path": "stabilization/qwen_off12_k4_rep02.json",
+      "sha256": "2f5dd01e6255b8d74c83fe790cf4b9d60c60118b24bb952b93954aa4be77dd67",
+      "size_bytes": 1281470
+    },
+    {
+      "relative_path": "stabilization/qwen_off12_k4_rep03.json",
+      "sha256": "2ad25b26927f4cff3281444b596008b87f9dcc08f4d82a03304da1f490ade9ba",
+      "size_bytes": 1284715
+    },
+    {
+      "relative_path": "stabilization/qwen_off12_k4_rep04.json",
+      "sha256": "0f6f658d9cd1b6f5544202d4827e6f131ec2372dbdaf2a3c8f5a78c5ff6c573d",
+      "size_bytes": 1297450
+    },
+    {
+      "relative_path": "stabilization/qwen_off12_k8_rep01.json",
+      "sha256": "eefdf93949dd16b481ec17d3ac25201c23de2f6d4a8ee906f14bf6c90339dbe2",
+      "size_bytes": 1284965
+    },
+    {
+      "relative_path": "stabilization/qwen_off12_k8_rep02.json",
+      "sha256": "b4b0995043fef7ae146066b862dd724bfb270825b512e346abebb22702795990",
+      "size_bytes": 1286405
+    },
+    {
+      "relative_path": "stabilization/qwen_off12_k8_rep03.json",
+      "sha256": "bff46812ad1d694bbaeebeb863b7af6b451615a3226b53cb1112b115320b0463",
+      "size_bytes": 1301694
+    },
+    {
+      "relative_path": "stabilization/qwen_off12_k8_rep04.json",
+      "sha256": "1f368bb47a07ed05a5a9f7550574a3974e73ecd4f061064b9a384772936f4a00",
+      "size_bytes": 1294167
+    }
+  ],
+  "generated_utc": "2026-08-03T14:17:04.907776+00:00",
+  "schedule_fingerprint": "sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557",
+  "stabilization_file_count": 16
+}

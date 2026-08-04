@@ -1,0 +1,17 @@
+model_id=Qwen/Qwen2.5-7B-Instruct
+snapshot_path=/home/rock/.cache/huggingface/hub/models--Qwen--Qwen2.5-7B-Instruct/snapshots/a09a35458c702b33eeacc393d103063234e8bc28
+snapshot_resolved=/home/rock/.cache/huggingface/hub/models--Qwen--Qwen2.5-7B-Instruct/snapshots/a09a35458c702b33eeacc393d103063234e8bc28
+snapshot_revision=a09a35458c702b33eeacc393d103063234e8bc28
+
+d 775 4096 a09a35458c702b33eeacc393d103063234e8bc28 -> 
+l 777 52 config.json -> ../../blobs/0178295f88afc3c7f279ed284f961f8c1be00654
+l 777 52 generation_config.json -> ../../blobs/0eb3c536657dcd12626e09eca4b6198c0cbcde1e
+l 777 52 merges.txt -> ../../blobs/20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0
+l 777 52 model.safetensors.index.json -> ../../blobs/14d037fdda5a1311dcc0275003a7a370d84114e6
+l 777 52 tokenizer_config.json -> ../../blobs/07bfe0640cb5a0037f9322287fbfc682806cf672
+l 777 52 tokenizer.json -> ../../blobs/443909a61d429dff23010e5bddd28ff530edda00
+l 777 52 vocab.json -> ../../blobs/4783fe10ac3adce15ac8f358ef5462739852c569
+l 777 76 model-00001-of-00004.safetensors -> ../../blobs/a1333e6293854747c481288ea83b348226af178dd565c49b6f9495ba1966aba7
+l 777 76 model-00002-of-00004.safetensors -> ../../blobs/f5d25a2772cb825164a2a2c0fb6d51a87e282abf21e4dd75bc5cfb3cd0ea6185
+l 777 76 model-00003-of-00004.safetensors -> ../../blobs/8efdec4c1bc12317ae1a38dc42b595ce777738a64deea3fcb8a0a91381bcdfd5
+l 777 76 model-00004-of-00004.safetensors -> ../../blobs/1a72d403cdf0c1ec3cb7f289f17b394a01e64394c2e9b3c0f94dbce3faf879bd

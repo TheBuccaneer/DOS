@@ -1,0 +1,15 @@
+Llama Server-WAITING Campaign — Raw-SSE Summary
+==========================================================
+technical_pass: True
+errors: 0
+classification_counts: {'B': 8, 'C': 8}
+raw_output_classification_counts: {'B': 8, 'C': 8}
+
+Cells:
+offload=0 k=4 classes={'C': 4} TPOT=0.9996999058207853 ITL=0.9732993887384027 completion_ms=1.7318257499999845 after_active_s=6.619771107 remaining_all_s=-0.434423557
+offload=0 k=8 classes={'B': 4} TPOT=0.9998224362014265 ITL=1.023303487927546 completion_ms=1.6710839999999507 after_active_s=2.708869789 remaining_all_s=2.3266737985
+offload=12 k=4 classes={'C': 4} TPOT=0.9997656316913606 ITL=0.9943730658342994 completion_ms=-9.990186000009999 after_active_s=412.92233696100004 remaining_all_s=-12.504777819000001
+offload=12 k=8 classes={'B': 4} TPOT=0.9991210205802473 ITL=0.9694977038214103 completion_ms=-77.38545299999532 after_active_s=137.35439864149998 remaining_all_s=115.586864408
+
+Scope:
+Client-visible output timing only; internal admission and prefill-start times are not observed.

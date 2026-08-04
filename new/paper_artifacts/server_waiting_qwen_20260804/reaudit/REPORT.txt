@@ -1,0 +1,122 @@
+=== 1. INTEGRITÄT UND ARTEFAKTE ===
+outer_manifest_status: PASS
+outer_manifest_entries: 89
+inner_manifest_status: KNOWN_FINALIZATION_GAP
+inner_manifest_entries: 82
+inner_manifest_unlisted: ['official_run_summary.json']
+episodes: 32/32
+block_summaries: 16/16
+stabilization: 16/16
+server_logs: 16/16
+official_run_summary.json_present: True
+official_run_manifest.json_present: True
+integrity_manifest.json_present: True
+.server_waiting_confirmation_run_mode_present: True
+summary.overall_status: 'complete'
+summary.planned_episodes: 32
+summary.valid_complete_episodes: 32
+summary.missing_episodes: 0
+summary.planned_blocks: 16
+summary.completed_blocks: 16
+block_complete: 16/16
+stabilization_passed: 16/16
+server_log_error_lines: 0
+
+=== 2. ALLE EPISODEN UND RAW-SSE ===
+episodes_inspected: 32/32
+requests_reconstructed: 704
+raw_sse_events_reconstructed: 43392
+metrics_corroborated: 32/32
+raw_errors: 0
+raw_warnings: 0
+paired_blocks: 16/16
+schedule_fingerprints: ['sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557']
+environment_fingerprint_count: 1
+cells: [(0, 4), (0, 8), (12, 4), (12, 8)]
+cell (0, 4): blocks=4, repeats=[1, 2, 3, 4], first_condition={'prefill_burst': 2, 'no_burst': 2}
+cell (0, 8): blocks=4, repeats=[1, 2, 3, 4], first_condition={'prefill_burst': 2, 'no_burst': 2}
+cell (12, 4): blocks=4, repeats=[1, 2, 3, 4], first_condition={'prefill_burst': 2, 'no_burst': 2}
+cell (12, 8): blocks=4, repeats=[1, 2, 3, 4], first_condition={'no_burst': 2, 'prefill_burst': 2}
+
+=== 3. PAARWEISE KLASSIFIKATION UND KOHORTENVERGLEICH ===
+block                          cls raw sameSet overlap TPOT-ratio ITL-ratio Completion-delta-ms TTFT-delta-ms TokenSpan-delta-ms Tail-delta-ms after-active-s remaining-all-s
+qwen_off0_k4_rep01               C   C   False       3   0.999371  1.044122               19.94         20.55              -0.77          0.11           6.22           -0.41
+qwen_off0_k4_rep02               C   C   False       2   1.002581  1.029263               -7.02        -10.19               3.15          0.02           6.24           -0.40
+qwen_off0_k4_rep03               C   C   False       2   1.001467  1.038360              -14.50        -16.24               1.79         -0.10           6.24           -0.41
+qwen_off0_k4_rep04               C   C   False       2   1.000240  1.026578               14.02         13.44               0.29          0.28           6.23           -0.40
+qwen_off0_k8_rep01               B   B   False       6   0.996961  0.964762                6.02         10.17              -3.79         -0.45           2.57            2.17
+qwen_off0_k8_rep02               B   B   False       2   0.997973  0.971942                3.94          6.48              -2.52          0.05           2.57            2.17
+qwen_off0_k8_rep03               B   B   False       6   1.001745  1.001671              -10.93        -13.19               2.17         -0.01           2.57            2.17
+qwen_off0_k8_rep04               B   B   False       7   1.003121  1.016016              -11.49        -15.46               3.88         -0.11           2.57            2.18
+qwen_off12_k4_rep01              C   C   False       2   1.000206  0.999891               14.00         -5.26              19.30         -0.12         433.98          -12.68
+qwen_off12_k4_rep02              C   C   False       2   0.999939  1.000238               -0.60          4.99              -5.70         -0.02         433.98          -12.68
+qwen_off12_k4_rep03              C   C   False       2   0.999924  1.000748              -14.76         -7.47              -7.13         -0.05         433.95          -12.68
+qwen_off12_k4_rep04              C   C   False       3   1.000118  1.000672                8.66         -2.30              11.06         -0.08         433.97          -12.67
+qwen_off12_k8_rep01              B   B   False       6   1.000023  1.001246             2083.10       2080.48               2.16          0.01         141.86          121.28
+qwen_off12_k8_rep02              B   B   False       7   1.000008  1.000415                5.52          4.47               0.78         -0.12         142.21          121.57
+qwen_off12_k8_rep03              B   B   False       3   1.000007  1.000698               -2.75         -3.66               0.63          0.06         142.01          121.41
+qwen_off12_k8_rep04              B   B   False       2   1.000097  0.998589               12.10          2.83               9.10         -0.04         141.85          121.27
+classification_counts: {'B': 8, 'C': 8}
+raw_token_classification_counts: {'B': 8, 'C': 8}
+blocks_with_different_active_indices: 16/16 ['qwen_off0_k4_rep01', 'qwen_off0_k4_rep02', 'qwen_off0_k4_rep03', 'qwen_off0_k4_rep04', 'qwen_off0_k8_rep01', 'qwen_off0_k8_rep02', 'qwen_off0_k8_rep03', 'qwen_off0_k8_rep04', 'qwen_off12_k4_rep01', 'qwen_off12_k4_rep02', 'qwen_off12_k4_rep03', 'qwen_off12_k4_rep04', 'qwen_off12_k8_rep01', 'qwen_off12_k8_rep02', 'qwen_off12_k8_rep03', 'qwen_off12_k8_rep04']
+Hinweis: Unterschiedliche aktive Indizes sind bei dynamischer Kohortenbildung kein technischer Fehler. Paarmetriken vergleichen die jeweiligen Kohortenmediane, nicht identische Request-Indizes.
+
+=== 4. ZELLZUSAMMENFASSUNG ===
+offload k classes TPOT-med[min,max] ITL-med[min,max] Completion-med-ms TTFT-med-ms TokenSpan-med-ms Tail-med-ms after-active-med-s remaining-all-med-s
+      0 4 C4      1.000854[0.999371,1.002581] 1.033812[1.026578,1.044122]              3.50        1.62              1.04        0.06               6.23               -0.40
+      0 8 B4      0.999859[0.996961,1.003121] 0.986806[0.964762,1.016016]             -3.50       -3.36             -0.18       -0.06               2.57                2.17
+     12 4 C4      1.000029[0.999924,1.000206] 1.000455[0.999891,1.000748]              4.03       -3.78              2.68       -0.06             433.97              -12.68
+     12 8 B4      1.000016[1.000007,1.000097] 1.000556[0.998589,1.001246]              8.81        3.65              1.47       -0.02             141.93              121.35
+
+=== 5. REIHENFOLGE-SENSITIVITÄT ===
+cell offload=0 k=4
+  first=no_burst: n=2, TPOT_med=1.002024, ITL_med=1.033812, Completion_med_ms=-10.76
+  first=prefill_burst: n=2, TPOT_med=0.999805, ITL_med=1.035350, Completion_med_ms=16.98
+cell offload=0 k=8
+  first=no_burst: n=2, TPOT_med=1.002433, ITL_med=1.008843, Completion_med_ms=-11.21
+  first=prefill_burst: n=2, TPOT_med=0.997467, ITL_med=0.968352, Completion_med_ms=4.98
+cell offload=12 k=4
+  first=no_burst: n=2, TPOT_med=1.000021, ITL_med=1.000710, Completion_med_ms=-3.05
+  first=prefill_burst: n=2, TPOT_med=1.000073, ITL_med=1.000065, Completion_med_ms=6.70
+cell offload=12 k=8
+  first=no_burst: n=2, TPOT_med=1.000060, ITL_med=0.999917, Completion_med_ms=1047.60
+  first=prefill_burst: n=2, TPOT_med=1.000008, ITL_med=1.000556, Completion_med_ms=1.38
+
+=== 6. OFFLOAD- UND K-MODULATION ===
+offload12-minus-offload0, k=4: TPOT_ratio_delta=-0.000825, ITL_ratio_delta=-0.033356, Completion_delta_difference_ms=0.53, after_active_factor=69.60
+offload12-minus-offload0, k=8: TPOT_ratio_delta=0.000157, ITL_ratio_delta=0.013750, Completion_delta_difference_ms=12.31, after_active_factor=55.23
+k8-minus-k4, offload=0: TPOT_ratio_delta=-0.000995, ITL_ratio_delta=-0.047005, after_active_delta_s=-3.66
+k8-minus-k4, offload=12: TPOT_ratio_delta=-0.000013, ITL_ratio_delta=0.000101, after_active_delta_s=-292.04
+
+=== 7. AUSREISSER UND URSACHENZERLEGUNG ===
+qwen_off12_k8_rep01: flags=['COMPLETION_DELTA_ABS_GE_1000_MS'], completion_delta_ms=2083.104, ttft_delta_ms=2080.476, token_span_delta_ms=2.157, tail_delta_ms=0.007, decomposition_residual_ms=0.465, attribution=['TTFT/Startphase'], same_active_set=False, active_overlap=6/10
+
+=== 8. VORSICHTIGE WISSENSCHAFTLICHE INTERPRETATION ===
+- Das Klassenmuster repliziert vollständig: k=4 ergibt C, k=8 ergibt B, jeweils bei Offload 0 und 12.
+- Auf Klassenebene ist die beobachtete Modulation damit an max_num_seqs gebunden, nicht an den Offload-Zustand.
+- Größte absolute Abweichung eines TPOT-Zellmedians von 1: 0.085%.
+- Unterschiedliche dynamische aktive Kohorten werden nicht als technischer Fehler behandelt. Zell- und Paareffekte sind Vergleiche der jeweiligen Kohortenmediane, keine identischen Request-Matches.
+- A/B/C beziehen sich ausschließlich auf client-sichtbaren Output. Interne Admission und interner Prefill-Start sind nicht beobachtbar.
+- Nahe-1-Mediane sind deskriptiv und tragen ohne weitere Kampagnenreplikation keinen universellen Nulleffekt-Claim.
+
+=== 9. ENDSTATUS ===
+=== DIESEN BLOCK AN CHATGPT SENDEN ===
+COMPLETENESS_PASS=true
+RAW_RECONSTRUCTION_PASS=true
+NO_D_CLASSIFICATIONS=true
+SCIENTIFIC_SUMMARY_READY=true
+OUTER_MANIFEST_STATUS=PASS
+INNER_MANIFEST_STATUS=KNOWN_FINALIZATION_GAP
+classification_counts={'B': 8, 'C': 8}
+raw_token_classification_counts={'B': 8, 'C': 8}
+requests_reconstructed=704
+raw_sse_events_reconstructed=43392
+metrics_corroborated=32/32
+blocks_with_different_active_indices=16/16 ['qwen_off0_k4_rep01', 'qwen_off0_k4_rep02', 'qwen_off0_k4_rep03', 'qwen_off0_k4_rep04', 'qwen_off0_k8_rep01', 'qwen_off0_k8_rep02', 'qwen_off0_k8_rep03', 'qwen_off0_k8_rep04', 'qwen_off12_k4_rep01', 'qwen_off12_k4_rep02', 'qwen_off12_k4_rep03', 'qwen_off12_k4_rep04', 'qwen_off12_k8_rep01', 'qwen_off12_k8_rep02', 'qwen_off12_k8_rep03', 'qwen_off12_k8_rep04']
+cell offload=0 k=4: classes={'C': 4}, TPOT_med=1.000854, ITL_med=1.033812, Completion_delta_med_ms=3.50, TTFT_delta_med_ms=1.62, TokenSpan_delta_med_ms=1.04, Tail_delta_med_ms=0.06, after_active_med_s=6.23, remaining_all_med_s=-0.40
+cell offload=0 k=8: classes={'B': 4}, TPOT_med=0.999859, ITL_med=0.986806, Completion_delta_med_ms=-3.50, TTFT_delta_med_ms=-3.36, TokenSpan_delta_med_ms=-0.18, Tail_delta_med_ms=-0.06, after_active_med_s=2.57, remaining_all_med_s=2.17
+cell offload=12 k=4: classes={'C': 4}, TPOT_med=1.000029, ITL_med=1.000455, Completion_delta_med_ms=4.03, TTFT_delta_med_ms=-3.78, TokenSpan_delta_med_ms=2.68, Tail_delta_med_ms=-0.06, after_active_med_s=433.97, remaining_all_med_s=-12.68
+cell offload=12 k=8: classes={'B': 4}, TPOT_med=1.000016, ITL_med=1.000556, Completion_delta_med_ms=8.81, TTFT_delta_med_ms=3.65, TokenSpan_delta_med_ms=1.47, Tail_delta_med_ms=-0.02, after_active_med_s=141.93, remaining_all_med_s=121.35
+outlier_blocks=['qwen_off12_k8_rep01']
+outlier qwen_off12_k8_rep01: completion_delta_ms=2083.104, ttft_delta_ms=2080.476, token_span_delta_ms=2.157, tail_delta_ms=0.007, attribution=['TTFT/Startphase'], same_active_set=False, active_overlap=6/10
+scope=client-visible output only; no internal admission/prefill claim
