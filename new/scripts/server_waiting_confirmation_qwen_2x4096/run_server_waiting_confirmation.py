@@ -74,12 +74,12 @@ import _active_cohort as cohort  # noqa: E402
 # ============================================================================
 
 SCHEMA_VERSION = 1
-DESIGN_VERSION = "server-waiting-confirmation-v1"
+DESIGN_VERSION = "server-waiting-burst-shape-2x4096-v1"
 SEED_NAMESPACE_TAG = "server-waiting-confirmation"
 
 MODEL_KEY = "qwen"
 MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
-CAMPAIGN_NAME = "qwen-server-waiting-confirmation"
+CAMPAIGN_NAME = "qwen-server-waiting-burst-shape-2x4096"
 MODEL_REGISTRY: dict[str, dict[str, str]] = {
     MODEL_KEY: {"model_id": MODEL_ID, "campaign_name": CAMPAIGN_NAME},
 }
@@ -89,7 +89,7 @@ MODEL_REGISTRY: dict[str, dict[str, str]] = {
 # Recorded once, from the actually-generated bundle, exactly as the
 # original OFFICIAL_FINGERPRINTS were -- see AUDIT.md.
 OFFICIAL_SEED = 20260720
-OFFICIAL_FINGERPRINT = "sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557"
+OFFICIAL_FINGERPRINT = "sha256:5f1104c2a1af90dec201c8965eb8936cd8dbb3b59f1b783f930a27be16fb2b2b"
 
 OFFLOAD_VALUES = [0, 12]
 SERVER_MAX_NUM_SEQS_VALUES = [4, 8]
@@ -107,8 +107,8 @@ VICTIM_CONFIGURATION = {
     "victim_temperature": 0.0,
 }
 BURST_CONFIGURATION = {
-    "burst_parallel_requests": 4,
-    "burst_input_len": 2048,
+    "burst_parallel_requests": 2,
+    "burst_input_len": 4096,
     "burst_output_len": 16,
     "burst_temperature": 0.0,
 }
@@ -147,15 +147,15 @@ RUN_MODE_MARKER_FILENAME = ".server_waiting_confirmation_run_mode"
 
 SCRIPT_PATH = Path(__file__).resolve()
 PROJECT_ROOT = SCRIPT_PATH.parents[3] if len(SCRIPT_PATH.parents) >= 4 else SCRIPT_PATH.parent
-DEFAULT_SCHEDULE_DIR_ROOT = PROJECT_ROOT / "new" / "runs" / "server_waiting_confirmation"
+DEFAULT_SCHEDULE_DIR_ROOT = PROJECT_ROOT / "new" / "runs" / "server_waiting_confirmation" / "qwen_burst2x4096"
 
 
 def default_schedule_dir(model_key: str = MODEL_KEY) -> Path:
-    return DEFAULT_SCHEDULE_DIR_ROOT / model_key / "schedule"
+    return DEFAULT_SCHEDULE_DIR_ROOT / "schedule"
 
 
 def default_output_dir(model_key: str, mode: str) -> Path:
-    return DEFAULT_SCHEDULE_DIR_ROOT / model_key / "results" / mode
+    return DEFAULT_SCHEDULE_DIR_ROOT / "results" / mode
 
 
 # ============================================================================
@@ -598,7 +598,7 @@ def print_execution_plan(bundle: LoadedBundle, plan: dict) -> None:
 # ============================================================================
 
 RESULT_SCHEMA_VERSION = 6
-RUNNER_VERSION = "run_server_waiting_confirmation-v4"
+RUNNER_VERSION = "run_server_waiting_confirmation-v5"
 TIMING_INSTRUMENTATION_VERSION = 1
 TIMING_INSTRUMENTATION_NAME = "server_max_num_seqs_data_driven_cohort_v1"
 
@@ -4053,7 +4053,7 @@ def _validate_diagnostic_episode_gates(
             peak_expectation = "the strict int 20 for no_burst"
         else:
             peak_valid = type(peak_open) is int and 20 <= peak_open <= 24
-            peak_expectation = "a strict int in [20, 24] for prefill_burst"
+            peak_expectation = "a strict int in [20, 22] for prefill_burst"
         if not peak_valid:
             reasons.append(
                 f"{label} episode: peak_concurrent_open_completion_streams={peak_open!r} is not "

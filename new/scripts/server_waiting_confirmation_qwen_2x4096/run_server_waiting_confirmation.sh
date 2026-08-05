@@ -75,10 +75,10 @@ fi
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 
-LOGDIR="${PROJECT_ROOT}/new/logs/server_waiting_confirmation"
+LOGDIR="${PROJECT_ROOT}/new/logs/server_waiting_confirmation_qwen_2x4096"
 mkdir -p "$LOGDIR"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-LOGFILE="${LOGDIR}/run_server_waiting_confirmation_${TIMESTAMP}_pid${BASHPID}.log"
+LOGFILE="${LOGDIR}/run_server_waiting_confirmation_qwen_2x4096_${TIMESTAMP}_pid${BASHPID}.log"
 : > "$LOGFILE"
 exec > >(tee -a "$LOGFILE") 2>&1
 
