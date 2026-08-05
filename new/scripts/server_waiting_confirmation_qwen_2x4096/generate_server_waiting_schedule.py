@@ -76,14 +76,14 @@ from typing import Sequence
 # ============================================================================
 
 SCHEMA_VERSION = 1
-DESIGN_VERSION = "server-waiting-confirmation-v1"
+DESIGN_VERSION = "server-waiting-burst-shape-2x4096-v1"
 SEED_NAMESPACE_TAG = "server-waiting-confirmation"
 
 OFFICIAL_SEED = 20260720
 
 MODEL_KEY = "qwen"
 MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
-CAMPAIGN_NAME = "qwen-server-waiting-confirmation"
+CAMPAIGN_NAME = "qwen-server-waiting-burst-shape-2x4096"
 
 OFFLOAD_VALUES: tuple[int, ...] = (0, 12)
 SERVER_MAX_NUM_SEQS_VALUES: tuple[int, ...] = (4, 8)
@@ -101,8 +101,8 @@ VICTIM_INPUT_LEN = 256
 VICTIM_OUTPUT_LEN = 64
 VICTIM_TEMPERATURE = 0.0
 
-BURST_PARALLEL_REQUESTS = 4
-BURST_INPUT_LEN = 2048
+BURST_PARALLEL_REQUESTS = 2
+BURST_INPUT_LEN = 4096
 BURST_OUTPUT_LEN = 16
 BURST_TEMPERATURE = 0.0
 
@@ -152,7 +152,7 @@ PROJECT_ROOT = SCRIPT_PATH.parents[3] if len(SCRIPT_PATH.parents) >= 4 else SCRI
 
 
 def default_output_dir() -> Path:
-    return PROJECT_ROOT / "new" / "runs" / "server_waiting_confirmation" / MODEL_KEY / "schedule"
+    return PROJECT_ROOT / "new" / "runs" / "server_waiting_confirmation" / "qwen_burst2x4096" / "schedule"
 
 
 BUNDLE_FILENAMES = (
