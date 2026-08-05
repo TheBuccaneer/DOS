@@ -4052,7 +4052,7 @@ def _validate_diagnostic_episode_gates(
             peak_valid = type(peak_open) is int and peak_open == 20
             peak_expectation = "the strict int 20 for no_burst"
         else:
-            peak_valid = type(peak_open) is int and 20 <= peak_open <= 24
+            peak_valid = type(peak_open) is int and 20 <= peak_open <= 22
             peak_expectation = "a strict int in [20, 22] for prefill_burst"
         if not peak_valid:
             reasons.append(
