@@ -21,7 +21,7 @@ from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Protocol, Sequence
 
-AUDITOR_VERSION = "audit_server_waiting_diagnostic-v1"
+AUDITOR_VERSION = "audit_server_waiting_diagnostic-v2"
 EXIT_PASS = 0
 EXIT_TECHNICAL = 1
 EXIT_SCIENTIFIC = 2
@@ -760,7 +760,7 @@ def raw_overlap_classification(prefill_burst: dict, request_results: list[dict[s
             errors.append(f"victim {index} lacks a validated raw last-token time")
         else:
             victim_last[index] = ns
-    for index in range(4):
+    for index in range(2):
         item = by_key.get(("burst", index))
         ns = ((item or {}).get("raw_reconstruction") or {}).get("first_positive_token_receive_ns")
         if type(ns) is not int:
@@ -1172,7 +1172,7 @@ def audit_diagnostic(
                 item["condition"] = condition
                 per_request.append(item)
                 errors.extend([f"{condition} victim[{index}]: {e}" for e in item["errors"]])
-            expected_bursts = 4 if condition == "prefill_burst" else 0
+            expected_bursts = 2 if condition == "prefill_burst" else 0
             if not isinstance(bursts, list) or len(bursts) != expected_bursts:
                 errors.append(f"{condition}: burst_requests count is not exactly {expected_bursts}")
                 bursts = bursts if isinstance(bursts, list) else []

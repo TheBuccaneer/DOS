@@ -2,7 +2,7 @@
 """Offline regression suite for audit_server_waiting_diagnostic.py.
 
 All mutations operate on a complete fake diagnostic directory containing both
-20-victim episodes, four burst records, stabilization/provenance/summary files,
+20-victim episodes, two burst records, stabilization/provenance/summary files,
 a server log, a run-mode marker, and a matching integrity manifest.
 """
 from __future__ import annotations
@@ -44,7 +44,7 @@ class Episode:
 class FakeRunner:
     MODEL_KEY = "qwen"
     MANIFEST_SCHEMA_VERSION = 1
-    RUNNER_VERSION = "run_server_waiting_confirmation-v4"
+    RUNNER_VERSION = "run_server_waiting_confirmation-v5"
     RESULT_SCHEMA_VERSION = 6
     RUN_MODE_DIAGNOSTIC_PAIR = "diagnostic_pair"
     DIAGNOSTIC_BLOCK_ID = "qwen_off12_k8_rep01"
@@ -64,7 +64,7 @@ class FakeRunner:
         self.bundle = SimpleNamespace(
             episodes=episodes,
             fingerprint=schedule_fp,
-            json_obj={"seed": 20260720, "design_version": "server-waiting-confirmation-v1"},
+            json_obj={"seed": 20260720, "design_version": "server-waiting-burst-shape-2x4096-v1"},
         )
 
     def load_and_validate_bundle(self, schedule_dir: Path, model_key: str):
@@ -396,7 +396,7 @@ def build_complete_tree(root: Path) -> tuple[FakeRunner, dict[str, Path]]:
             victims.append(make_record(ep, "victim", i, first))
         bursts = []
         if burst:
-            for j in range(4):
+            for j in range(2):
                 bursts.append(make_record(ep, "burst", j, 1_050_000_000 + j * 2_000_000))
         return {
             "runner_version": runner.RUNNER_VERSION,
@@ -504,7 +504,7 @@ class AuditorRegressionTests(unittest.TestCase):
             code, result = run_audit(root, runner, paths)
             self.assertEqual(code, 0, result)
             self.assertEqual(result["overall_audit_status"], "PASS")
-            self.assertEqual(len(result["per_request_status"]), 44)
+            self.assertEqual(len(result["per_request_status"]), 42)
 
     def test_02_original_tree_is_byte_identical(self):
         td, root, runner, paths = self.with_tree()

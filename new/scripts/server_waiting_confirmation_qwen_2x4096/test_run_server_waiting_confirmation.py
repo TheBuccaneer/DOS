@@ -294,10 +294,10 @@ def main() -> int:
         check(
             # No client admission semaphore: all 20 victim streams open
             # concurrently regardless of server-side cohort membership;
-            # the prefill_burst episode additionally overlaps its 4 burst
-            # streams while victims are still open -> 20 + 4 = 24.
-            "block reaches 20 concurrent victim streams, 24 once the prefill_burst episode overlaps its burst",
-            transport.peak_open_stream_count == 24, str(transport.peak_open_stream_count),
+            # the prefill_burst episode additionally overlaps its 2 burst
+            # streams while victims are still open -> 20 + 2 = 22.
+            "block reaches 20 concurrent victim streams, 22 once the prefill_burst episode overlaps its burst",
+            transport.peak_open_stream_count == 22, str(transport.peak_open_stream_count),
         )
         check(
             "completion transport reports the configured 32/32 pool limits",
@@ -1092,9 +1092,9 @@ def main() -> int:
             "validation_errors": [], "http_status": 200,
             "timed_out": False, "cancelled": False, "done_received": True,
             "error_type": None, "error_message": None, "finish_reason": "length",
-            "expected_prompt_tokens": 2048, "expected_completion_tokens": 16,
+            "expected_prompt_tokens": 4096, "expected_completion_tokens": 16,
             "output_token_ids": [1] * 16,
-            "usage": {"prompt_tokens": 2048, "completion_tokens": 16},
+            "usage": {"prompt_tokens": 4096, "completion_tokens": 16},
             "request_dispatch_ns": dispatch_ns, "first_token_receive_ns": first_token_ns, "stream_end_ns": end_ns,
             "burst_dispatch_start_perf_ns": dispatch_ns, "burst_stream_open_or_response_headers_perf_ns": open_ns,
             "burst_first_token_perf_ns": first_token_ns, "burst_end_perf_ns": end_ns,
@@ -1126,7 +1126,7 @@ def main() -> int:
             del victims[idx][field]
         burst = []
         if condition == base.BURST_CONDITION:
-            tokens = burst_first_tokens if burst_first_tokens is not None else [3002, 3003, 3004, 3005]
+            tokens = burst_first_tokens if burst_first_tokens is not None else [3002, 3003]
             burst = [_synthetic_burst(j, first_token_ns=t, episode=episode) for j, t in enumerate(tokens)]
             if break_burst_status:
                 burst[0]["status"] = "failed"
@@ -1181,7 +1181,7 @@ def main() -> int:
                 "all_20_streams_open_before_first_token": (
                     all_streams_open_override if all_streams_open_override is not None else tce_recomputed
                 ),
-                "peak_concurrent_open_completion_streams": 24 if condition == base.BURST_CONDITION else 20,
+                "peak_concurrent_open_completion_streams": 22 if condition == base.BURST_CONDITION else 20,
                 "completion_pool_limits": {"max_connections": 32, "max_keepalive_connections": 32},
             },
             "episode_id": episode_id_override if episode_id_override is not None else episode.episode_id,
@@ -1225,17 +1225,17 @@ def main() -> int:
     good_no_burst = _synthetic_episode(episode=real_no_burst_ep, condition="no_burst", active_indices=active_set)
 
     # A: first burst output before the LAST active victim finishes (max active end = 5000+7*10=5070).
-    a_pb = _synthetic_episode(episode=real_prefill_burst_ep, condition=base.BURST_CONDITION, active_indices=active_set, burst_first_tokens=[3000, 3001, 3002, 3003])
+    a_pb = _synthetic_episode(episode=real_prefill_burst_ep, condition=base.BURST_CONDITION, active_indices=active_set, burst_first_tokens=[3000, 3001])
     a_result = _classify(good_no_burst, a_pb)
     check("classifier: A_OUTPUT_LEVEL_OVERLAP when burst output precedes the last active victim", a_result["classification"] == swc.DIAGNOSTIC_CLASSIFICATION_A, str(a_result))
 
     # C: first burst output after the LAST of ALL victims finishes (max all end = 20000+19*10=20190).
-    c_pb = _synthetic_episode(episode=real_prefill_burst_ep, condition=base.BURST_CONDITION, active_indices=active_set, burst_first_tokens=[25000, 25001, 25002, 25003])
+    c_pb = _synthetic_episode(episode=real_prefill_burst_ep, condition=base.BURST_CONDITION, active_indices=active_set, burst_first_tokens=[25000, 25001])
     c_result = _classify(good_no_burst, c_pb)
     check("classifier: C_BURST_OUTPUT_AFTER_ALL_VICTIMS when burst output follows every victim", c_result["classification"] == swc.DIAGNOSTIC_CLASSIFICATION_C, str(c_result))
 
     # B: between the last active victim's completion and the last overall victim's completion.
-    b_pb = _synthetic_episode(episode=real_prefill_burst_ep, condition=base.BURST_CONDITION, active_indices=active_set, burst_first_tokens=[10000, 10001, 10002, 10003])
+    b_pb = _synthetic_episode(episode=real_prefill_burst_ep, condition=base.BURST_CONDITION, active_indices=active_set, burst_first_tokens=[10000, 10001])
     b_result = _classify(good_no_burst, b_pb)
     check("classifier: B_NO_OUTPUT_LEVEL_OVERLAP_WITH_FIRST_COHORT otherwise", b_result["classification"] == swc.DIAGNOSTIC_CLASSIFICATION_B, str(b_result))
 

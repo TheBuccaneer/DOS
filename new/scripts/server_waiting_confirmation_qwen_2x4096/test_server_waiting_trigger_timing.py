@@ -47,7 +47,7 @@ async def _run_fake_episode(*, k: int, condition: str, fast_indices: set[int], r
         server_max_num_seqs=k, trigger_after_decode_tokens=16, condition=condition, repeat=repeat,
         random_seed=1, episode_seed=2, victim_workload_seed=3, burst_workload_seed=4,
         victim_request_count=20, victim_input_len=64, victim_output_len=64, victim_temperature=0.0,
-        burst_parallel_requests=4, burst_input_len=128, burst_output_len=16, burst_temperature=0.0,
+        burst_parallel_requests=2, burst_input_len=4096, burst_output_len=16, burst_temperature=0.0,
         max_num_batched_tokens=2048, condition_first_in_block=condition,
         restart_server_before_block=1, block_id=f"unit_off0_k{k}_rep{repeat:02d}", order_in_block=1,
     )
@@ -350,7 +350,7 @@ def _fake_ep(*, k: int, condition: str) -> "swc.Episode":
         state_label="low", server_max_num_seqs=k, trigger_after_decode_tokens=16, condition=condition,
         repeat=1, random_seed=1, episode_seed=2, victim_workload_seed=3, burst_workload_seed=4,
         victim_request_count=20, victim_input_len=64, victim_output_len=64, victim_temperature=0.0,
-        burst_parallel_requests=4, burst_input_len=128, burst_output_len=16, burst_temperature=0.0,
+        burst_parallel_requests=2, burst_input_len=4096, burst_output_len=16, burst_temperature=0.0,
         max_num_batched_tokens=2048, condition_first_in_block=condition, restart_server_before_block=1,
         block_id="unit_block", order_in_block=1,
     )

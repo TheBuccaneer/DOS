@@ -86,7 +86,7 @@ def main() -> int:
         )
     check(
         "fingerprint matches the value recorded in run_server_waiting_confirmation.py",
-        fp_a == "sha256:7c5a6e411cc35f6c2d12c7d768434d67cbb58862c6435cd87d5db95672089557",
+        fp_a == "sha256:5f1104c2a1af90dec201c8965eb8936cd8dbb3b59f1b783f930a27be16fb2b2b",
         fp_a,
     )
 
