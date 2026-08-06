@@ -1,0 +1,53 @@
+Server-Waiting-Confirmation Diagnostic Pair Summary
+============================================================
+block_id: qwen_off12_k8_rep01
+schedule_fingerprint: sha256:5f1104c2a1af90dec201c8965eb8936cd8dbb3b59f1b783f930a27be16fb2b2b
+environment_fingerprint: sha256:1850c1b09774f85aac1004cb35a9992951478dc128b686d432b425673a45d171
+overall_status: block_complete
+start_utc: 2026-08-05T07:45:43.858958+00:00
+end_utc: 2026-08-05T08:07:37.506758+00:00
+
+integrity_manifest_filename: integrity_manifest.json
+integrity_scope: all files under this diagnostic output directory, except the integrity manifest file itself, as captured by a manifest built and verified AFTER this summary file was written
+integrity_finalization_required: True
+
+Classification: B_NO_OUTPUT_LEVEL_OVERLAP_WITH_FIRST_COHORT
+first_burst_output_ns: 13621348451239
+last_active_victim_completion_ns: 13466876803033
+last_all_victim_completion_ns: 13729846877141
+
+Interpretation notes:
+  - A is sufficient evidence of output-level overlap only.
+  - B does not exclude an earlier internal prefill start.
+  - C is strong configuration-specific evidence that burst output was deferred behind the pre-existing victim set.
+  - Client timestamps do not directly expose scheduler admission or internal prefill-start time.
+  - An active-victim ITL stall is an effect signal, not by itself admission proof.
+
+Paired descriptive effect summary (n=1 pair; no inferential CI):
+  burst/no_burst active median TPOT ratio: 0.9998906567096123
+  burst/no_burst active median max-ITL ratio: 1.0001408223565993
+  absolute active completion-delay difference (ms): 2106.8647144999995
+  [no_burst]
+    active_cohort_median_tpot_ms: 1487.4607903809524
+    active_cohort_median_max_itl_ms: 1491.1872309999999
+    active_cohort_median_completion_from_task_creation_ms: 110888.7977425
+    all_20_dispatched_before_trigger: True
+    all_20_streams_open_before_first_token: True
+    active_cohort_size: 8
+    noncohort_zero_tokens_at_trigger: True
+    logical_trigger_ns: 13068466555947
+    last_active_victim_completion_ns: 13139871431347
+    last_all_victim_completion_ns: 13353647292325
+    metrics_quality_status: corroborated
+  [prefill_burst]
+    active_cohort_median_tpot_ms: 1487.2981465238095
+    active_cohort_median_max_itl_ms: 1491.3972235
+    active_cohort_median_completion_from_task_creation_ms: 112995.662457
+    all_20_dispatched_before_trigger: True
+    all_20_streams_open_before_first_token: True
+    active_cohort_size: 8
+    noncohort_zero_tokens_at_trigger: True
+    logical_trigger_ns: 13395485565026
+    last_active_victim_completion_ns: 13466876803033
+    last_all_victim_completion_ns: 13729846877141
+    metrics_quality_status: corroborated
