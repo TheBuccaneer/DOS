@@ -1,0 +1,26 @@
+{
+  "created_utc": "2026-10-09T16:41:28.373100+00:00",
+  "mode": "read_only_metadata",
+  "experiment_ready": false,
+  "readiness_note": "Runtime cache and budget effectiveness require separate measured evidence.",
+  "python_executable": "/usr/bin/python3",
+  "python_version": "3.14.4",
+  "hostname": "rock-21m5002age",
+  "project_root": "/home/rock/projects/DOS",
+  "project_exists": true,
+  "package_versions": {
+    "vllm": null,
+    "torch": null,
+    "transformers": null,
+    "httpx": null,
+    "numpy": null,
+    "pandas": null,
+    "scipy": null
+  },
+  "gpu_metadata": {
+    "available": false,
+    "result": null
+  },
+  "installed_sources": {},
+  "local_model": null
+}

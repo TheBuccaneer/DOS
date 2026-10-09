@@ -1,0 +1,79 @@
+{
+  "design_version": "cache-isolation-budget-kv-draft-20261009",
+  "status": "DRAFT_NOT_EXECUTABLE",
+  "purpose": "Controlled defensive measurement of cache isolation and scheduling policy interactions",
+  "runtime": "Separate measurement computer; setup and experiments will be reviewed together when the user is there.",
+  "cpu_weight_offload_gb": 0,
+  "cells": [
+    {
+      "cell_id": "C01",
+      "cache_policy": "shared_prefix_reuse",
+      "budget_level": "small",
+      "kv_capacity_level": "sufficient"
+    },
+    {
+      "cell_id": "C02",
+      "cache_policy": "shared_prefix_reuse",
+      "budget_level": "small",
+      "kv_capacity_level": "limited"
+    },
+    {
+      "cell_id": "C03",
+      "cache_policy": "shared_prefix_reuse",
+      "budget_level": "large",
+      "kv_capacity_level": "sufficient"
+    },
+    {
+      "cell_id": "C04",
+      "cache_policy": "shared_prefix_reuse",
+      "budget_level": "large",
+      "kv_capacity_level": "limited"
+    },
+    {
+      "cell_id": "C05",
+      "cache_policy": "tenant_isolated",
+      "budget_level": "small",
+      "kv_capacity_level": "sufficient"
+    },
+    {
+      "cell_id": "C06",
+      "cache_policy": "tenant_isolated",
+      "budget_level": "small",
+      "kv_capacity_level": "limited"
+    },
+    {
+      "cell_id": "C07",
+      "cache_policy": "tenant_isolated",
+      "budget_level": "large",
+      "kv_capacity_level": "sufficient"
+    },
+    {
+      "cell_id": "C08",
+      "cache_policy": "tenant_isolated",
+      "budget_level": "large",
+      "kv_capacity_level": "limited"
+    }
+  ],
+  "unresolved": {
+    "measurement_host": null,
+    "project_path_on_measurement_host": null,
+    "python_environment": null,
+    "model_id_and_revision": null,
+    "effective_scheduler_class": null,
+    "effective_budget_values": null,
+    "kv_capacity_values_and_equality_evidence": null,
+    "budget_effectiveness_evidence": null,
+    "cache_policy_effectiveness_evidence": null,
+    "cohort_request_identities": null,
+    "primary_token_index": null,
+    "observation_origin_rule": null,
+    "repetitions_and_precision_target": null,
+    "practical_effect_threshold": null,
+    "failure_and_censoring_rule": null
+  },
+  "primary_endpoint_proposal": "Elapsed client-observed time until every predeclared decode cohort member reaches the fixed later token index",
+  "pairing": "Reference and additional-workload observations; identical decode identities and offered token work",
+  "order": "Counterbalanced within pairs; account for whole repeated blocks in uncertainty estimates",
+  "no_result_claim": true,
+  "handoff": "Copy this preparation folder to the measurement computer. No remote connection is required during preparation."
+}
