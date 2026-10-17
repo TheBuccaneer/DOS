@@ -1,0 +1,18 @@
+{
+  "schema_version": "dos-cache-isolation-gate-v2",
+  "predeclared_utc": null,
+  "model_revision": null,
+  "cohort_indices": null,
+  "token_index_1based": null,
+  "origin_field": "trigger.trigger_perf_ns",
+  "cohort_aggregation": "max_receipt_time_until_all_members_reach_index",
+  "cpu_offload_gb": 0,
+  "budget_tokens": {"small": null, "large": null},
+  "kv_capacity_tokens": {"sufficient": null, "near": null},
+  "workload_sha256": null,
+  "warmup_and_reset_protocol": null,
+  "independent_replicate_definition": null,
+  "precision_target": null,
+  "failure_policy": "retain_invalid_no_numeric",
+  "runtime_gate_passed": false
+}

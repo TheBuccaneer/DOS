@@ -1,0 +1,55 @@
+test_bad_json_does_not_abort_other_files (test_gate_tools.AuditTests.test_bad_json_does_not_abort_other_files) ... ok
+test_both_empty_not_matched (test_gate_tools.AuditTests.test_both_empty_not_matched) ... ok
+test_both_missing_identity_not_matched (test_gate_tools.AuditTests.test_both_missing_identity_not_matched) ... ok
+test_duplicate_request_does_not_crash (test_gate_tools.AuditTests.test_duplicate_request_does_not_crash) ... ok
+test_failed_request_fails_audit (test_gate_tools.AuditTests.test_failed_request_fails_audit) ... ok
+test_missing_schema_does_not_crash (test_gate_tools.AuditTests.test_missing_schema_does_not_crash) ... ok
+test_valid_pair (test_gate_tools.AuditTests.test_valid_pair) ... ok
+test_cache_smoke_injects_salt_and_preserves_original_payload (test_gate_tools.ObservationTests.test_cache_smoke_injects_salt_and_preserves_original_payload) ... ok
+test_counter_delta (test_gate_tools.ObservationTests.test_counter_delta) ... ok
+test_full_sampler_preserves_posttrigger_samples_and_snapshot (test_gate_tools.ObservationTests.test_full_sampler_preserves_posttrigger_samples_and_snapshot) ... ok
+test_iteration_counts_not_elapsed_fingerprint (test_gate_tools.ObservationTests.test_iteration_counts_not_elapsed_fingerprint) ... ok
+test_iteration_gap_detected (test_gate_tools.ObservationTests.test_iteration_gap_detected) ... ok
+test_metric_labels_and_counter_reset (test_gate_tools.ObservationTests.test_metric_labels_and_counter_reset) ... ok
+test_metrics_url_local_only (test_gate_tools.ObservationTests.test_metrics_url_local_only) ... ok
+test_missing_counter_not_zero (test_gate_tools.ObservationTests.test_missing_counter_not_zero) ... ok
+test_missing_iteration_logging_fails (test_gate_tools.ObservationTests.test_missing_iteration_logging_fails) ... ok
+test_nonfinite_rejected (test_gate_tools.ObservationTests.test_nonfinite_rejected) ... ok
+test_recorder_lifecycle_preserves_http_errors_with_mock_transport (test_gate_tools.ObservationTests.test_recorder_lifecycle_preserves_http_errors_with_mock_transport) ... ok
+test_sampler_stop_failure_still_persists (test_gate_tools.ObservationTests.test_sampler_stop_failure_still_persists) ... ok
+test_actual_shell_preserves_start_parameters (test_gate_tools.StarterTests.test_actual_shell_preserves_start_parameters) ... ok
+test_capacity_mismatch (test_gate_tools.StatisticsTests.test_capacity_mismatch) ... ok
+test_duplicate_condition_fails (test_gate_tools.StatisticsTests.test_duplicate_condition_fails) ... ok
+test_effects_and_reversal_conditions (test_gate_tools.StatisticsTests.test_effects_and_reversal_conditions) ... ok
+test_endpoint_table_adapter_retains_failed_requests (test_gate_tools.StatisticsTests.test_endpoint_table_adapter_retains_failed_requests) ... ok
+test_invalid_endpoint_not_excluded (test_gate_tools.StatisticsTests.test_invalid_endpoint_not_excluded) ... ok
+test_missing_cell_fails_without_exclusion (test_gate_tools.StatisticsTests.test_missing_cell_fails_without_exclusion) ... ok
+test_missing_common_field (test_gate_tools.StatisticsTests.test_missing_common_field) ... ok
+test_positive_gamma_does_not_imply_reversal (test_gate_tools.StatisticsTests.test_positive_gamma_does_not_imply_reversal) ... ok
+test_template_cannot_pass_gate (test_gate_tools.StatisticsTests.test_template_cannot_pass_gate) ... ok
+test_duplicate_id (test_gate_tools.TraceTests.test_duplicate_id) ... ok
+test_empty_cohort_rejected (test_gate_tools.TraceTests.test_empty_cohort_rejected) ... ok
+test_empty_event_outside_bounds (test_gate_tools.TraceTests.test_empty_event_outside_bounds) ... ok
+test_endpoint_grouped_tokens (test_gate_tools.TraceTests.test_endpoint_grouped_tokens) ... ok
+test_failed_request_rejected (test_gate_tools.TraceTests.test_failed_request_rejected) ... ok
+test_failed_request_without_sse_has_semantic_status (test_gate_tools.TraceTests.test_failed_request_without_sse_has_semantic_status) ... ok
+test_missing_identity_each_field (test_gate_tools.TraceTests.test_missing_identity_each_field) ... ok
+test_missing_member_not_dropped (test_gate_tools.TraceTests.test_missing_member_not_dropped) ... ok
+test_preorigin_target (test_gate_tools.TraceTests.test_preorigin_target) ... ok
+test_unreached_target (test_gate_tools.TraceTests.test_unreached_target) ... ok
+test_valid_stream (test_gate_tools.TraceTests.test_valid_stream) ... ok
+test_duplicate_request_identity_is_rejected (test_primary_endpoint_previous.EndpointTests.test_duplicate_request_identity_is_rejected) ... ok
+test_failed_episode_has_no_primary_value (test_primary_endpoint_previous.EndpointTests.test_failed_episode_has_no_primary_value) ... ok
+test_grouped_event_and_slowest_member (test_primary_endpoint_previous.EndpointTests.test_grouped_event_and_slowest_member) ... ok
+test_missing_member_does_not_shrink_cohort (test_primary_endpoint_previous.EndpointTests.test_missing_member_does_not_shrink_cohort) ... ok
+test_nonmonotonic_trace_is_rejected (test_primary_endpoint_previous.EndpointTests.test_nonmonotonic_trace_is_rejected) ... ok
+test_target_before_origin_is_invalid (test_primary_endpoint_previous.EndpointTests.test_target_before_origin_is_invalid) ... ok
+test_token_reconstruction_mismatch_is_rejected (test_primary_endpoint_previous.EndpointTests.test_token_reconstruction_mismatch_is_rejected) ... ok
+test_unreached_target_is_retained (test_primary_endpoint_previous.EndpointTests.test_unreached_target_is_retained) ... ok
+
+----------------------------------------------------------------------
+Ran 48 tests in 0.191s
+
+OK
+Pruefberichte: /tmp/dos-icissp-preflight.LLrOsuG7
+Offline checks do not establish a GPU/runtime gate pass.

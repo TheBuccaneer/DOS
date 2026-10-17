@@ -1,0 +1,872 @@
+                                         Cascade: Exploiting SLO-Aware latency budget for
+                                           fair and high goodput LLM inference serving
+                                                  Muhammad Adnan† ∗     Rohan Mahapatra‡        Prashant Nair†         Daniel Berger‡
+                                                            Pantea Zardoshti⋄      Rodrigo Fonseca‡         Esha Choukse‡
+                                            †                                                        ‡                                                 ⋄
+                                                The University of British Columbia                       Microsoft Azure Research                          NVIDIA
+
+
+                                            Abstract—The reasoning and agentic capabilities of large
+                                        language models have expanded the range of applications they
+                                        support, from short interactive exchanges to long, compute-
+                                        heavy requests. LLM serving platforms today define response-
+                                        latency service-level objectives, even though requests within the
+                                        same service can differ by orders of magnitude in input length,
+                                        generation length, execution cost, and the availability of reusable
+                                        KV-cache state. As a result, requests governed by the same
+                                        service level objective have different urgency: after accounting
+
+
+
+
+arXiv:2608.06557v1 [cs.DC] 6 Aug 2026
+                                        for the time required to execute them, some have substantial
+                                        latency headroom while others have almost none. We define
+                                        this headroom—the difference between a request’s service level
+                                        objective and its predicted remaining service time—as its per-
+                                        request latency budget.
+                                            We present C ASCADE, an LLM serving system that estimates                Fig. 1: Goodput and fairness trade-offs across scheduling
+                                        and continuously updates this budget from request characteris-               policies. We compare normalized goodput relative to FCFS
+                                        tics, KV-cache state, and current system load. Unlike prior SLO-             with cross-class fairness, measured using Jain’s Fairness Index
+                                        aware schedulers that use deadlines to govern request ordering               over input-length classes [17], under a mixed production
+                                        alone, C ASCADE uses a single per-request budget to jointly                  trace [36]. C ASCADE improves SLO-satisfied goodput while
+                                        coordinate request scheduling and KV-cache management across
+                                        the memory hierarchy. Its scheduler prioritizes requests with                preserving fairness across request sizes.
+                                        little remaining budget, while its memory manager uses the
+                                        same budget to decide whether non-resident KV state should be
+                                        restored or prefetched from a deeper tier, retained in HBM, or
+                                        recomputed. By directing queueing and data-movement overhead                 Their cost also depends on runtime state. For instance, a
+                                        toward requests that can absorb it, C ASCADE improves SLO-                   request may reuse the Key-Value (KV) state already resident in
+                                        satisfied goodput while preserving fairness across heterogeneous             high-bandwidth memory (HBM), retrieve it from CPU DRAM
+                                        request classes. On production traces across three large language            or NVMe, or recompute the corresponding prefix. Moreover,
+                                        models, C ASCADE improves goodput by up to 2.4× and reduces
+                                        SLO violations by 40% relative to the default vLLM first-come,
+                                                                                                                     output length is unknown when a request arrives, and reason-
+                                        first-served scheduler.                                                      ing or agentic requests may generate substantially more work
+                                                                                                                     than their inputs suggest. Thus, requests governed by the same
+                                                                I. I NTRODUCTION                                     service-level SLO can have very different execution costs and,
+                                           Production LLM serving increasingly multiplexes heteroge-                 therefore, very different urgency.
+                                        neous applications [8], [14] over shared model deployments. A                   Model execution is also only one component of response
+                                        single cluster may concurrently serve interactive chat, coding               latency. A request may wait in an admission queue, contend
+                                        assistants, search, tool-using agents, and multi-step reasoning              with active prefill and decode operations, and stall while
+                                        workloads. While consolidating these services can help im-                   reusable KV state is restored into HBM. Existing systems [14],
+                                        prove the utilization of expensive accelerators, it also places              [26] address these delays through largely independent mecha-
+                                        requests with widely different execution demands on the same                 nisms. vLLM [20], for example, combines continuous batching
+                                        hardware. Thus, providers need to balance two goals; they                    and chunked prefill [3], [40] with first-come, first-served
+                                        must satisfy the latency service level objective (SLO) of each               (FCFS) scheduling. FCFS preserves arrival order, but allows
+                                        service while keeping shared accelerators efficiently utilized.              expensive requests to create severe head-of-line blocking.
+                                           Although the SLO is defined at the service level, the                     Shortest-job-first (SJF) scheduling reduces such blocking by
+                                        work required to serve a request is inherently request-specific.             advancing shorter requests, but can systematically deprioritize
+                                        Requests within the same service can differ substantially in                 long-context code and reasoning workloads. Earliest-deadline-
+                                        prompt length, generation length, and model execution time.                  first (EDF) [24] scheduling incorporates service deadlines,
+                                                                                                                     but cannot distinguish requests that share a deadline while
+                                          ∗ Work done while interning at Microsoft Azure Research.                   requiring substantially different amounts of remaining work.
+   KV-cache management is typically handled separately from                     Chat                                 Agent
+request scheduling. Prefix-caching systems extend effective                     Code
+                                                                                            Global Scheduler         Calls
+KV capacity by retaining reusable state across requests and           Users                                                  Agents
+spilling it from HBM into deeper memory tiers [25], [31],
+                                                                                        Fairness   Goodput   SLO
+[43]. These systems commonly decide what to retain, evict,
+or restore based on cache capacity, reuse probability, and
+transfer cost. Such criteria indicate whether a cached object is                                                     ….
+beneficial in aggregate, but not whether the request that reuses
+it can tolerate the resulting delay. A deep-tier KV-cache hit
+may therefore avoid expensive prefill computation while still                       Serving Instances in a Cluster
+causing an SLO violation because restoring the state takes         Fig. 2: Workload heterogeneity in multi-instance LLM clus-
+longer than the request can afford.                                ters. Interactive chat, agentic tool calls, code generation,
+   We observe that scheduling and KV-cache management              and multi-step reasoning issue requests with widely varying
+consume a common resource. The difference between a re-            execution demands under service-specific latency SLOs.
+quest’s SLO and its predicted remaining service time is a
+per-request latency budget. Queueing, contention, preemption,
+and KV-cache movement all spend from this same budget.             ing requests [36] across Qwen-2.5-72B, Llama-3-70B, and
+Because requests are heterogeneous, the same absolute delay        Llama-3-405B. As Figure 1 shows, C ASCADE improves SLO-
+may consume only a small fraction of one request’s budget          satisfied throughput (goodput) while maintaining high fairness
+while causing another request to violate its SLO. A serving        across request classes. Overall, our evaluations show that
+system can therefore reduce violations not only by decreasing      C ASCADE improves goodput by up to 2.4× and reduces
+total overhead, but also by directing unavoidable overhead         SLO violations by 40% relative to the default vLLM FCFS
+toward requests with budget to spare and protecting requests       scheduler.
+that can tolerate little additional delay.                            Summary. This paper makes the following contributions:
+   Our work. We present C ASCADE, an LLM serving system               • We identify the per-request latency budget as the common
+that makes the per-request latency budget an explicit runtime            resource consumed by request scheduling and KV-cache
+quantity to coordinate request scheduling with KV-cache man-             movement. We show why service deadlines, request size,
+agement. C ASCADE predicts each request’s remaining service              and cache state alone do not capture how much additional
+time using its input length, predicted output length, available          serving overhead a request can tolerate.
+prefix KV state, and current system load. It then derives             • We present C ASCADE , an LLM serving system that
+the request’s remaining budget from its service-level SLO                maintains and updates a per-request latency budget and
+and continuously updates the estimate as the request waits,              uses it to coordinate request ordering with KV restoration,
+executes, and encounters changes in system and cache state.              prefetching, placement, and recomputation across the
+   C ASCADE’s scheduler prioritizes requests based on their re-          memory hierarchy.
+maining budget rather than by arrival order, deadline, or input       • We design a budget-based scheduler that reduces head-of-
+size. Requests with little remaining budget advance ahead of             line blocking while preserving fairness across heteroge-
+requests that can safely tolerate added delays. This reduces             neous request sizes, without systematically starving long-
+head-of-line blocking without assuming that shorter requests             context requests.
+are always more urgent and, unlike size-based scheduling, does        • We evaluate C ASCADE on production traces across three
+not systematically deprioritize long-context requests.                   LLMs and show that it improves goodput by up to 2.4×
+   The same budget governs KV-cache decisions across HBM,                and reduces SLO violations by 40% relative to vLLM’s
+DRAM, and NVMe. When reusable KV state is not resident                   default FCFS scheduler.
+in HBM, C ASCADE compares the cost of restoring the state
+with both the request’s remaining budget and the cost of                                 II. BACKGROUND
+recomputation. It restores, or prefetches state from a deeper
+tier only when the request can absorb the transfer delay;          A. LLM Inference
+otherwise, it recomputes the corresponding prefix. The budget          Large Language Model (LLM) inference executes in two
+also informs which KV state should be retained or placed in        asymmetric phases that govern system-level bottlenecks: Pre-
+deeper tiers. Because scheduling and KV movement draw on           fill Phase is when the model processes the entire input prompt
+the same budget, C ASCADE prevents either subsystem from           in a single parallel pass to generate the initial Key-Value (KV)
+consuming latency headroom required by the other.                  cache. This phase is highly compute-intensive, dominated
+   We implement C ASCADE using the vLLM [20] serving               by dense matrix multiplications. Decode Phase is when the
+engine and extend Vidur [2] to model cluster-scale schedul-        model auto-regressively generates output tokens one-by-one,
+ing and multi-tier KV movement using profiles collected on         appending each new token’s keys and values to the active KV
+NVIDIA GB200 NVL72 hardware. We evaluate production                cache. This sequential, token-by-token execution is heavily
+traces containing ChatBot, Tool&Agent, Coder, and Reason-          memory-bandwidth bound.
+                                                    Replica
+                                                     ServingScheduler
+                                                    Replica Scheduler
+                                                             Engine                                             Replica
+                                                                                                                 ServingScheduler
+                                                                                                                Replica Scheduler
+                                                                                                                         Engine
+                           Global
+    Tool&                Scheduler
+    Agent
+
+                                         GPU 1           GPU 2           GPU 3            GPU 4      GPU 1           GPU 2           GPU 3           GPU 4
+                                                                                                     GPU 1
+   ChatBot
+                          queries         HBM
+                                           NVLink
+                                                         HBM             HBM              HBM
+                                                                                     NVLink
+                                                                                                     HBM
+                                                                                                     HBM
+                                                                                                       NVLink
+                                                                                                                     HBM             HBM             HBM
+                                                                                                                                                NVLink
+                 Users                      C2C                                       C2C               C2C                                      C2C
+
+     Code                                        CPU 1             GDS            CPU 2                      CPU 1             GDS           CPU 2
+
+
+                                                 DRAM                            DRAM                        DRAM                            DRAM
+
+                                                                 NVMe                                                        NVMe
+  Reasoning
+
+Fig. 3: System view of LLM Serving system. User requests encompassing multiple tasks are routed to an instance within the
+cluster via the global scheduler. Each instance processes the requests through the serving engine. All serving instances’ GPUs
+can communicate with each other through 1 multi-node NVLink (MNNVL). Each GPU can communicate with respective
+CPU DRAM through 2 NVLink-C2C while SSD can be reached via 3 GPU-Direct Storage protocol via PCIe Gen5.
+
+
+      a) Service Level Objectives (SLO): Service providers de-                   to specific instances based on real-time load balancing and
+fine phase-specific Service Level Objectives (SLOs) to main-                     localized HBM prefix cache affinity.
+tain user interactivity across distinct execution phases. The pre-                     a) Prefill-Decode Co-location: Throughout this paper,
+fill phase is governed by Time to First Token (TTFT)—the la-                     we focus on co-located LLM serving, where prefill and
+tency between request arrival and first token generation—while                   decode execution share the same serving instances. Although
+the decode phase is bounded by Time Per Output Token                             prefill-decode (PD) disaggregation has recently emerged to
+(TPOT), the latency between successive tokens. In multi-tenant                   isolate resource contention across specialized instances [16],
+datacenters, these SLOs must be met across heterogeneous                         [29], [44], PD co-location remains an important deployment
+workloads with highly varied context and generation lengths,                     paradigm in production environments [39]. Co-located ar-
+including short-context API calls, multi-turn ChatBot conver-                    chitectures eliminate complex instance-role management, and
+sations, long-context Code generation, and deep Reasoning                        avoid the high network transfer overheads of migrating KV
+tasks. Consequently, the primary objective of datacenter-scale                   caches across physical nodes [21], [22]. Our findings and
+LLM serving is to maximize goodput – defined as the volume                       policies are generally orthogonal to the choice of co-location
+of request throughput that strictly adheres to these interactive                 and the disaggregation of prefill and decode.
+TTFT and TPOT SLO thresholds.                                                          b) Serving Engine and Instance: An instance is the
+      b) Prefix Caching: Beyond intra-request reuse, prefix                      minimum hardware unit that serves requests and host one
+caching enables KV cache sharing across distinct requests                        complete copy of the LLM’s parameters, potentially spanning
+that share common token sequences. For instance, these could                     multiple GPUs to accomodate model parameters on GPU
+be system prompts, Retrieval-Augmented Generation (RAG)                          HBM and serving engines mostly used engines like vLLM [20]
+context, or shared code repositories. In multi-turn interactive                  and SGLang [43] once an incoming request is pushed into the
+conversations, prefix caching avoids redundant context compu-                    queue of the instance, queued request is batch and executed
+tation by storing the concatenated inputs and outputs of previ-                  efficiently on the same instance utilizing chunked prefills [3].
+ous turns in deeper memory tiers for subsequent requests [25].                   By partitioning resource-intensive prefill requests into equal-
+By serving shared prefixes directly from memory rather than                      sized chunks, the engine co-schedules prefill chunks alongside
+recomputing them, this technique shifts the bottleneck of                        active decode steps without inducing execution pauses. This
+identical context segments from compute-intensive prefill to                     approach eliminates scheduling bubbles, balancing the trade-
+memory retrieval. This helps to substantially reduce TTFT and                    off between serving latency and system throughput.
+increase overall serving throughput.
+                                                                                       c) Multi-Tier KV Cache Memory Hierarchy: To satisfy
+                                                                                 stringent latency SLOs, traditional prefix KV reuse mecha-
+B. Datacenter-Scale Serving
+                                                                                 nisms [12], [34], [43] have primarily relied on local GPU
+   As shown in Figure 3, datacenter-scale serving systems                        HBM and host CPU DRAM. However, emerging long-context
+deploy multiple model instances to handle diverse user work-                     workloads [15], such as RAG and multi-step coding agents,
+loads. A centralized Global Scheduler routes incoming queries                    rapidly exceed local memory capacity, driving the adoption of
+Fig. 4: Impact of deep-tier KV retrieval on TTFT for a                     Fig. 5: Impact of Head-of-Line (HOL) blocking under FCFS
+64k context synthetic request (Qwen-2.5-72B). Fetching prefix              scheduling for mixed trace with same distribution of all
+state from NVMe reduces prefill compute but introduces high                workloads. FCFS queuing introduces severe HOL blocking
+transfer latency, turning naive deep-tier hits into TTFT SLO               delays for arriving requests, rapidly consuming their latency
+violations.                                                                headroom. In contrast, evaluating requests without HOL delay
+                                                                           reveals substantial intrinsic budget that can be exploited for
+                                                                           SLO-compliant KV prefetching and request scheduling.
+global, multi-tier KV memory pools [41] that extend across
+NVMe storage and disaggregated network memory [25], [31].
+Modern AI cluster architectures facilitate this transition by              For each bin i ∈ N , we define its SLO attainment rate as
+incorporating ultra-high-bandwidth intra- and inter-node in-               Ai = max(0, 100−Vi ), where Vi represents the SLO violation
+terconnects to accelerate cross-tier state movement. For in-               rate of class i. The overall fairness index J is formulated as:
+stance, rack-scale architectures like NVIDIA’s GB200/GB300                                               Pn         2
+NVL72 [28] feature Multi-Node NVLink (MNNVL) [27]                                                       ( i=1 Ai )
+                                                                                                  J = Pn                               (1)
+across all 18 compute nodes alongside NVLink-C2C for direct                                              n i=1 A2i
+host-to-device memory access. Figure 3 illustrates a multi-                The index spans J ∈ [ n1 , 1.0], where J = 1.0 represents ideal
+instance LLM serving system leveraging this deep memory                    fairness (identical SLO attainment across all context length
+hierarchy, pooled KV storage, and high-bandwidth intercon-                 bins), whereas J = n1 indicates maximum unfairness, where a
+nect fabric.                                                               single bin monopolizes all successful completions while others
+                         III. M OTIVATION                                  suffer total non-compliance.
+                                                                           Takeaway 1. A high overall SLO attainment can still hide
+    A request’s SLO must cover not only model execution
+                                                                           starved request classes. A scheduler can meet its SLO for
+but also the queueing, batching, and KV cache retrieval that
+                                                                           most requests while failing nearly all long-context requests,
+serving adds on top of it. The room an SLO leaves for
+                                                                           because short requests dominate the count. Measuring SLO
+this overhead is the request’s latency budget. Current serving
+                                                                           attainment separately for each prompt-length range exposes
+systems do not track this budget: they let queueing consume
+                                                                           this gap, which a single cluster-wide number conceals.
+it, spend it on KV cache transfers that exceed it, and report
+aggregate SLO attainment that hides which requests run out of
+                                                                           B. The Deep-Tier KV Fetch Dilemma
+it. In this section, we characterize and examine each of these
+effects in turn.                                                              While extending prefix KV caching to deep memory tiers
+                                                                           (e.g., NVMe drives and disaggregated storage) expands cache
+A. Structural Fairness in Multi-Class Request Scheduling                   capacity for long-context workloads, it introduces a funda-
+   While policies such as Shortest Job First (SJF) minimize                mental tension between prefill compute savings and state
+total SLO violations by prioritizing short-context queries, they           restoration latency. Figure 4 shows this tension for a 64k-
+introduce severe starvation for long-context requests (refer               token prefix on Qwen-2.5-72B. Reusing the prefix from a high-
+Figure 12). A single cluster-wide SLO number hides this                    speed tier (HBM or DRAM) reduces GPU prefill compute by
+bias, because the many short requests that succeed outweigh                up to 75% with negligible transfer cost, which leaves most
+the long-context requests that fail, such as coding agents and             of the TTFT SLO unspent. Retrieving the same prefix from
+multi-turn reasoning. Therefore, a robust scheduler must main-             NVMe, however, adds transfer delay along the NVMe to CPU
+tain cross-class fairness, ensuring equitable service quality              DRAM to GPU path that exceeds the TTFT SLO, even with
+across all context lengths.                                                LMCache batched prefetching [25], an effect also reported
+   To quantify cross-class fairness, we employ Jain’s Fairness             in prior work [32]. A runtime that admits every deep-tier hit
+Index (JFI) [17] over request context length bins. Specifically,           therefore converts some cache hits into SLO violations.
+we partition incoming traffic into six input sequence length               Takeaway 2. Deep-tier prefix caching requires budget-aware
+percentile ranges: p0 –p50 , p50 –p75 , p75 –p90 , p90 –p95 , p95 –p99 ,   restore admission. To safely harness disaggregated KV mem-
+and p99+ . Let N denote the set of percentile bins (n = |N |).             ory pools, serving schedulers must dynamically assess whether
+a request’s remaining latency budget can absorb transfer                                                                               Scheduling Queue - Tier 1
+                                                                                                                                           (Positive Budget)
+delays, falling back to GPU prefill recomputation whenever          SLOs
+transfer overhead threatens SLO compliance.                                         TTFT                          Latency
+                                                                                  Estimator                       Budget
+                                                                              Prefix KV Hit
+C. Reclaiming Intrinsic Request Latency Budget                     requests
+                                                                                HBM: 4k         Actual
+                                                                                                             Scheduled
+                                                                                                                            Reorder    Scheduling Queue - Tier 2
+                                                                                                             during idle                  (Negative Budget)
+                                                                               DRAM: 1k          Load           time
+   Conventional LLM serving schedulers rely on First-Come-                     NVMe: 20k
+First-Served (FCFS) or size-agnostic queuing, subjecting ar-                                                                                 Remaining
+riving requests to severe Head-of-Line (HOL) blocking delays.                                                                                 Budget
+                                                                                                                             Prefix KV Hit
+As shown in Figure 5 (left), FCFS queuing introduces massive        KV Memory Pool
+                                                                                                                               HBM: 4k
+                                                                                                                              DRAM: 1k       Prefetch
+delays—frequently exceeding tens of seconds—that rapidly                                                                      NVMe: 5k          KV
+exhaust a request’s Service Level Objective (SLO) headroom                                     Serving Instance
+
+before GPU execution even commences. However, evaluating
+these requests in isolation reveals a crucial opportunity: re-                                Fig. 6: Overview of Cascade.
+quests inherently possess substantial latency budget, defined
+as the margin between a request’s target Time-To-First-Token
+(TTFT) SLO and its intrinsic GPU prefill execution time               Figure 6 shows the overall architecture of the C ASCADE
+(Budget = TTFTSLO − Tprefill ). As shown in Figure 5 (right),      LLM serving system. Upon arrival at a serving node, an in-
+unblocked requests across Qwen-2.5-72B, Llama-3-70B, and           coming request is evaluated by the 1 TTFT Estimator, which
+Llama-3-405B exhibit intrinsic latency budget ranging from         models prefill latency using active queue state and multi-tier
+2 seconds to over 20 seconds. Rather than allowing HOL             prefix KV hit information. The 2 Latency Budget Engine
+queuing to squander this budget, an efficient serving runtime      then computes the request’s budget as the margin between its
+should explicitly model and exploit per-request latency budget     class SLO and predicted TTFT. Requests possessing positive
+– reordering execution queues and orchestrating deep-tier KV       budgets join the Tier-1 scheduling queue. Requests yielding
+state transfers without violating downstream SLO contracts.        negative budgets are demoted to a Tier-2 queue rather than
+Takeaway 3. SLO violations stem from HOL blocking, not a           being dropped outright. To prevent Tier-2 starvation under
+lack of intrinsic budget. Requests across model scales possess     sustained overload, C ASCADE reserves a fixed fraction of each
+multi-second latency budget (TTFTSLO − Tprefill ) that legacy      batch for Tier-2 requests and re-estimates their budget as load
+FCFS schedulers waste in queues; available budget-aware            falls, promoting a request back to Tier-1 once its budget turns
+scheduling reclaims this headroom to coordinate request dis-       positive. Across chunked iteration cycles ( 3 , 4 ), C ASCADE
+patching and deep-tier KV cache management.                        continuously updates remaining request budgets, prioritizing
+                                                                   requests with the tightest remaining budget while prefetching
+    IV. C ASCADE : D EADLINE D RIVEN LLM S ERVING                  required prefix KV states within their budget bounds. Below,
+                                                                   we formalize the serving problem before detailing each system
+   State-of-the-art LLM serving schedulers rely on rigid, static   component.
+policies that fail to adapt to dynamic workload fluctuations
+and system overload. When cluster utilization spikes, legacy
+                                                                   A. Problem Formulation
+schedulers either selectively favor short requests at the ex-
+pense of long-context workloads or induce severe Head-of-             We consider an LLM serving cluster servicing heteroge-
+Line (HOL) blocking—driving up queuing delays and trigger-         neous workloads categorized into a set of request classes C
+ing widespread Time-To-First-Token (TTFT) SLO violations.          (e.g., interactive chat, agentic tool use, code generation, and
+Simultaneously, naive prefix KV cache retrieval introduces         complex reasoning). Each class c ∈ C is bound by a class-level
+exposed transfer overheads that stall prefill execution and        Service-Level Objective target Sc = (TTFTtargetc  , TPOTtarget
+                                                                                                                             c    ),
+delay co-located decode batches, degrading Time-Per-Output-        defining strict thresholds for Time-To-First-Token (TTFT) and
+Token (TPOT). Under GPU HBM exhaustion, standard tail-             Time-Per-Output-Token (TPOT). We deliberately define SLO
+preemption heuristics further compound latency by indiscrim-       targets at the workload class level rather than per individual
+inately evicting recently scheduled requests.                      request, as intra-class variance in prompt and generation
+   Resolving these intertwined bottlenecks requires a request-     lengths renders request-specific targets noisy and impractical
+aware serving system that holistically coordinates request         to enforce online.
+dispatch, state movement, and context preemption. Based on            To support large-scale prefix KV reuse, the system aggre-
+these observations, we introduce C ASCADE, an adaptive LLM         gates cluster memory into a disaggregated hierarchy denoted
+serving system centered around per-request latency budgets.        by tiers K = {0, 1, 2}, corresponding to GPU HBM (0,
+C ASCADE defines a request’s latency budget as the difference      execution tier), host CPU DRAM (1, warm capacity tier), and
+between its overall SLO target and its intrinsic execution time,   local/networked NVMe storage (2, deep capacity tier). State
+safely co-allocating this budget across queuing delays, prefix     movement and placement operate on discrete KV blocks b of
+KV transfers, and preemption decisions to preserve strict SLA      size mb bytes, where each block belongs to a request class
+compliance while maximizing cluster goodput.                       c(b) ∈ C. Retrieving a block b from tier k ∈ {1, 2} into GPU
+execution memory introduces a transfer latency δk→0 (mb )
+governed by interconnect bandwidth constraints.
+     a) Optimization Objective: Given active request set R,
+our goal is to co-design the request scheduling policy σ
+(dispatch order and batching) alongside the prefix retrieval
+policy ϕ (tier restoration decisions). We formulate this as
+a multi-objective optimization problem to maximize overall
+cluster goodput while enforcing both TTFT and TPOT SLO
+compliance:
+
+            X                                                          Fig. 7: Validation of estimated latency (Lr ) against actual
+                        TTFT            TPOT
+   max       I TTFTr ≤ Sc(r) ∧ TPOTr ≤ Sc(r)                             execution TTFT (Tprefill ) on Qwen-2.5-72B. Performance is
+    σ,ϕ
+            r∈R
+             X                                                           evaluated across the Mixed trace using Mean Absolute Error
+     s.t.           mb ≤ MGPU ,         ∀t,                       (2)    (MAE) and Pearson correlation (R).
+            b∈HBM
+            BWk→0 (t) ≤ Bk ,         ∀k ∈ {1, 2}
+                                                                            Figure 7 illustrates the prediction fidelity of our estimator,
+   where I(·) is an indicator function evaluating to 1 when both         reporting Mean Absolute Error (MAE) and correlation (R)
+latency objectives are met, and MGPU and Bk represent the                across individual requests in the Mixed production trace on
+physical memory capacity and interconnect transfer bandwidth             Qwen-2.5-72B across the four operational regimes. Once the
+bounds, respectively.                                                    estimated TTFT Lr is determined, C ASCADE derives the
+                                                                         request’s latency budget Br relative to its target Service Level
+B. TTFT Latency Estimator and Latency Budget                                           TTFT
+                                                                         Objective (Sc(r)   ):
+    To accurately compute available request budgets, C ASCADE                                  TTFT
+                                                                                         Br = Sc(r) − Lr ,        r∈R                 (4)
+incorporates a TTFT Latency Estimator that projects pre-
+fill latency based on a request’s context length, prefix KV              This budget Br is attached to the request as metadata and
+cache hit profile across the memory pool, and the serving                governs its admission into C ASCADE’s dual-tier queuing
+instance’s active load (specifically, active decode-phase re-            framework. Requests yielding a positive budget (Br > 0) are
+quests). Using runtime system state, an offline-trained predic-          admitted to the primary Tier-1 queue for priority dispatching.
+tive model—calibrated via execution profiling and simulation             Conversely, requests yielding a negative budget (Br ≤ 0)
+frameworks such as Vidur [2]—evaluates prefill execution                 indicate an imminent SLO violation under current cluster
+                                                recomp
+under four operational regimes: (1) Lzero  r           : zero queue      load. Rather than dropping or rejecting these requests outright,
+load with full GPU recomputation; (2) Lact         r
+                                                      recomp
+                                                             : actual    C ASCADE routes them to a secondary Tier-2 queue, where
+instance load with full GPU recomputation; (3) Lactual   r    : actual   they are executed opportunistically on a best-effort basis
+instance load with tier-aware prefix KV hit reuse; and (4) Lmax   r :    during cluster idle periods.
+maximum instance load (Bmax −1 concurrent decode requests)
+                                                                         C. Dynamic Budget Tracking and Feasible Prefix Restoration
+with prefix reuse.
+    The budget is only as reliable as this estimate: an optimistic         At each chunked iteration of the scheduler, C ASCADE
+Lr inflates the budget and lets the request accept queuing               dynamically updates the remaining latency budget Brrem for
+and transfer delay it cannot actually afford, causing an SLO             every request r in scheduling queues (Tier-1 and Tier-2) based
+violation. C ASCADE therefore estimates conservatively, com-             on its initial allocated budget Br , arrival timestamp ar , and
+puting an effective latency Lr by averaging the predicted                the current system time tcurr :
+latencies under actual load (Lactual
+                                  r    ) and maximum capacity                               Brrem = Br − (tcurr − ar )                (5)
+(Lmax
+    r  ), scaled by an empirical  guardband    factor γ ≥ 1.0:
+                                                                         This remaining budget Brrem serves as the dynamic prioritiza-
+                         1 actual
+                                  + Lmax
+                                         
+                    Lr =   Lr        r     ·γ                     (3)    tion variable for the primary (Tier-1) execution queue, where
+                         2                                               requests are dispatched in ascending order of remaining head-
+Here, γ absorbs latency estimation errors, memory bus con-               room (least-remaining-budget-first). Because each request’s
+tention, and queuing variance that occur between request                 budget already subtracts its own execution time Lr , ordering
+arrival and batch execution. We set γ to a single value per              by remaining budget does not systematically deprioritize long-
+model, fixed offline from profiling and held constant across all         context requests: a long request with a loose class SLO retains
+traces and load levels. The budget defined here bounds TTFT;             positive budget and is not starved the way shortest-job-first
+C ASCADE preserves TPOT through chunked prefill, which                   would starve it.
+caps the prefill work admitted per iteration so that budget-                Simultaneously, C ASCADE’s asynchronous prefix prefetcher
+driven dispatch and prefetching do not stall the decode steps            evaluates prefix KV cache availability across the multi-tier
+of co-located requests.                                                  memory hierarchy to determine budget-feasible state transfers.
+Let P (k) denote the multi-hop transfer path from mem-               Algorithm 1: C ASCADE Budget-Aware Scheduling
+ory tier k ∈ {1, 2} to GPU HBM (tier 0)—for instance,                and Prefix Restoration
+P (1) = {DRAM → HBM} and P (2) = {NVMe →                              Input: Class SLO targets {Sc }, Arriving requests R,
+DRAM, DRAM → HBM}. For each interconnect link ℓ ∈                            Memory tier paths {P (k)}, Link bandwidths {Bℓeff },
+P (k), let Bℓeff denote its effective operational bandwidth under            Guardband γ
+                                                                      Output: Execution batch B, Prefix fetch allocations {Mr,k }
+load and δℓ represent its fixed per-transfer overhead. The total
+time Tk (x) required to restore x bytes of prefix KV state from       /* Phase 1: Latency Estimation & Queue
+                                                                          Admission                                     */
+tier k to HBM is modeled as:                                          foreach arriving request r ∈ R  do
+                                          X 1
+                                                                          Lr ← γ2 Lactual  + Lmax
+                            X                                                                      
+                 Tk (x) =         δℓ + x                      (6)                     r         r    ;    // Estimate TTFT
+                                                Bℓeff                       via Eq. (2)
+                        ℓ∈P (k)       ℓ∈P (k)
+                                                                          Br ← Sc(r) − Lr ; // Compute Latency Budget
+This conservative upper bound charges each link along the                   via Eq. (3)
+path, ensuring that transfer delays are not underestimated.               if Br > 0 then
+   A deep-tier prefix restore from tier k is deemed SLO-                       Q1 .enqueue(r) ;         // Admit to Tier-1
+                                                                                Priority Queue
+feasible for request r only if its total transfer time Tk (x)             else
+fits within the request’s remaining budget Brrem . By inverting                Q2 .enqueue(r) ;        // Demote to Tier-2
+Equation 6, we derive the maximum volume of prefix KV state                     Opportunistic Queue
+Mr,k (in bytes) that can be safely fetched from tier k without
+violating the request’s SLO:                                          /* Phase 2: Chunk Iteration Scheduling &
+                         h                      i+                        Prefix Prefetching                            */
+                           Brrem − ℓ∈P (k) δℓ                         while GPU Has Capacity() and (Q1 ̸= ∅ or Q2 ̸= ∅) do
+                                   P
+                Mr,k =                                      (7)           tcurr ← getCurrentTime();
+                                            eff
+                              P
+                                 ℓ∈P (k) 1/Bℓ                             /* Update remaining budgets for active
+                                                                               Tier-1 requests                          */
+   Equation 7 establishes a strict admission bound on deep-tier           foreach r ∈ Q1 do
+prefix hits: C ASCADE restores prefix blocks up to Mr,k bytes,                 Brrem ← Br − (tcurr − ar ) ;    // Update
+falling back to GPU prefill recomputation for any remaining                     Remaining Budget
+context that exceeds this budget threshold.                               Q1 .sortByAscending(Brrem ) ;
+   Finally, under severe memory pressure where limited GPU                 // Least-Remaining-Budget-First
+HBM capacity forces request preemption, C ASCADE uses                     r ← (Q1 ̸= ∅) ? Q1 .pop() : Q2 .pop();
+                                                                          /* Calculate budget-feasible prefix
+Brrem as the governing preemption metric. By selectively
+                                                                               fetch volume from tier k                    */
+preempting active requests possessing the largest remaining                        [Brrem − ℓ∈P (k) δℓ ]+
+                                                                                           P
+
+latency budgets (i.e., those with maximal headroom to absorb              Mr,k ← P            1/B eff
+                                                                                                          ; // Max restorable
+                                                                                       ℓ∈P (k)   ℓ
+re-execution latencies), C ASCADE ensures that preemption                   bytes
+overheads do not trigger downstream SLO violations. A pre-                TriggerPrefetch(r, Mr,k ) ;    // Asynchronously
+                                                                            restore up to Mr,k bytes
+empted request returns to its queue with its remaining budget
+                                                                          B ← B ∪ {r};
+recomputed by Equation 5, so its re-execution is scheduled                /* Budget-aware preemption under HBM
+against the budget it has left; preempting the highest-budget                  memory pressure                          */
+request is safe precisely because that budget covers the added            if IsHBMFull() then
+re-execution latency. Algorithm 1 presents the C ASCADE                        rpreempt ← arg maxr′ ∈B Brrem
+                                                                                                          ′ ;
+                                                                               Preempt(rpreempt ) ; // Evict request with
+scheduling and restoration procedure.
+                                                                                largest headroom
+D. Implementation
+                                                                      return B;
+   We implement C ASCADE on top of vLLM [20] and use LM-
+Cache [25] for KV block placement and movement across the
+HBM, DRAM, and NVMe tiers. We reuse vLLM’s continuous
+batching, chunked prefill, paged KV allocation, and prefix-               a) Per-request state: Alongside vLLM’s execution state
+cache block hashing unchanged, and add only the budget              (token sequence and paged KV block table), C ASCADE threads
+machinery on top: the TTFT estimator, the latency budget            a small metadata record through the queues, holding the
+engine, the dual-tier queues, the budget-feasible prefetcher,       request’s class SLO Sc(r) , estimated latency Lr , allocated
+and the budget-aware preemption path. C ASCADE requires no          budget Br , arrival timestamp ar , and matched prefix-hit pro-
+changes to model weights and no additional hardware. The            file. The scheduler derives Brrem from Br and ar on demand
+rest of this section describes these additions: the state each      (Equation 5) each iteration rather than storing it, so the only
+request carries, how the scheduler consumes it, how prefix          per-iteration write is the priority key. These few scalar fields
+state is placed and promoted across the memory hierarchy, and       add negligible overhead over vLLM’s request object.
+how requests are preempted under memory pressure. In each                 b) Scheduling: The estimator and budget engine run on
+case we describe only what C ASCADE adds; the underlying            the CPU over live queue occupancy and per-tier prefix-hit
+mechanism is vLLM’s unless noted.                                   metadata, adding no GPU work on the critical path. Each
+chunked-prefill iteration recomputes Brrem (Equation 5) for             TABLE I: Model Configurations and Hardware Setup
+the Tier-1 queue and dispatches least-remaining-budget-first;                           Weights        KV Cache                GPU                    Attention
+                                                                     Model
+because prefill chunks are co-scheduled with active decode                              Precision      Precision        (Tensor Parallelism)          Mechanism
+steps, the budget only reorders which prefill enters the batch       Qwen-2.5-72B        NVFP4               FP8                 GB200 (4)             MHA used
+                                                                     Llama-3-70B         NVFP4               FP8                 GB200 (4)              GQA
+next and never stalls in-flight decodes. The update and sort         Llama-3-405B        NVFP4               FP8                 GB200 (4)              GQA
+overlap with the current batch’s GPU execution, so the added
+cost is negligible relative to a decode step.                                       TABLE II: Traces used in evaluation
+      c) Memory management and HBM allocation: Reused
+                                                                                         No. of     Average     Input Sequence Length        Output Sequence Length
+prefix state stays in the deeper tiers and is promoted toward        Trace
+                                                                                        Requests     QPS        p50      p95     p99         p50      p95     p99
+
+HBM only when a request will consume it. On a hit, the               ChatBot
+                                                                     Tool&Agent
+                                                                                         43,058
+                                                                                        172,800
+                                                                                                     5.98
+                                                                                                     24.0
+                                                                                                                1,046
+                                                                                                                 574
+                                                                                                                        8,808
+                                                                                                                         2,491
+                                                                                                                                  14,364
+                                                                                                                                   6,294
+                                                                                                                                              375
+                                                                                                                                               39
+                                                                                                                                                     1,032
+                                                                                                                                                      328
+                                                                                                                                                                1,641
+                                                                                                                                                                1,006
+prefetcher computes the budget-feasible bound Mr,k (Equa-            Coder               43,011      5.97       4,540   13,406    14,406      469    2,699      5,842
+                                                                     Reasoning           10,812       1.5       3,680   16,221    24,972     1,665   12,669     34,686
+tion 7) for the holding tier k; a deep- or remote-tier hit is        Mixed              269,681      37.46       886    10,749    13,792       86    1,478       4,812
+staged NVMe to DRAM to HBM, and C ASCADE allocates                   ChatBot Heavy
+                                                                     Tool&Agent Heavy
+                                                                                         54,390
+                                                                                         73,965
+                                                                                                     7.55
+                                                                                                     10.27
+                                                                                                                1,016
+                                                                                                                 627
+                                                                                                                        9,086
+                                                                                                                         3,281
+                                                                                                                                  14,188
+                                                                                                                                  11,183
+                                                                                                                                              328
+                                                                                                                                               47
+                                                                                                                                                     1,095
+                                                                                                                                                      546
+                                                                                                                                                                2,178
+                                                                                                                                                                 1,671
+HBM only at the final DRAM-to-HBM hop, keeping scarce                Coder Heavy
+                                                                     Reasoning Heavy
+                                                                                         54,345
+                                                                                         23,756
+                                                                                                     7.55
+                                                                                                      3.3
+                                                                                                                2,883
+                                                                                                                1,298
+                                                                                                                        13,264
+                                                                                                                        13,421
+                                                                                                                                  14,311
+                                                                                                                                  22,301
+                                                                                                                                              348
+                                                                                                                                              425
+                                                                                                                                                     2,465
+                                                                                                                                                     8,477
+                                                                                                                                                                5,711
+                                                                                                                                                                22,248
+HBM free while the slow transfer is in flight rather than            Uniform             41,923      5.82       1,430   13,034    19,081      390    5,028      14,630
+
+pinning it for the full multi-hop latency.
+      d) Prefix hit detection: On top of vLLM’s per-block
+prefix hashing, C ASCADE maintains a cluster-wide index that        profiles measured directly on physical GB200 NVL72 hard-
+records, for each cached block, the deepest tier holding it. A      ware across NVLink-C2C and MNNVL interconnects.
+request’s matched prefix length and per-block tiers form the              b) Workloads and Traces: To evaluate C ASCADE under
+prefix-hit profile that the estimator consumes (Section IV-B)       realistic multi-tier KV caching dynamics, we utilize open-
+and that sets the byte bound Mr,k . Free blocks are reclaimed       sourced production traces collected from a Qwen model serv-
+least-recently-used within each tier, so hot prefixes stay in the   ing cluster on Aliyun Bailian [7]. The dataset consists of a two-
+fastest tiers and cold ones spill deeper.                           hour sampled trace containing real request arrival timestamps
+      e) Preemption under HBM pressure: With continuous             and exact prefix block hash matches, capturing four dominant
+batching and chunked prefill, batch composition changes only        LLM application classes: ChatBot (interactive conversation),
+at chunk boundaries, so C ASCADE never interrupts a running         Tool&Agent (agentic function calls), Coder (code generation
+kernel: it preempts at the same boundary where vLLM admits          copilots), and Reasoning (multi-step thinking workloads). Us-
+the next chunk. When admitting a chunk would exceed HBM             ing these base application traces, we construct five workload
+capacity, it evicts the resident prefill-stage request with the     mixtures to evaluate diverse deployment scenarios: (1) Mixed,
+largest remaining budget (Algorithm 1), never a decode-stage        preserving the authentic production distribution across all
+request, so in-progress token generation is untouched. The          four classes; (2) four App-Heavy workloads, where a target
+victim’s KV state is spilled to DRAM when that fits its             application accounts for 50% of total traffic and the remaining
+remaining budget and recomputed otherwise, and its budget           50% is split evenly among the other three; and (3) Uniform,
+is recomputed on requeue (Equation 5); choosing the highest-        containing an equal 25% split per application class. Table II
+budget victim makes the added re-execution the least likely to      summarizes the key characteristics of each trace, including
+cause a new violation.                                              input/output token length distributions, total request counts,
+                                                                    and average arrival rates over the two-hour window.
+                       V. E VALUATION                                     c) Service Level Objective (SLO) Targets: To provide
+A. Methodology                                                      rigorous quality-of-service assurances, serving systems must
+     a) Models and Serving Cluster: We evaluate C ASCADE            satisfy strict latency targets defined by service level agree-
+across three representative LLM architectures: Qwen-2.5-            ments (SLAs). Following prior work [31], we define the
+72B [1], Llama-3-70B, and Llama-3-405B [5], served with             90th-percentile Time-to-First-Token (TTFTp90 ) and Time-Per-
+a tensor parallelism (TP) degree of 4 [10]. Model weights are       Output-Token (TPOTp90 ) SLOs relative to isolated baseline
+quantized to NVFP4 precision, while Key–Value (KV) cache            execution delays. Specifically, we set the normalized targets
+blocks are maintained in FP8. While all three models natively       to TTFTp90 = 10× and TPOTp90 = 5×, meaning 90% of
+use Grouped-Query Attention (GQA) [6], we evaluate Qwen-            requests in a given class must achieve a TTFT and TPOT
+2.5-72B under Multi-Head Attention (MHA) configurations             within 10× and 5× of a single request executing on iden-
+to demonstrate the generality of our design across diverse          tical hardware without batching or cross-tenant interference.
+attention mechanisms (Table I). All hardware profiling is
+conducted on NVIDIA GB200 NVL72 nodes interconnected                                          TABLE III: SLO target
+via Multi-Node NVLink (MNNVL) [27], [28]. To evaluate
+                                                                                                            TTFT (s)
+large-scale production traces across multi-replica clusters, we      Model
+                                                                                        ChatBot       Tool&Agent Coder               Reasoning
+                                                                                                                                                      TPOT (ms)
+extend the Vidur simulator [2] to model multi-tier memory            Qwen-2.5-72B         1.83               0.35         3.49              4.23               50
+hierarchies and LMCache [25] for optimized KV cache data             Llama-3-70B          2.60               0.83         6.08              9.88              100
+                                                                     Llama-3-405B         6.20               1.60        14.50             21.70              200
+movement. We populate the simulator using data-movement
+Fig. 8: System goodput and SLO violation rate across all three models and ten workload traces. Goodput (output tokens per
+second, left axis) is normalized to the FCFS baseline per trace; scatter markers report SLO violation rate (right axis).
+
+
+
+
+Fig. 9: Time-To-First-Token (TTFT) tail latency distribution for Qwen-2.5-72B across application classes in the Mixed workload
+trace. While FCFS and EDF induce high tail latencies across all classes and SJF starves long-context tasks (Coder and
+Reasoning), C ASCADE maintains low tail latencies across all request sizes by scheduling requests just-in-time based on
+remaining latency budget.
+
+
+Table III summarizes the resulting absolute TTFT and TPOT          stated, our evaluation on the Mixed workload trace deploys
+SLO targets for each model architecture and workload trace.        a cluster capacity comprising 9 instances of Qwen-2.5-72B, 6
+      d) Baselines: We implement C ASCADE on top of the            instances of Llama-3-70B, and 12 instances of Llama-3-405B.
+V LLM-v1 inference engine [20] and evaluate it against three
+state-of-the-art policies: (1) FCFS, the default V LLM sched-      B. Serving Efficiency under Production Traces
+uler, which dispatches requests across all workload classes in        We first evaluate C ASCADE against the baselines using the
+First-Come, First-Served order; (2) EDF, an Earliest Deadline      arrival timestamps from the production traces, then decompose
+First policy that introduces deadline awareness by prioritizing    the result to show which serving overheads it removes.
+requests based on their target TTFT SLO deadlines; and                1) Goodput and SLO Violations: Figure 8 shows goodput
+(3) SJF, a Shortest Job First policy that prioritizes requests     and SLO violation rate for the three models on the ten traces.
+with shorter input sequence lengths to minimize prefill com-       The x-axis lists the traces (refer V-A). The left y-axis is
+pute overhead. For a fair comparison, all policies and C AS -      goodput,the output tokens per second from requests that meet
+CADE are evaluated under identical cluster settings within our     both the TTFT and TPOT target, normalized to FCFS per trace.
+extended Vidur simulator framework. All configurations use         The markers are the violation rate, the fraction of requests
+the same global scheduler, which routes requests based on          that miss either target. On average C ASCADE attains 2.4× the
+HBM prefix cache hits [34] and GPU prefill load, and en-           goodput of FCFS and 40% fewer violations, and it has the
+forces prefill-decode (PD) co-location with chunked prefills [3]   highest goodput of the four policies on every trace.
+(chunk size of 512 tokens, maximum batch size of 128) to              The gain is largest on traces with many long prompts,
+balance TTFT and TPOT SLO trade-offs. Unless otherwise             such as Mixed (2.7×) and Coder Heavy on Llama-3-405B. In
+Fig. 10: Jain’s Fairness Index (J ) across all workloads and models. C ASCADE achieves uniformly high fairness across all
+workloads.
+
+
+
+
+                                                                   Fig. 12: SLO violation rate grouped by input-sequence-length
+Fig. 11: SLO violations grouped by cause for the three models,     percentile for the Mixed trace. C ASCADE stays flat across
+on a log scale. The causes are head-of-line (HOL) queueing         every length bin, whereas SJF’s violations rise sharply on the
+delay, prefix KV restoration delay, HBM-pressure preemption,       longest requests.
+and compound cases. C ASCADE removes the HOL and pre-
+emption causes and keeps restoration within the budget.
+                                                                   dominates the Llama baselines. Admitting a restore only when
+                                                                   it fits the budget, and holding HBM for prefixes that will be
+these traces a long prompt blocks the short requests behind it     reused in time, removes the restoration and preemption seen on
+under FCFS and EDF. C ASCADE orders requests by remaining          Qwen. One budget drives both the scheduler and the memory
+budget, so a short request runs before a long one that still has   manager, so both causes fall together.
+budget to spare, and the wait is moved onto the requests that
+can afford it. On traces with lighter load, such as Tool&Agent     C. Latency and Fairness Across Heterogeneous Traffic
+Heavy and Reasoning Heavy, the baselines already meet most            1) Tail Latency by Application Class: Figure 9 shows the
+targets and the gain is 1.1× to 1.5×, which comes from             TTFT distribution of Qwen-2.5-72B for each of the four
+prefetching reused prefixes rather than from reordering.           application classes in the Mixed trace. The x-axis is TTFT
+   2) Sources of SLO Violation: To understand why C ASCADE         in seconds on a log scale. The y-axis is the request count.
+lowers the SLO violations, Figure 11 groups the SLO viola-         FCFS and EDF have two peaks in every class: a low peak
+tions by cause for the three models. The y-axis is the violation   near the target and a second peak at 102 to 103 seconds made
+count on a log scale. Each bar is split into four causes: HOL      up of requests that waited behind a long prompt. SJF removes
+queueing delay, prefix KV restoration delay from a deep tier,      the second peak for short classes but shifts it onto Coder and
+HBM-pressure preemption of a prefill-stage request, and cases      Reasoning, the long-prompt classes it delays. C ASCADE has a
+that combine these. The main cause differs by model. For           single peak near 10−1 seconds in all four classes. It dispatches
+the Llama models, most baseline violations are HOL delay,          each request in time to meet its own target rather than by
+because their KV cache is small and requests spend their time      prompt length, so a long request is rarely stuck behind a short
+in compute and in the queue. For Qwen-2.5-72B, restoration         one.
+and preemption make up a larger share, because MHA stores             2) SLO Violations by Request Size: Figure 12 groups
+more KV per token, which raises both the data moved on             requests by input length and reports the violation rate in
+a restore and the pressure on HBM. C ASCADE lowers the             each group. The x-axis is the input-length percentile, from
+total violation count significantly across the three models, for   p0–p50 to p99+. The y-axis is the violation rate. FCFS and
+example from 1.5 × 105 to 4 × 103 on Qwen-2.5-72B. This            EDF violate 50% to 70% in every group, because they ignore
+is because ordering by budget removes the HOL delay that           prompt length. SJF violates 12% to 16% on the shortest
+                                                                   Fig. 14: Goodput and SLO violation under varying load for
+                                                                   Qwen-2.5-72B model. Goodput normalized to FCFS with
+Fig. 13: Normalized goodput and SLO violation rate as serving      QPS=32.
+instances change, for the Mixed trace. Goodput is normalized
+to FCFS at full capacity; scatter markers report SLO violation
+rate. C ASCADE sustains goodput as instances reduce.
+
+
+requests but 65% to 72% at p99+, because it keeps delaying
+the longest requests. C ASCADE violates only 2% to 15%
+across every group and model, so the longest requests fail at
+almost the same rate as the shortest. This is because C ASCADE
+orders by budget rather than by length, so the goodput of
+Section V-B1 does not come from sacrificing long requests.
+   3) Fairness Across Applications: Figure 10 reports Jain’s
+fairness index [17] over the per-class SLO attainment. Each
+panel is one trace. The x-axis lists the four policies. The y-     Fig. 15: TTFT at the p50, p90, and p95 percentiles under
+axis is the fairness index, where one means every class attains    increasing load for Qwen-2.5-72B on the Mixed trace, log
+its SLO at the same rate. The three lines are the models.          scale. The dashed line marks the TTFT SLO. C ASCADE stays
+C ASCADE stays between 0.98 and 1.0 for all three models           under the SLO across all three percentiles, whereas FCFS and
+on every trace. SJF is the lowest on every trace and drops         EDF cross it by 36 QPS.
+the furthest, to about 0.6 on Coder Heavy and ChatBot Heavy
+for Llama-3-405B, because it defers the long prompts and the
+classes that hold them miss their SLO. The drop is largest for     arrivals and HOL delay builds up. C ASCADE still reaches 2.4×
+Llama-3-405B, the biggest model, where a deferred prompt           goodput at 7 Qwen-2.5-72B serving instances (28 GPUs),
+takes the longest to clear. FCFS and EDF track each other at       above FCFS at 9 instances (36 GPUs), so it serves the same
+about 0.95 to 0.99, above SJF but below C ASCADE. They stay        load with 22% fewer GPUs and keeps violations below ∼16%.
+fair because they miss the SLO at a similar rate across classes,      2) Sensitivity to Offered Load: Figure 14 shows goodput
+as Figure 12 shows with their uniform 50% to 70% violations,       and violation rate as we raise the load on one Qwen-2.5-72B
+but that even failure comes at low goodput rather than low         deployment. The x-axis is the load from 32 to 48 QPS. The
+violations. Their fairness dips only on the long-prompt traces     left panel is goodput normalized to FCFS at 32 QPS. The
+such as Reasoning (0.91 for Qwen-2.5-72B), where blocking          right panel is the violation rate. At 32 QPS all four policies
+is most severe. C ASCADE is the only policy that is both fair      are close. At 48 QPS, FCFS and EDF drop to 0.05× goodput
+and high-goodput: it serves each class against its own budget,     with over 90% violations, because the added load turns into
+so attainment stays high and close to equal across classes.        blocking. SJF holds 0.47× goodput at a 43% violation rate,
+                                                                   because it still delays the long prompts. C ASCADE holds 1.5×
+D. Robustness to Capacity and Load                                 goodput at a 14% violation rate, because it only starts work
+   1) Sensitivity to Cluster Capacity: Figure 13 shows good-       that fits the remaining budget as that budget shrinks.
+put and violation rate as we remove serving instances at fixed        Figure 15 shows the TTFT behind the goodput of Figure 14.
+load. The x-axis is the instance count: 9, 8, and 7 Qwen-          Each panel is one percentile, p50, p90, and p95, on a log y-
+2.5-72B instances (36, 32, and 28 GPUs) and 12, 11, and            axis against the same 32 to 48 QPS load. The dashed line is
+10 Llama-3-405B instances (48, 44, and 40 GPUs). The left          the TTFT target. FCFS and EDF cross the target by 36 QPS
+y-axis is goodput normalized to FCFS at full capacity. The         and reach 103 seconds at high load as blocked prompts pile
+markers are the violation rate. As instances are removed,          up. SJF stays under the target at p50 but crosses it at p95,
+FCFS and EDF goodput drops to 0.05× and their violation            once the long prompts reach the tail. C ASCADE stays under
+rate passes 90%, because the queues no longer drain between        the target at all three percentiles, at 3.5 seconds at p95 and 48
+                                                                  Time-Between-Tokens (TBT) limits, with QoServe leveraging
+                                                                  request-level latency slack for chunk size tuning. Similarly,
+                                                                  systems like Conserve [30] and SageServe [18] employ re-
+                                                                  active heuristics—such as scheduling background tasks when
+                                                                  interactive load drops below fixed thresholds (e.g., 60%) or ap-
+                                                                  plying reactive preemption during load spikes. However, these
+                                                                  systems implicitly assume that incoming prompts require full
+                                                                  GPU recomputation, treating TTFT purely as a compute-bound
+                                                                  phase while ignoring cross-request prefix KV cache reuse
+                                                                  and deep-tier state restoration delays. While MoonCake [31]
+                                                                  incorporates prefix KV cache-aware scheduling in Prefill-
+                                                                  Decode disaggregated architectures, it relies on aggressive
+Fig. 16: SLO attainment per application class across models
+                                                                  request rejection under cluster overload. C ASCADE bridges
+for Mixed trace. C ASCADE consistently improves the SLO
+                                                                  these gaps by co-designing budget-aware request dispatching
+attainment across all workload classes instead of favoring a
+                                                                  with multi-tier KV state restoration, preserving high cluster
+certain class of workload.
+                                                                  goodput without resorting to request rejection.
+                                                                       b) Multi-SLO Scheduling: A growing body of work
+QPS, because it dispatches by budget and bounds the tail, not     focuses on multi-objective SLO scheduling for LLM inference.
+just the median. The requests under the dashed line here are      QoServe [13] leverages multi-class SLO targets to harvest
+the ones counted as goodput in Figure 14.                         (TBT) slack via dynamic chunk resizing, but lacks support
+   3) SLO Attainment by Application Class: Figure 16 breaks       for prefix cache reuse. SLO-Serve [9] formulates scheduling
+down SLO attainment across distinct application classes to        as a dynamic programming (DP) optimization over active and
+evaluate whether baseline scheduling policies introduce struc-    queued requests under multiple SLO constraints; however,
+tural biases favoring specific workload types. While existing     searching this combinatorial space across chunked prefill and
+schedulers disproportionately prioritize short-context queries    continuous batching parameters introduces substantial compu-
+at the expense of prompt-heavy or agentic tasks, C ASCADE         tational overhead that limits online scalability. JITServe [42]
+achieves consistently superior SLO compliance across all          employs conservative output sequence length estimation with
+application categories and model architectures. This equitable    online refinement to maximize service utility, while Fast-
+performance stems from C ASCADE’s fine-grained, per-request       Serve [38] applies preemptive iteration-level scheduling using
+latency budget management, which evaluates execution head-        a multi-level feedback queue (MLFQ). In contrast to these
+room dynamically for each request rather than relying on rigid,   approaches, C ASCADE uses lightweight, runtime latency bud-
+class-wide or size-biased heuristics.                             gets to jointly orchestrate request dispatching and prefix KV
+                                                                  cache management across multi-tier memory pools in a PD-
+                    VI. R ELATED W ORK                            colocated architecture—bypassing the need for unscalable DP
+   Service-Level Objectives (SLOs) have long served as a          formulations or dynamic chunking heuristics.
+foundational abstraction for resource allocation and task
+scheduling across diverse computing domains, including mo-                             VII. C ONCLUSIONS
+bile application runtimes [33], data-parallel processing clus-
+ters [11], and latency-sensitive datacenter networks [37].           Serving a language model request under a latency SLO
+Applying SLO-driven scheduling to LLM serving, however,           involves more than running the model: the request also incurs
+introduces distinct challenges due PD-colocation challenges.      queueing delay, batching interference, and the cost of moving
+Recent works have explored this design space along several        reused KV cache into GPU memory, and all of it is charged
+orthogonal dimensions. AlpaServe [23], Nitsum [35] optimizes      against the same SLO. Problem gets exacerbated with PD-
+model-parallelism strategies to satisfy heterogeneous SLO         colocation with prefill and decode being served on same
+requirements, while Learned Best-Effort LLM Serving [19]          instances with respective SLOs. The time an SLO leaves for
+applies reinforcement learning to route requests across model     this overhead is the request’s latency budget, which differs by
+variants to balance accuracy against latency targets. C ASCADE    orders of magnitude across requests. We present C ASCADE, a
+relies on fixed model-parallelism and provides high goodput       serving system that estimates each request’s latency budget
+while complying with SLO requirements.                            at runtime and treats it as a single quantity that governs
+      a) Chunking, Opportunistic Scheduling, and KV-Aware         two decisions handled in isolation today: how requests are
+Serving: Another line of research explores chunked execu-         scheduled, and how their reused KV cache is placed across
+tion and opportunistic batching to balance prefill throughput     the memory hierarchy. By steering overhead toward requests
+against decode latency bounds. Building on the chunked prefill    with budget to spare, C ASCADE improves SLO attainment and
+model of Sarathi [3], frameworks such as Medha [4], Poly-         useful throughput together, across a range of models, applica-
+Serve [45], and QoServe [13] adaptively scale chunk granulari-    tions, and request sizes, and without additional hardware while
+ties to prevent accumulating attention overhead from breaching    preserving fairness across heterogeneous request classes.
+                             R EFERENCES                                        [17] R. Jain, D. Chiu, and W. Hawe, “A quantitative measure of fairness
+                                                                                     and discrimination for resource allocation in shared computer systems,”
+ [1] “Qwen2 technical report,” 2024.                                                 1998. [Online]. Available: https://arxiv.org/abs/cs/9809099
+ [2] A. Agrawal, N. Kedia, J. Mohan, A. Panwar, N. Kwatra, B. S. Gula-          [18] S. Jaiswal, K. Jain, Y. Simmhan, A. Parayil, A. Mallick, R. Wang, R. S.
+     vani, R. Ramjee, and A. Tumanov, “Vidur: A large-scale simulation               Amant, C. Bansal, V. Ruhle, A. Kulkarni, S. Kofsky, and S. Rajmohan,
+     framework for llm inference,” in Proceedings of Machine Learning and            “Sageserve: Optimizing llm serving on cloud data centers with forecast
+     Systems, vol. 6, 2024, pp. 351–366.                                             aware auto-scaling,” Proc. ACM Meas. Anal. Comput. Syst., vol. 9,
+ [3] A. Agrawal, N. Kedia, A. Panwar, J. Mohan, N. Kwatra, B. S. Gulavani,           no. 3, Dec. 2025. [Online]. Available: https://doi.org/10.1145/3771576
+     A. Tumanov, and R. Ramjee, “Taming throughput-latency tradeoff in          [19] S. Jha, C. Hooper, X. Liu, S. Kim, and K. Keutzer, “Learned best-effort
+     llm inference with sarathi-serve,” in Proceedings of the 18th USENIX            llm serving,” 2024. [Online]. Available: https://arxiv.org/abs/2401.07886
+     Conference on Operating Systems Design and Implementation, ser.            [20] W. Kwon, Z. Li, S. Zhuang, Y. Sheng, L. Zheng, C. H. Yu, J. Gonzalez,
+     OSDI’24. USA: USENIX Association, 2024.                                         H. Zhang, and I. Stoica, “Efficient memory management for large
+ [4] A. Agrawal, H. Qiu, J. Chen, Íñigo Goiri, C. Zhang, R. Shahid,                language model serving with pagedattention,” in Proceedings of the
+     R. Ramjee, A. Tumanov, and E. Choukse, “No request left behind:                 29th Symposium on Operating Systems Principles, ser. SOSP ’23.
+     Tackling heterogeneity in long-context llm inference with medha,”               New York, NY, USA: Association for Computing Machinery, 2023, p.
+     2025. [Online]. Available: https://arxiv.org/abs/2409.17264                     611–626. [Online]. Available: https://doi.org/10.1145/3600006.3613165
+ [5] AI@Meta, “Llama 3 model card,” 2024. [Online]. Available:                  [21] R. Lai, H. Liu, C. Lu, Z. Liu, S. Cao, S. Shao, Y. Zhang,
+     https://github.com/meta-lama/llama3/blob/main/MODEL CARD.md                     L. Mai, and D. Ustiugov, “Tokenscale: Timely and accurate autoscaling
+ [6] J. Ainslie, J. Lee-Thorp, M. de Jong, Y. Zemlyanskiy, F. Lebron,                for disaggregated llm serving with token velocity,” 2025. [Online].
+     and S. Sanghai, “GQA: Training generalized multi-query transformer              Available: https://arxiv.org/abs/2512.03416
+     models from multi-head checkpoints,” in Proceedings of the 2023            [22] J. Li, Y. Zhu, B. Chen, E. K. Lee, and K. Nahrstedt, “Revisiting
+     Conference on Empirical Methods in Natural Language Processing,                 disaggregated large language model serving for performance and
+     H. Bouamor, J. Pino, and K. Bali, Eds. Singapore: Association                   energy implications,” in Proceedings of the Sixth European Workshop
+     for Computational Linguistics, Dec. 2023, pp. 4895–4901. [Online].              on Machine Learning and Systems, ser. EuroMLSys ’26. New York,
+     Available: https://aclanthology.org/2023.emnlp-main.298/                        NY, USA: Association for Computing Machinery, 2026, p. 397–406.
+ [7] Bailian, “Qwen-bailian anonymous dataset,” 2025. [Online]. Available:           [Online]. Available: https://doi.org/10.1145/3805621.3807662
+     https://github.com/alibaba-edu/qwen-bailian-usagetraces-anon               [23] Z. Li, L. Zheng, Y. Zhong, V. Liu, Y. Sheng, X. Jin, Y. Huang,
+ [8] M. Chen, J. Tworek, H. Jun, Q. Yuan, H. P. de Oliveira Pinto, J. Kaplan,        Z. Chen, H. Zhang, J. E. Gonzalez, and I. Stoica, “AlpaServe:
+     H. Edwards, Y. Burda, N. Joseph, G. Brockman, A. Ray, R. Puri,                  Statistical multiplexing with model parallelism for deep learning
+     G. Krueger, M. Petrov, H. Khlaaf, G. Sastry, P. Mishkin, B. Chan,               serving,” in 17th USENIX Symposium on Operating Systems Design
+     S. Gray, N. Ryder, M. Pavlov, A. Power, L. Kaiser, M. Bavarian,                 and Implementation (OSDI 23). Boston, MA: USENIX Association,
+     C. Winter, P. Tillet, F. P. Such, D. Cummings, M. Plappert, F. Chantzis,        Jul. 2023, pp. 663–679. [Online]. Available: https://www.usenix.org/
+     E. Barnes, A. Herbert-Voss, W. H. Guss, A. Nichol, A. Paino, N. Tezak,          conference/osdi23/presentation/li-zhouhan
+     J. Tang, I. Babuschkin, S. Balaji, S. Jain, W. Saunders, C. Hesse,         [24] C. L. Liu and J. W. Layland, “Scheduling algorithms for
+     A. N. Carr, J. Leike, J. Achiam, V. Misra, E. Morikawa, A. Radford,             multiprogramming in a hard-real-time environment,” J. ACM,
+     M. Knight, M. Brundage, M. Murati, K. Mayer, P. Welinder,                       vol. 20, no. 1, p. 46–61, Jan. 1973. [Online]. Available:
+     B. McGrew, D. Amodei, S. McCandlish, I. Sutskever, and W. Zaremba,              https://doi.org/10.1145/321738.321743
+     “Evaluating large language models trained on code,” 2021. [Online].        [25] Y. Liu, Y. Cheng, J. Yao, Y. An, X. Chen, S. Feng, Y. Huang, S. Shen,
+     Available: https://arxiv.org/abs/2107.03374                                     R. Zhang, K. Du, and J. Jiang, “Lmcache: An efficient kv cache
+ [9] S. Chen, Z. Jia, S. Khan, A. Krishnamurthy, and P. B. Gibbons,                  layer for enterprise-scale llm inference,” 2025. [Online]. Available:
+     “Slos-serve: Optimized serving of multi-slo llms,” 2025. [Online].              https://arxiv.org/abs/2510.09665
+     Available: https://arxiv.org/abs/2504.08784                                [26] NVIDIA, “Ai-dynamo,” 2025. [Online]. Available: https://github.com/
+[10] S. Cheng, Z. Liu, J. Du, and Y. You, “Atp: Adaptive tensor                      aidynamo/dynamo
+     parallelism for foundation models,” 2023. [Online]. Available: https:      [27] NVIDIA, “Nvidia gb200 nvl partition,” 2025. [Online]. Available: https:
+     //arxiv.org/abs/2301.08658                                                      //docs.nvidia.com/multi-node-nvlink-systems/partition-guide-v1-2.pdf
+[11] A. D. Ferguson, P. Bodik, S. Kandula, E. Boutin, and R. Fonseca,           [28] NVIDIA, “Nvidia gb200 nvl72 delivers trillion-parameter llm
+     “Jockey: guaranteed job latency in data parallel clusters,” in                  training and real-time inference,” 2025. [Online]. Avail-
+     Proceedings of the 7th ACM European Conference on Computer                      able:     https://developer.nvidia.com/blog/nvidia-gb200-nvl72-delivers-
+     Systems, ser. EuroSys ’12. New York, NY, USA: Association                       trillion-parameter-llm-training-and-real-time-inference/
+     for Computing Machinery, 2012, p. 99–112. [Online]. Available:             [29] P. Patel, E. Choukse, C. Zhang, A. Shah, I. n. Goiri, S. Maleki, and
+     https://doi.org/10.1145/2168836.2168847                                         R. Bianchini, “Splitwise: Efficient generative llm inference using phase
+[12] I. Gim, G. Chen, S. seob Lee, N. Sarda, A. Khandelwal, and L. Zhong,            splitting,” in Proceedings of the 51st Annual International Symposium on
+     “Prompt cache: Modular attention reuse for low-latency inference,”              Computer Architecture, ser. ISCA ’24. IEEE Press, 2025, p. 118–132.
+     2024. [Online]. Available: https://arxiv.org/abs/2311.04934                     [Online]. Available: https://doi.org/10.1109/ISCA59077.2024.00019
+[13] K. Goel, J. Mohan, N. Kwatra, R. S. Anupindi, and R. Ramjee,               [30] Y. Qiao, S. Anzai, S. Yu, H. Ma, S. Yang, Y. Wang, M. Kim, Y. Wu,
+     “Qoserve: Breaking the silos of llm inference serving,” in Proceedings          Y. Zhou, J. Xing, J. E. Gonzalez, I. Stoica, and H. Xu, “Conserve:
+     of the 31st ACM International Conference on Architectural Support               Fine-grained gpu harvesting for llm online and offline co-serving,”
+     for Programming Languages and Operating Systems, Volume 2, ser.                 2025. [Online]. Available: https://arxiv.org/abs/2410.01228
+     ASPLOS ’26. New York, NY, USA: Association for Computing                   [31] R. Qin, Z. Li, W. He, J. Cui, F. Ren, M. Zhang, Y. Wu, W. Zheng,
+     Machinery, 2026, p. 1492–1507. [Online]. Available: https://doi.org/10.         and X. Xu, “Mooncake: trading more storage for less computation —
+     1145/3779212.3790206                                                            a kvcache-centric architecture for serving llm chatbot,” in Proceedings
+[14] Google, “llm-d,” 2025. [Online]. Available: https://github.com/llm-             of the 23rd USENIX Conference on File and Storage Technologies, ser.
+     d/llm-d                                                                         FAST ’25. USA: USENIX Association, 2025.
+[15] C. Hooper, S. Kim, H. Mohammadzadeh, M. W. Mahoney, Y. S. Shao,            [32] S. Qiu, Y. Hu, X. Wang, W. Zhu, J. Yan, H. Chen, K. Xu, K. Chen, and
+     K. Keutzer, and A. Gholami, “Kvquant: towards 10 million context                Y. Zhang, “Tutti: Making ssd-backed kv cache practical for long-context
+     length llm inference with kv cache quantization,” in Proceedings of             llm serving,” 2026. [Online]. Available: https://arxiv.org/abs/2605.03375
+     the 38th International Conference on Neural Information Processing         [33] L. Ravindranath, J. Padhye, R. Mahajan, and H. Balakrishnan,
+     Systems, ser. NIPS ’24. Red Hook, NY, USA: Curran Associates Inc.,              “Timecard: controlling user-perceived delays in server-based mobile
+     2024.                                                                           applications,” in Proceedings of the Twenty-Fourth ACM Symposium on
+[16] C. Hu, H. Huang, L. Xu, X. Chen, J. Xu, S. Chen, H. Feng, C. Wang,              Operating Systems Principles, ser. SOSP ’13. New York, NY, USA:
+     S. Wang, Y. Bao, N. Sun, and Y. Shan, “Inference without interference:          Association for Computing Machinery, 2013, p. 85–100. [Online].
+     Disaggregate llm inference for mixed downstream workloads,” 2024.               Available: https://doi.org/10.1145/2517349.2522717
+     [Online]. Available: https://arxiv.org/abs/2401.11181                      [34] V. Srivatsa, Z. He, R. Abhyankar, D. Li, and Y. Zhang, “Preble:
+                                                                                     Efficient distributed prompt scheduling for llm serving,” 2024. [Online].
+                                                                                     Available: https://arxiv.org/abs/2407.00023
+[35] V. Srivatsa, Z. He, P. Guo, D. Li, and Y. Zhang, “Nitsum: Serving             2025. [Online]. Available: https://arxiv.org/abs/2504.20068
+     tiered llm requests with adaptive tensor parallelism,” 2026. [Online].   [43] L. Zheng, L. Yin, Z. Xie, C. Sun, J. Huang, C. H. Yu, S. Cao,
+     Available: https://arxiv.org/abs/2605.05467                                   C. Kozyrakis, I. Stoica, J. E. Gonzalez, C. Barrett, and Y. Sheng,
+[36] J. Wang, J. Han, X. Wei, S. Shen, D. Zhang, C. Fang, R. Chen,                 “Sglang: efficient execution of structured language model programs,” in
+     W. Yu, and H. Chen, “Kvcache cache in the wild: Characterizing                Proceedings of the 38th International Conference on Neural Information
+     and optimizing kvcache cache at a large cloud provider,” in 2025              Processing Systems, ser. NIPS ’24.        Red Hook, NY, USA: Curran
+     USENIX Annual Technical Conference (USENIX ATC 25). USENIX                    Associates Inc., 2024.
+     Association, Jul. 2025. [Online]. Available: https://www.usenix.org/     [44] Y. Zhong, S. Liu, J. Chen, J. Hu, Y. Zhu, X. Liu, X. Jin,
+     conference/atc25/presentation/wang-jiahao                                     and H. Zhang, “Distserve: Disaggregating prefill and decoding for
+[37] C. Wilson, H. Ballani, T. Karagiannis, and A. Rowtron, “Better never          goodput-optimized large language model serving,” in 18th USENIX
+     than late: meeting deadlines in datacenter networks,” in Proceedings          Symposium on Operating Systems Design and Implementation (OSDI
+     of the ACM SIGCOMM 2011 Conference, ser. SIGCOMM ’11. New                     24). USENIX Association, 2024, pp. 193–210. [Online]. Available:
+     York, NY, USA: Association for Computing Machinery, 2011, p.                  https://www.usenix.org/conference/osdi24/presentation/zhong-yinmin
+     50–61. [Online]. Available: https://doi.org/10.1145/2018436.2018443      [45] K. Zhu, H. Shi, L. Xu, J. Shan, A. Krishnamurthy, B. Kasikci, and
+[38] B. Wu, Y. Zhong, Z. Zhang, S. Liu, F. Liu, Y. Sun, G. Huang,                  L. Xie, “Polyserve: Efficient multi-slo serving at scale,” 2025. [Online].
+     X. Liu, and X. Jin, “FastServe: Iteration-Level preemptive scheduling         Available: https://arxiv.org/abs/2507.17769
+     for large language model inference,” in 23rd USENIX Symposium on
+     Networked Systems Design and Implementation (NSDI 26). Renton,                                             AI U SE
+     WA: USENIX Association, May 2026, pp. 57–74. [Online]. Available:
+     https://www.usenix.org/conference/nsdi26/presentation/wu-bingyang           We acknowledge the use of AI in the preparation of this
+[39] Y. Xiang, X. Li, K. Qian, Y. Yang, D. Zhu, W. Yu, E. Zhai, X. Liu,       submission. AI assistants were used in two settings.
+     X. Jin, and J. Zhou, “Aegaeon: Effective gpu pooling for concurrent         First, during system implementation, we used AI coding
+     llm serving on the market,” in Proceedings of the ACM SIGOPS 31st
+     Symposium on Operating Systems Principles, ser. SOSP ’25. New York,      assistants to help write and debug parts of the codebase,
+     NY, USA: Association for Computing Machinery, 2025, p. 1030–1045.        including the scripts that generate the figures. The system
+     [Online]. Available: https://doi.org/10.1145/3731569.3764815             design and experimental methodology were our own, and we
+[40] G.-I. Yu, J. S. Jeong, G.-W. Kim, S. Kim, and B.-G. Chun,
+     “Orca: A distributed serving system for transformer-based generative     analyzed, validated, and interpreted all results ourselves. No
+     models,” in 16th USENIX Symposium on Operating Systems Design            measured result, figure, or numerical value in this paper was
+     and Implementation (OSDI 22). Carlsbad, CA: USENIX Association,          produced by AI.
+     Jul. 2022, pp. 521–538. [Online]. Available: https://www.usenix.org/
+     conference/osdi22/presentation/yu                                           Second, during writing, we used AI to revise text, organize
+[41] J. Yu, M. Hu, Z. Lin, and M. Zhang, “Superinfer: Slo-aware rotary        the structure of sections, and perform copy-editing such as
+     scheduling and memory management for llm inference on superchips,”       grammar, wording, and consistency of terminology. We di-
+     2026. [Online]. Available: https://arxiv.org/abs/2601.20309
+[42] W. Zhang, Z. Wu, Y. Mu, R. Ning, B. Liu, N. Sarda, M. Lee, and F. Lai,   rected the content of every section, verified claims, and edited
+     “Jitserve: Slo-aware llm serving with imprecise request information,”    the output.
+

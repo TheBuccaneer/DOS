@@ -1,0 +1,105 @@
+\begin{thebibliography}{}
+
+\bibitem[Addagada, 2026]{kvgov}
+Addagada, T.~C. (2026).
+\newblock Governing the {KV} cache: Preventing timing side-channel leakage in
+  multi-tenant {LLM} inference.
+\newblock {\em arXiv preprint arXiv:2608.09225v1}.
+\newblock \url{https://arxiv.org/abs/2608.09225v1}.
+
+\bibitem[Adnan et~al., 2026]{cascade}
+Adnan, M., Mahapatra, R., Nair, P., Berger, D., Zardoshti, P., Fonseca, R., and
+  Choukse, E. (2026).
+\newblock Cascade: Exploiting {SLO}-aware latency budget for fair and high
+  goodput {LLM} inference serving.
+\newblock {\em arXiv preprint arXiv:2608.06557v1}.
+\newblock \url{https://arxiv.org/abs/2608.06557v1}.
+
+\bibitem[Agrawal et~al., 2024]{sarathi}
+Agrawal, A., Kedia, N., Panwar, A., Mohan, J., Kwatra, N., Gulavani, B.,
+  Tumanov, A., and Ramjee, R. (2024).
+\newblock Taming throughput-latency tradeoff in {LLM} inference with
+  {Sarathi-Serve}.
+\newblock In {\em 18th USENIX Symposium on Operating Systems Design and
+  Implementation (OSDI 24)}, pages 117--134. USENIX Association.
+\newblock \url{https://www.usenix.org/conference/osdi24/presentation/agrawal}.
+
+\bibitem[Bai et~al., 2026]{faircache}
+Bai, Z., Gao, B., Xu, F., Zhao, H., Zhou, Z., and Wong, W.-F. (2026).
+\newblock {FairCache}: Demystifying cache-induced unfairness in multi-tenant
+  large language model serving.
+\newblock {\em IEEE Transactions on Parallel and Distributed Systems},
+  37(11):2390--2406.
+\newblock doi:10.1109/TPDS.2026.3729988. Full text not inspected.
+
+\bibitem[Bali et~al., 2026]{fairinference}
+Bali, D., Ponnapalli, S., Wang, Y., Crooks, N., Shenker, S., and Zaharia, M.
+  (2026).
+\newblock Token latency fairness: Performance isolation for multi-tenant {LLM}
+  serving.
+\newblock {\em arXiv preprint arXiv:2609.18112v1}.
+\newblock \url{https://arxiv.org/abs/2609.18112v1}.
+
+\bibitem[Gao et~al., 2025]{hcache}
+Gao, S., Chen, Y., and Shu, J. (2025).
+\newblock Fast state restoration in {LLM} serving with {HCache}.
+\newblock In {\em Proceedings of the Twentieth European Conference on Computer
+  Systems}, pages 128--143. ACM.
+\newblock doi:10.1145/3689031.3696072.
+
+\bibitem[Liu et~al., 2026]{eviction}
+Liu, Y., Yu, M., and Yang, J. (2026).
+\newblock When fancy eviction fails: Rethinking cache replacement for {LLM}
+  prefix reuse.
+\newblock {\em arXiv preprint arXiv:2609.28870v2}.
+\newblock \url{https://arxiv.org/abs/2609.28870v2}.
+
+\bibitem[{OpenAI}, 2026]{codex}
+{OpenAI} (2026).
+\newblock Codex.
+\newblock \url{https://openai.com/codex/}. AI assistance disclosed in the
+  manuscript; accessed 17 October 2026.
+
+\bibitem[Pennas et~al., 2026]{prefixwall}
+Pennas, P.~G., Papaioannou, K., Guarnieri, M., and Doudali, T.~D. (2026).
+\newblock {PrefixWall}: Mitigating prefix caching side channels in shared {LLM}
+  systems.
+\newblock {\em arXiv preprint arXiv:2603.10726v2}.
+\newblock \url{https://arxiv.org/abs/2603.10726v2}.
+
+\bibitem[Sheng et~al., 2024]{vtc}
+Sheng, Y., Cao, S., Li, D., Zhu, B., Li, Z., Zhuo, D., Gonzalez, J.~E., and
+  Stoica, I. (2024).
+\newblock Fairness in serving large language models.
+\newblock In {\em 18th USENIX Symposium on Operating Systems Design and
+  Implementation (OSDI 24)}, pages 965--988. USENIX Association.
+\newblock \url{https://www.usenix.org/conference/osdi24/presentation/sheng}.
+
+\bibitem[{vLLM Project}, 2026]{vllm}
+{vLLM Project} (2026).
+\newblock {vLLM} source code, tag v0.17.1.
+\newblock \url{https://github.com/vllm-project/vllm/tree/v0.17.1}. Seven
+  audited files matched locally by SHA-256.
+
+\bibitem[Wang et~al., 2026]{fillsqueeze}
+Wang, T., Fan, H., Shu, Y., Cheng, P., and Wang, C. (2026).
+\newblock Rethinking latency denial-of-service: Attack the {LLM} serving
+  framework, not the model.
+\newblock {\em arXiv preprint arXiv:2602.07878v2}.
+\newblock \url{https://arxiv.org/abs/2602.07878v2}.
+
+\bibitem[Wang and Buyya, 2026]{prefixshield}
+Wang, Z. and Buyya, R. (2026).
+\newblock Preserving admission responsibility in multi-tenant large language
+  model prefix caches.
+\newblock {\em arXiv preprint arXiv:2608.01657v1}.
+\newblock \url{https://arxiv.org/abs/2608.01657v1}.
+
+\bibitem[Zhao et~al., 2026]{grief}
+Zhao, Y., Zhao, Y., Zhang, Y., Liu, Z., and Mazurek, M.~L. (2026).
+\newblock Continuous discovery of vulnerabilities in {LLM} serving systems with
+  fuzzing.
+\newblock {\em arXiv preprint arXiv:2605.11202v1}.
+\newblock \url{https://arxiv.org/abs/2605.11202v1}.
+
+\end{thebibliography}

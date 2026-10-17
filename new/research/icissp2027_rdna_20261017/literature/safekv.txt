@@ -1,0 +1,1025 @@
+                                        Selective KV-Cache Sharing to Mitigate Timing Side-Channels in
+                                                                LLM Inference
+                                                             Kexin Chu∗                               Zecheng Lin∗                                 Dawei Xiang
+                                                    University of Connecticut                         Independent                            University of Connecticut
+                                                        Storrs, CT, USA                      zc-lin24@mails.tsinghua.edu.cn                       Storrs, CT, USA
+                                                     kexin.chu@uconn.edu                                                                       ieb24002@uconn.edu
+
+                                                              Zixu Shen                               Jianchang Su                                  Cheng Chu
+                                                    University of Connecticut                   University of Connecticut                Indiana University Bloomington
+                                                        Storrs, CT, USA                              Storrs, CT, USA                          Bloomington, IN, USA
+                                                     qzt24001@uconn.edu                         jianchang.su@uconn.edu                            chu6@iu.edu
+
+
+
+
+arXiv:2508.08438v2 [cs.CR] 9 Feb 2026
+                                                             Yiwei Yang                              Wenhui Zhang                                   Wenfei Wu
+                                                           UC Santa Cruz                             Independent                                Peking University
+                                                        Santa Cruz, CA, USA                   wenhuizhang.psu@gmail.com                          Beijing, China
+                                                        yyang363@ucsc.edu                                                                     wenfeiwu@pku.edu.cn
+
+                                                                                                       Wei Zhang†
+                                                                                                University of Connecticut
+                                                                                                     Storrs, CT, USA
+                                                                                                wei.13.zhang@uconn.edu
+
+                                        ABSTRACT                                                                This efficiency gain is amplified through KV-cache sharing across
+                                        Global KV-cache sharing is an effective optimization for acceler-       multiple requests. As a result, KV-cache sharing is widely used
+                                        ating large language model (LLM) inference, yet it introduces an        to boost throughput and reduce response latency in large-scale,
+                                        API-visible timing side channel that lets adversaries infer sensitive   multi-user LLM deployments [22, 35, 66].
+                                        user inputs from shared entries, leading to cross-tenant privacy           However, KV-cache sharing raises serious privacy and security
+                                        risks. To address this problem, we introduce SafeKV (Secure and         concerns in shared or multi-tenant deployments. Specifically, shar-
+                                        Flexible KV-cache Sharing), a system-level co-design of privacy         ing KV entries across mutually untrusted users can leak information.
+                                        enforcement and KV-cache management. SafeKV integrates light-           As shown in Figure 1, an adversary can infer cache hits by issuing
+                                        weight detection and isolation directly into the serving runtime to     carefully crafted queries and measuring response latencies. These
+                                        eliminate cross-tenant reuse of sensitive KV-cache blocks under our     timing differences reveal whether a prefix has been cached before,
+                                        threat model, while recovering most of the performance benefits         which can expose other users’ query patterns. With enough probes,
+                                        of global sharing. Our key contributions are: (1) a three-tier asyn-    cache probing attacks can recover partial or even complete user
+                                        chronous detection pipeline that decouples privacy classification       inputs [47, 50, 53, 65].
+                                        from inference and supports streaming workloads, (2) a unified             These side-channel attacks are concerning for two reasons. First,
+                                        radix-tree–based memory manager with path compression and               they require no special privileges: the attacker simply interacts with
+                                        sensitivity-aware eviction for scalable selective isolation, and (3)    the LLM through its standard API and can blend in with normal
+                                        an RDR-guided (Reuse Diversity Ratio) runtime safeguard that de-        traffic. Second, prompts often contain sensitive data, such as medical
+                                        tects and bounds residual leakage. On large LLM backends, SafeKV        questions, financial details, or private instructions to LLM agents.
+                                        reduces the time-to-first-token (TTFT) overhead compared to full        Prior work reports high success rates under practical settings: in
+                                        isolation by up to 40.58% and raises throughput by up to 2.66×.         some cases, success approaches or exceeds 89% with query costs
+                                        Overall, SafeKV restores the efficiency of KV reuse while enforcing     on the order of ∼102 requests per token ( Table 1). Given the low
+                                        strong, practical privacy for multi-tenant LLM inference.               barrier to attack and the severity of the exposed data, KV-cache
+                                                                                                                timing leakage is a pressing threat for real deployments.
+                                        1    INTRODUCTION                                                          A straightforward mitigation is timing obfuscation, such as TTFT
+                                                                                                                padding or injected jitter. This approach is poorly aligned with how
+                                        Large language models (LLMs) now drive applications from di-
+                                                                                                                KV-cache timing attacks work in practice. The attacker does not
+                                        alogue to complex reasoning. To meet time-sensitive inference
+                                                                                                                need exact latency values; repeated probing only needs a reliable
+                                        demands, key–value (KV) caching stores intermediate attention
+                                                                                                                statistical separation between the TTFT distributions of cache hits
+                                        states (“keys” and “values”) to eliminate redundant computation for
+                                                                                                                and misses. Under real workloads, cache-miss TTFT can be heavy-
+                                        sequential or similar prompts, thereby accelerating generation [63].
+                                                                                                                tailed, so defeating common two-sample tests may require padding
+                                        ∗ These authors contributed equally to this work.
+                                                                                                                hit responses toward high quantiles of the miss distribution (or
+                                        † Corresponding author.
+                                                   Kexin Chu, Zecheng Lin, Dawei Xiang, Zixu Shen, Jianchang Su, Cheng Chu, Yiwei Yang, Wenhui Zhang, Wenfei Wu, and Wei Zhang
+
+
+                                                                                                                                                         SGLang                                   Cache-Partition
+  "Name":**,                                                               Prompts              TTFT
+
+
+
+
+                                                                                                            TTFT Compare (%)                                                  TTFT Compare (%)
+                                                     hit
+  "Age":**,                                                  Reuse
+                                                                                                                               100
+  "Email":**,
+  "Disease His":**,             LLM                                                  Feedback                                                                                                    100
+                                                     miss   Compute
+   Secret Tokens                Model
+                                        KV-Cache                      Prompt Constructor        Analyzer
+
+
+
+                      Users                             LLM Server                          Attacker
+                                                                                                                                0                                                                  0
+                                                                                                                                     ShareGPT Multiturn        Multitask                               ShareGPT Multiturn Multitask
+                                                                                                                                        (a) Llama-2-13B                                                     (b) Llama-2-70B
+                              Figure 1: Attack Overview.
+                                                                                                           Figure 2: Normalized performance of TTFT between SGLang
+                                                                                                           (global-sharing) and Cache-Partition (isolated-per-user).
+Table 1: Reported effectiveness and query cost of recent KV-
+cache timing side-channel attacks.                                                                                                          Q            KT                                                                V
+
+                                                                                                           Without Cache                                                                                                  v1
+                                                                                                                                                                                                                          v2
+                                                                                                                                                                                                                          ⋯
+                                                                                                                                                  × k1 k2 ⋮ kn+k =                                                    ×          =   on+k+1
+ Work                          Avg. success rate                            Avg. attack cost
+                                                                                                                                                                                                       ⋯
+                                                                                                           Longer Time
+                                                                                                                                           qn+k                      qn+kk1           qn+kk2               qn+kkn+k       vn+k
+ PromptPeek [53]  99% / 98% / 95% (input / tem- 148–306 req/token                                                                           Q            KT                                                                V
+                  plate / whole-prompt)                                                                    With Cache
+                                                                                                                                                                                                                          v1
+ EarlyBird [47]   89%                            112.72 req/token                                                                                                                                                         v2
+                                                                                                                                                                                                                          ⋯
+                                                                                                                                                  × k1 k2 ⋮ kn+k =                                                    ×          =   on+k+1
+ InputSnatch [65] 43.33%–100% across 13 legal          N/R†                                                Shorter Time
+                                                                                                                                                                     qn+kk1           qn+kk2           ⋯   qn+kkn+k
+                                                                                                                                           qn+k                                                                           vn+k
+                  domains
+† N/R: not reported in the original paper under a comparable “req/token” measure.                                                    Values that will be computed                                 Values that will be taken from cache
+
+
+                                                                                                           Figure 3: Comparison of self-attention computation mecha-
+injecting jitter of similar magnitude). This directly reduces the                                          nisms. The traditional approach (upper) performs full recom-
+user-visible gains of prefix reuse and can inflate P95/P99 TTFT.                                           putation for each token, while the KV-cache (lower) reuses
+For example, prior work reports that context caching can reduce                                            stored key-value vectors to accelerate inference. The KV-
+TTFT by up to 73% [55]; padding hit responses toward the miss tail                                         cache reduces the computational complexity per decoding
+would remove most of this gain. A more KV-cache–aware defense                                              step from 𝑂 (𝑛 2 ) to 𝑂 (𝑛).
+is per-user cache isolation [42]. Unlike padding or jitter, isolation
+targets the root cause of cross-tenant leakage by preventing one                                              These safeguards keep sensitive data confined without stopping
+user from observing another user’s cache hits. At the same time,                                              inference.
+it preserves KV-cache reuse within each user, which matches the
+                                                                                                            • Privacy-Aware Cache Management. We implement a unified
+access pattern of many real applications (e.g., multi-turn sessions
+                                                                                                              radix-tree cache index that supports both private and share-
+and repeated prefixes from the same tenant). This makes isolation
+                                                                                                              able entries, with compression-aware indexing and multi-tier
+a more practical baseline for KV-cache settings. However, it still
+                                                                                                              memory coordination. The design enables fast lookup and high
+forgoes the benefits of cross-tenant reuse that global caching relies
+                                                                                                              reuse with small overhead under multi-tenant workloads.
+on. In our measurements, isolating caches inflates TTFT by about
+                                                                                                            • Implementation and End-to-End Evaluation. We imple-
+38% and reduces throughput ( Figure 2). This leaves a practical gap:
+                                                                                                              ment SafeKV and evaluate it against state-of-the-art KV-cache
+the system should isolate sensitive KV blocks while still enabling
+                                                                                                              isolation baselines: Cache-Partition and Shared-System-Prompt.
+reuse on prefixes that are safe to share.
+                                                                                                              Across our workloads, SafeKV improves throughput by up to
+   This paper introduces SafeKV, a high-performance KV-cache
+                                                                                                              2.66× while enforcing cross-tenant privacy constraints.
+manager that integrates privacy enforcement directly into
+the serving runtime. In contrast to prior approaches, SafeKV co-
+designs privacy detection with cache indexing and memory manage-                                           2 BACKGROUND & MOTIVATION
+ment. It runs privacy detection asynchronously using lightweight                                           2.1 LLM Inference and KV-cache Sharing
+queues, so classification does not stall inference. By co-locating pri-                                    Transformer-based LLMs model contextual dependencies through
+vacy metadata with cache control logic, SafeKV preserves the low                                           scaled dot-product attention over Query (Q), Key (K), and Value
+latency and high reuse benefits of global caching while providing                                          (V) vectors [32, 36, 52]. Inference consists of a prefill stage, which
+system-level protection against timing side channels.                                                      processes the full prompt to produce the initial per-token K/V vec-
+   This work makes the following systems contributions:                                                    tors and the first output token, followed by a decoding stage that
+  • Asynchronous Hybrid Detection. We design a multi-tier                                                  generates subsequent tokens one by one. During decoding, the
+    detection pipeline that combines rule-based matching, a general                                        model needs attention over all previous tokens. Without caching,
+    privacy detector, and context-aware validation. The pipeline                                           the server would recompute the K/V vectors for the prefix repeat-
+    runs asynchronously and is optimized for high-throughput LLM                                           edly. With KV caching, previously computed K/V vectors are stored
+    serving.                                                                                               and reused, and only the new token’s K/V vectors are computed at
+  • Defense Under Misclassification. We add runtime safeguards                                             each step ( Figure 3). This reuse reduces the computational com-
+    that limit the impact of imperfect detection, including private-                                       plexity per decoding step from 𝑂 (𝑛 2 ) to 𝑂 (𝑛), improving efficiency
+    by-default insertion and fallback handling for suspicious access.                                      for long contexts and multi-turn interactions [29].
+Selective KV-Cache Sharing to Mitigate Timing Side-Channels in LLM Inference
+
+
+ Table 2: Comparison of cache mechanisms for LLM APIs                          Table 4: Intra-session and Inter-session KV-cache reuse rates
+                                                                               across different datasets.
+ Vendor/Framework        Streaming    Caching Mechanism      Cache Lifetime
+ OpenAI [41]                 Y           Prefix Caching       5–10 minutes         Dataset                  Intra-User Reuse    Inter-User Reuse
+ DeepSeek [25]               Y           Prefix Caching       Hours to days
+ Anthropic Claude [17]       Y           Prefix Caching         5 minutes          ShareGPT V3 [1]               7.06%                25.49%
+ Google Gemini [24]          Y           Prefix Caching       Default 1 hour       Multiturn Chat [2]            31.47%                9.45%
+ MoonShot Kimi [43]          Y           Prefix Caching       Customization        Prompt Multitasks [28]         0.0%                63.10%
+ vLLM [34]                   Y           Prefix Caching       Customization
+ SGLang [64]                 Y           Prefix Caching       Customization
+                                                                               presence and gradually reconstruct sensitive content. Preventing
+   To improve inference efficiency, LLM serving systems widely                 unintended reuse of these tokens is therefore essential in multi-
+enable KV-cache sharing, allowing the reuse of previously computed             tenant serving.
+key–value embeddings across requests with overlapping prompt
+prefixes, as summarized in Table 2. Retention policies vary across                Performance Impact of Full Isolation. A natural defense is
+providers, but they all aim to exploit prefix overlap for higher               per-user cache isolation, which prevents cross-tenant leakage but
+throughput. SafeKV builds upon this standard optimization, ad-                 eliminates shared reuse [42]. This approach forces identical prefixes
+dressing how to retain its performance advantages while preventing             to be recomputed and stored separately across HBM, DRAM, and
+cross-tenant information leakage through shared caches.                        SSD tiers, shrinking effective capacity and increasing TTFT [37, 56].
+                                                                               Our motivation experiments (Figure 2) show that Cache-Partition
+2.2     Timing Side-Channel Attack                                             increases TTFT by 2.3%–8.9% for Llama-2-13B [7] and by 8.3%–38.9%
+                                                                               for Llama-2-70B [8] under realistic cross-user overlap.
+While shared KV caching significantly improves inference effi-
+ciency, it also introduces a software-level timing side channel. By               SafeKV: Bridging Privacy and Performance. To address this
+issuing crafted queries and measuring TTFT latency, an attacker                trade-off, we propose SafeKV, a selective KV-cache sharing frame-
+can distinguish cache hits from misses and thereby infer whether               work that classifies cache entries by privacy sensitivity. Non-private
+specific prefix tokens were previously used by other users. Recent             entries are safely reused across requests, while sensitive ones re-
+studies [23, 46, 47, 53, 58, 65] show that such attacks can be executed        main confined to per-user space. This policy preserves most latency
+entirely through black-box APIs: subtle latency variations allow               and throughput benefits of shared caching while closing the pri-
+the attacker to iteratively test candidate prefixes and reconstruct            mary channel for timing-based leakage.
+parts of a victim’s prompt.
+   This leakage extends beyond exact-prefix reuse. Even semantic               2.4     Challenges
+or partial-match caching can create measurable latency gaps, since             However, designing such a system raises three challenges:
+queries similar to previously served inputs are processed faster [18].
+                                                                                • Challenge 1: Accurate and Efficient Privacy Classification.
+Empirical analyses on both commercial and open-source serving
+                                                                                  The system must distinguish sensitive from non-sensitive KV
+stacks reveal a persistent tension between performance-driven
+                                                                                  entries with high precision and minimal latency overhead. Rule-
+cache reuse and cross-tenant privacy in real-world deployments.
+                                                                                  based filters are efficient but suffer from limited recall, whereas
+                                                                                  deep models improve accuracy at the cost of inference delay.
+    Table 3: Personal Information Counts in C4 and Pile.
+                                                                                • Challenge 2: Risk Mitigation under Imperfect Detection.
+                                                                                  Even rare misclassifications can cause privacy breaches when
+  Personal Information Type                          C4                 Pile
+                                                                                  sensitive content is mistakenly shared. The system must detect
+  User Name                             1,444,683,066       3,273,163,949         and contain such events dynamically, ensuring safety without
+  Phone Number                             19,592,273          23,191,595         interrupting inference execution.
+  Email Number                              9,056,833          13,336,793       • Challenge 3: Scalable Cache Lifecycle Management. Or-
+  US Bank Number                            7,139,838          69,763,678         ganizing private and shared caches to maximize reuse while
+  Credit Card Number                           61,405             741,815         maintaining isolation requires careful data placement and in-
+  US SSN                                    2,352,339          12,541,022         dexing. The design must enable fast prefix matching, reduce
+  IP Address                                1,890,090          14,975,663         redundancy, and prevent structural fragmentation under dy-
+                                                                                  namic workloads.
+  Total                                 1,484,780,621       3,407,722,116
+                                                                               3     THREAT MODEL
+2.3     Motivation: Privacy Risk and Isolation Cost                            SafeKV targets multi-tenant LLM inference backends where many
+   The Risk of KV-cache Leakage. To evaluate the privacy risk of               users share the same serving fleet and the service may reuse KV-
+KV-cache sharing, we examined two widely used corpora, C4 [44]                 cache entries across sessions. We consider an adaptive black-box
+and Pile [31]. As shown in Table 3, both contain substantial amounts           adversary who can create arbitrary accounts, issue strategically
+of personally identifiable information (PII), including usernames,             timed queries, and run probes concurrently or in batches. They
+phone numbers, credit card numbers, and U.S. Social Security Num-              can coordinate across accounts, replay prompts with controlled
+bers. When cache entries embedding such prefixes are shared across             prefixes, and adaptively refine probes to test whether a specific
+tenants, attackers can exploit latency-based probes to infer their             prefix or span has been cached by another tenant. The adversary
+                                   Kexin Chu, Zecheng Lin, Dawei Xiang, Zixu Shen, Jianchang Su, Cheng Chu, Yiwei Yang, Wenhui Zhang, Wenfei Wu, and Wei Zhang
+
+
+can observe response timing, including TTFT and per-token latency.                 Frameworks
+The adversary cannot read other users’ plaintext prompts, model                          Scheduler
+                                                                                                                              Serving LLMs
+weights, or KV contents, cannot execute code on serving nodes, and                        Queue
+cannot modify the tokenizer or model parameters. We assume the
+                                                                                                         1
+adversary does not break cryptographic primitives, bypass standard                   Hybrid Detector             Cache Allocator      Cache Search Engine
+
+
+                                                                                                       Queue
+authentication, or tamper with the timing source provided by the                      Rule-Based
+operating system or hypervisor.                                                        Detector
+                                                                                                                 3                                             2
+   We trust secure transport (TLS) and standard service authentica-                                                                     Access Monitor
+tion, and we assume the model and tokenizer artifacts used by the                        Queue                   Unified KV-cache
+                                                                                                                       Index
+service are correct. We do not trust the multi-tenant workload mix,                   General-Detector                                  RDR Safeguard
+co-scheduling decisions, or naive KV-sharing policies to preserve
+privacy by default. Any cross-tenant reuse must be justified and
+                                                                                        Queue                                                              4
+enforced by SafeKV. SafeKV enforces this control through multi-tier                    Context-Aware              Path Compressor    Progressive Evictor
+privacy detection, creator-bounded access checks, and a runtime                          Validation
+safeguard. The safeguard monitors reuse behavior and updates the                                                        KV Cache Management
+sharing status of the corresponding KV-cache blocks when it de-
+tects suspicious traffic. Our scope is software-visible timing leakage                  Figure 4: The Architecture Overview of SafeKV.
+induced by cross-tenant KV-cache reuse in multi-tenant inference.
+We do not address attacks that require privileged internal access,
+denial of service, or side channels outside the API timing surface.             to shareable only after background verification completes. This
+                                                                                pipeline is built around a Hybrid Detector ( 1 ) that increases
+4     DESIGN: SAFEKV                                                            semantic strength while controlling overhead: (i) Tier-1 rule-based
+To address the tension between privacy protection and high perfor-              filters quickly catch obvious sensitive patterns and skip clearly
+mance cache reuse in large language model serving, we designed                  safe cases, (ii) Tier-2 lightweight transformer classifiers provide
+and built SafeKV, a system-level KV-cache management framework                  high-throughput semantic screening, and (iii) Tier-3 large-model
+that embeds lightweight privacy classification and isolation directly           validation is invoked only for low-confidence cases. To ensure
+into the KV-cache memory hierarchy. SafeKV treats privacy as a                  that residual errors do not turn into visible reuse, SafeKV adds a
+first-class design constraint rather than a separate detection work-            runtime fallback mechanism ( 2 ): a KV-Cache Access Monitor
+load, and preserves the throughput and latency benefits of shared               records per-entry reuse statistics during cache lookups, and the
+KV-cache while keeping cross-tenant leakage within measurable                   RDR Safeguard uses these signals to flag suspicious reuse behavior
+bounds. To guide the design, SafeKV follows three principles:                   (e.g., sudden probe-like bursts that deviate from normal tenant
+  • Privacy-Aware Reuse. We encode cache visibility (shareable                  traffic). When triggered, the safeguard immediately demotes the
+     vs. private) directly in the core KV-cache index to enable cross-          entry back to private. This design addresses Challenges 1 and
+     tenant reuse when safe while preventing reuse of sensitive                 2: it keeps detection off the serving path to protect latency, and
+     blocks across user boundaries.                                             it provides a conservative feedback loop that limits the impact of
+                                                                                misclassification.
+  • Latency Transparency. We keep privacy classification off
+     the critical inference path by scheduling classification asyn-                 Unified Memory Manager. SafeKV realizes privacy-aware cache
+     chronously and by defaulting to private until verified shareable,          management through a unified radix-tree–based index ( 3 ) that
+     to avoid increasing TTFT or tail latency.                                  tracks both shareable and private KV-cache entries under a single
+  • Scalable Lifecycle Management. We provide consistent cache                  set of allocation, lookup, and eviction rules. Instead of maintaining
+     operations (allocation, lookup, eviction) under large-scale multi-         separate structures, the unified index stores visibility as first-class
+     tenant workloads with mixed sensitivity by enforcing a single              metadata on each cached prefix, allowing the Cache Search Engine
+     unified lifecycle policy over all blocks.                                  to check private_tag at lookup time while making reuse decisions.
+                                                                                On top of this unified structure, SafeKV implements path com-
+4.1    System Overview                                                          pression ( 4 ) to reduce lookup depth and pointer chasing, enabling
+The high-level architecture of SafeKV, shown in Figure 4, augments              fast prefix matching for prompt reuse. It also applies a sensitivity-
+a running LLM serving stack with: (i) an asynchronous privacy                   aware progressive evictor ( 4 ) to coordinate multi-tier reclama-
+detection pipeline, and (ii) a unified KV-cache memory manager.                 tion while accounting for each entry’s visibility and reuse value,
+These two subsystems work together to enable safe cache reuse                   so private content is not evicted unfairly and shareable regions
+across tenants.                                                                 are not filled with low-value blocks. Once background detection
+                                                                                completes, the system updates an entry’s visibility bit atomically,
+    Asynchronous Detection Pipeline. To avoid inference stalls,                 so cache operations always observe consistent access semantics.
+SafeKV performs privacy classification off the critical serving path            These two components address Challenge 3 by optimizing cache
+via a multi-tier asynchronous pipeline. When a KV block is first                lifecycle management, reducing redundant copies caused by selec-
+generated, the system conservatively marks it as private and admits             tive isolation, and preserving reuse efficiency without sacrificing
+it into the cache under isolation-by-default; the block is upgraded             correctness.
+Selective KV-Cache Sharing to Mitigate Timing Side-Channels in LLM Inference
+
+
+      Table 5: Taxonomy of User-Related Data Categories                                         Table 6: Comparison of lightweight fine-tuned models for
+                                                                                                PII detection
+ Category                Type                                  Examples
+ Privacy           General Information                Nickname, avatar, signature                Model                    Base Arch.        Size   Accuracy   Token vs Seq      Langs / Types
+ (Personal)         Basic Information               Third-party account information              DistilBERT-PII [5]     DistilBERT-base      66M    95.22%     Token-level      1 lang / 5 types
+                   Identity Information          ID card, passport, driver’s license, SSN        Piiranha-v1 [6]        DeBERTa-v2-base     125M    99.44%     Token-level     6 langs / 17 types
+                   Location Information                      Country, region                     PII-BERT-base [3]      BERT-base-cased     110M    99.11%     Token-level     English / gen data
+                 Biometric Identification     Fingerprints, face, voiceprint, iris, gene info    dbert-pii-det. [11]   DistilBERT-uncased    66M    94.33%     Token-level         mixed syn.
+              System/Network Identification    UserID, IP, Cookie, RFID, password, certs         DePrompt [48]           ChatGLM2-6B          6B    95.95%    Sequence-level        Chinese
+ Device        Software Device Information        Android ID, IDFA, IDFV, OS, region             GPT-4o-mini [45]         GPT-4o-mini         1B    98.95%    Sequence-level     English / Edu
+              Hardware Device Information           MAC, IMEI, GUID, serial number
+ Profile           Cultural & Social Info       Job, education, qualification certificates
+                       Financial Info             Bank account, property, loan records
+                         Social Info               Likes/follows, contacts, collections            Our first attempt was to use models that are explicitly fine-tuned
+                   Service Content Info          Browsing/purchase/download records
+ Behavior            Service Log Info                Login, behavior, purchase logs             for PII detection, since they are designed for this task and are easy to
+                                                                                                deploy. We benchmarked several fine-tuned transformer detectors
+                                                                                                for accuracy, multilingual coverage, and inference cost (Table 6).
+4.2        Asynchronous Detection Pipeline                                                      Models such as DistilBERT-PII and PII-BERT-base exceed 93% accu-
+                                                                                                racy, and Piiranha-v1 reports 99.4% accuracy with 125M parameters.
+First, we focus on the privacy detection subsystem, which classifies
+                                                                                                However, these detectors are often trained for token-level labeling,
+each KV-cache block as either private or shareable and enforces
+                                                                                                which leads to fragmented outputs and makes them brittle when
+runtime safeguards against potential misclassifications. The de-
+                                                                                                the input format changes. In our tests, their generalization to un-
+sign treats privacy protection as a system constraint rather than
+                                                                                                seen categories is weak: on a pii-masking subset with 16 novel
+a standalone ML task: detection must integrate tightly with the
+                                                                                                PII types, Piiranha-v1 detects only 33.4%. This gap is problematic
+KV-cache management, preserve inference efficiency, and remain
+                                                                                                for multi-tenant serving, where tenants can introduce new formats
+robust under imperfect predictions. To achieve these goals, SafeKV
+                                                                                                and previously unseen sensitive fields.
+integrates a three-tier hybrid detection pipeline (§ 4.2.1), a
+                                                                                                   We then moved to lightweight LLMs, since the hard cases in
+runtime fallback mechanism (§ 4.2.2), and an asynchronous
+                                                                                                Tier-2 are driven by semantics rather than surface patterns. We
+scheduler (§ 4.2.3).
+                                                                                                evaluated compact models from the Qwen3 and Llama-3 families
+4.2.1 Three-Tier Hybrid Detection Strategy. To enable accurate                                  for accuracy, out-of-distribution tolerance, and latency. As shown
+and efficient privacy classification for KV-cache blocks, SafeKV                                in Figure 5, Llama-3.2-1B offers the best accuracy–latency trade-
+uses a three-tier detection pipeline that filters inputs with increasing                        off in our setting: it reaches near-perfect detection accuracy while
+cost and increasing semantic strength. The key idea is to make most                             keeping inference latency close to smaller transformer detectors. It
+decisions with low overhead, and reserve expensive reasoning for                                also maintains stable performance across six languages. Based on
+rare corner cases. Specifically, the pipeline proceeds as follows: (i)                          these results, SafeKV uses Llama-3.2-1B as the Tier-2 detector in
+Tier-1 handles common, explicit identifiers with near-zero cost us-                             the following experiment.
+ing deterministic pattern rules; (ii) Tier-2 covers implicit or loosely
+                                                                                                   Tier 3: Context-Aware Validation. Tier-1 and Tier-2 operate
+formatted privacy signals using a small semantic model with low
+                                                                                                mainly on local text spans, so they can fail when privacy sensitivity
+latency; and (iii) Tier-3 resolves the remaining hard cases by vali-
+                                                                                                depends on earlier turns. This happens when the current text is
+dating sensitivity under full conversational context. The concrete
+                                                                                                not identifying by itself, but becomes identifying once combined
+design of each tier is described as follow:
+                                                                                                with prior dialogue (e.g., a name or location revealed earlier). Tier-3
+    Tier 1: Rule-Based Pattern Matching. Tier-1 focuses on iden-                                targets these context-dependent cases and re-checks the block with
+tifiers with stable, easy-to-match formats. It applies deterministic                            an explicit view of recent conversation history.
+matching to the raw text associated with each KV block using two                                   Tier-3 is triggered only for Tier-2 low-confidence decisions. For
+rule types: (i) regular expressions for variable-length patterns (e.g.,                         each such block, SafeKV constructs a validation prompt that in-
+emails, phone numbers, and ID strings) and (ii) token blacklists for                            cludes the current input and a bounded window of recent dialogue
+fixed keywords (e.g., internal project codes or organization-specific                           history, and then asks the in-service LLM to decide whether the
+keys). The rule set is configurable and supports hot reloading, so                              block should remain Private or can be promoted to Shareable.
+operators can add or update patterns without restarting the service.                            We use the serving LLM for this stage because the decision often
+    Table 5 lists the main categories covered at this stage, such as                            requires long-context semantic reasoning; deploying a separate
+structured identifiers, device metadata, behavioral logs, and user                              validation model would add extra replicas and deployment cost.
+profile fields. In production, Tier-1 flags roughly 60–70% of private                           Since Tier-3 runs only on Tier-2 low-confidence cases, it is rarely
+blocks while adding negligible compute overhead.                                                on the hot path: in our experiments, fewer than 8% of requests
+                                                                                                reach Tier-3.
+   Tier 2: General Privacy Detector. Tier-1 is fast but incomplete:
+pattern rules cannot reliably capture privacy signals that are implicit                         4.2.2 Fallback Protection and Attack Mitigation. Despite employ-
+(e.g., “my email is Kevin, dot, James, at Gmail, dot com—please                                 ing a hybrid, multi-stage detection pipeline, SafeKV acknowledges
+don’t share it”), paraphrased, or expressed in diverse formats and                              that privacy classification may occasionally fail, due to nuanced se-
+languages. Tier-2 extends coverage with a lightweight semantic                                  mantic ambiguity, incomplete pattern coverage, or the model’s lim-
+classifier that runs at low latency and high throughput.                                        itations. To mitigate these residual risks after deployment, SafeKV
+                                                                     Kexin Chu, Zecheng Lin, Dawei Xiang, Zixu Shen, Jianchang Su, Cheng Chu, Yiwei Yang, Wenhui Zhang, Wenfei Wu, and Wei Zhang
+
+
+                                                Qwen3-0.6B                                    Qwen3-4B                  Qwen3-8B                                   Llama-3.2-1B                Llama-3.2-3B                                  Llama-3.1-8B
+               100                                                                                                                                                                                                                    10.0
+                                                                                         4                                                                     8
+
+
+                                                                      Mean Latency (s)                                                       P95 Latency (s)                                                        P99 Latency (s)
+                75
+
+Accuracy (%)
+                                                                                         3                                                                     6                                                                       7.5
+                50                                                                       2                                                                     4                                                                       5.0
+                25                                                                       1                                                                     2                                                                       2.5
+                 0                                                                       0                                                                     0                                                                       0.0
+                     english_pii french_pii german_pii italian_pii                           english_pii french_pii german_pii italian_pii                          english_pii french_pii german_pii italian_pii                            english_pii french_pii german_pii italian_pii
+                               (a) Accuracy                                                          (b) Mean Latency                                                        (c) P95 Latency                                                        (d) P99 Latency
+
+
+                                                              Figure 5: Latency of lightweight general LLM models for PII detection
+
+introduces Safeguard, a lightweight runtime fallback mechanism                                                                                                                                                                                                     Shareable Block
+                                                                                                                                                                                                                                 Ques 1: ...
+that continuously monitors KV-cache access behavior and promptly                                                                                                         You are a helpful assistant                             Ans 1: ...                        Private Block
+reacts to suspicious reuse patterns.                                                                                                                                                                                             Ques 2: ..
+   At the core of this runtime defense is a lightweight statistical                                                                                                                                                              Ans 2: ...
+                                                                                                                                                                         User: Hello!
+                                                                                                                                                                                                      evited
+monitor that continuously observes access behaviors to each KV-                                                                                                          Asssitant:Hi!
+cache block. Specifically, SafeKV maintains a rolling window of                                                                                                                                                       Ques: My IP is ...                      Ques: ...      Ques: ...
+metadata for each entry, recording the current hit count (ℎ𝑖𝑡_𝑐𝑢𝑟 ),                                                                                                     User:My Email is ...                         Ans: ...                                Ans: ...       Ans: ...
+the number of unique user identifiers (𝑢_𝑐𝑛𝑡), the previous hit count                                                                                                    Assitant: Sure! ...
+
+(hit_pre), and the previous number of unique users (u_pre). These
+values are used to compute the Reuse Diversity Ratio (RDR),
+RDR = 𝑢_𝑐𝑛𝑡/ℎ𝑖𝑡_𝑐𝑢𝑟 , which summarizes access dispersion: low                                                                                                      Figure 6: The Unified Privacy/Shareable Cache Index Tree.
+RDR indicates concentrated access (e.g., frequent hits by a single
+user), while high RDR suggests broad usage across accounts.
+   When Safeguard observes a significant shift in reuse behavior, it                                                                                               4.3      Privacy-Aware Cache Management
+applies a history-aware policy. If the block has historically exhibited
+                                                                                                                                                                   After introducing the privacy detection subsystem, SafeKV can
+broad reuse (large 𝑢 pre ), an increase in dispersion is typically benign
+                                                                                                                                                                   reliably determine whether a user’s input contains private informa-
+and the block remains shareable. In contrast, if historical reuse is
+                                                                                                                                                                   tion. The next question is how to use these privacy labels during
+minimal (e.g., 𝑢 pre ≈ 1) yet the current window exhibits elevated
+                                                                                                                                                                   KV-cache reuse: how to store, index, and evict blocks while pri-
+dispersion (i.e., RDR exceeds a configurable threshold derived from
+                                                                                                                                                                   vacy boundaries are enforced. We therefore focus on the memory
+our RDR-based policy), Safeguard treats the pattern as suspicious
+                                                                                                                                                                   subsystem in this subsection. The design centers on a unified radix-
+and immediately demotes the block from shareable to private. This
+                                                                                                                                                                   tree index with fine-grained access control, compression-aware
+demotion prevents further cross-tenant reuse and removes the
+                                                                                                                                                                   private paths, and a progressive eviction mechanism that maintains
+exploitable timing signal induced by cache hits.
+                                                                                                                                                                   memory efficiency under multi-tenant workloads.
+
+                                                                                                                                                                   4.3.1 Unified Privacy-Preserving Cache Index. To distinguish pri-
+                                                                                                                                                                   vate and shareable KV-cache blocks, a natural baseline is to maintain
+                                                                                                                                                                   two separate caches. This split complicates memory accounting,
+4.2.3 Asynchronous Detection and Streaming-Aware Scheduling. To                                                                                                    duplicates common prefixes across the two structures, and makes
+keep privacy detection from increasing inference latency, SafeKV                                                                                                   eviction and tier migration harder to manage. To avoid this frag-
+decouples classification from the critical execution path of LLM                                                                                                   mentation, as shown in Figure 6, SafeKV adopts a single radix-tree
+serving. When a KV-cache block is created, the system immediately                                                                                                  index to organize KV-cache entries across HBM/DRAM/SSD. This
+inserts it as Private and continues serving the request without                                                                                                    unified hierarchy maintains both scalability and privacy integrity.
+waiting for any detector output. Classification runs asynchronously                                                                                                Each node stores two metadata fields: private_tag (0 for share-
+in worker threads that pull pending blocks from a queue, batch                                                                                                     able, 1 for private) and creator_id. These fields define a visibility
+them, and execute Tier-1/2/3 detection on GPUs when applicable.                                                                                                    rule enforced during lookups: shareable nodes are accessible to all
+Batching amortizes per-call overhead and lets the detector use GPU                                                                                                 users, while private nodes are restricted to the creator. The rule
+parallelism without stalling the serving threads.                                                                                                                  is checked at each hop, so cross-tenant access is blocked even if
+   SafeKV adapts its promotion policy to system conditions using a                                                                                                 private and shareable prefixes overlap in the tree.
+load-aware threshold. Under heavy traffic or when the runtime mon-                                                                                                  • Insert. SafeKV appends newly generated KV-cache blocks along
+itor flags probe-like access patterns, SafeKV tightens the decision                                                                                                    the radix-tree path. Each new node is created with private_tag
+boundary and promotes fewer blocks, which favors conservative                                                                                                          =1 by default until it is verified by the detection pipeline, and it
+isolation. Under normal load, it relaxes the boundary to increase                                                                                                      records the corresponding creator_id.
+the shareable portion of the cache and recover more reuse benefit.                                                                                                  • Search. A lookup traverses the prefix path and checks the
+Once a block is verified as Shareable, SafeKV atomically flips its                                                                                                     private_tag at each hop. If the node is private, the requester
+visibility bit and updates the corresponding prefix-tree metadata,                                                                                                     must match the stored creator_id; otherwise, the traversal
+so subsequent lookups can reuse the block across tenants without                                                                                                       stops. This check prevents cross-tenant reuse even when private
+inconsistent intermediate states.                                                                                                                                      and shareable prefixes overlap.
+Selective KV-Cache Sharing to Mitigate Timing Side-Channels in LLM Inference
+
+
+         Ori                Path Compress                   Eviction              5    IMPLEMENTATION
+                                   pri_root
+                                                                                  We implement SafeKV as an extension to SGLang’s serving run-
+     private node k                                           pri_root
+        [kv_addrk]           [kv_addrk , kv_addrk+1,                              time; we add a privacy-aware KV-cache manager and a small set of
+                                                        [kv_addrk , kv_addrk+1]
+                                  kv_addrk+2]                                     control-plane services while leaving the model execution path and
+                                                                                  request API unchanged. Specifically, we extend SGLang’s radix-tree
+       node k+1                   node k+1                    node k+1            prefix cache with per-block privacy labels and tenant-ownership
+      [kv_addrk+1]              [pri_root_addr]             [pri_root_addr]       metadata, SafeKV checks these tags on every lookup and reuse
+                                                                                  decision. We also add private-path compression and a progressive
+       node k+2                   node k+2                                        eviction policy to the radix-tree index to preserve memory effi-
+      [kv_addrk+2]              [pri_root_addr]
+                                                                                  ciency under multi-tenant workloads. The detection pipeline runs
+                                                                                  off the critical path in a dedicated manager: new KV-cache blocks
+Figure 7: An Example of Path Compression and Progressive                          are marked private on insertion, then processed in batches by light-
+Eviction.                                                                         weight detector (rules and a small classifier) and escalated to an
+                                                                                  LLM-based validator only for ambiguous cases. Once a block is vali-
+ • Evict. Eviction follows an epoch-based LRU policy. Shareable                   dated, it is promoted to shareable without stalling decoding. SafeKV
+   nodes use reference counting to protect shared paths, while                    remains compatible with SGLang’s existing caching and scheduling
+   private nodes are pruned gradually to avoid removing entire                    interfaces: it requires no changes to upstream request handlers
+   tenant-specific branches too early.                                            or deployment tooling, and privacy isolation can be enabled or
+                                                                                  disabled via configuration.
+4.3.2 Private Tree Optimization and Progressive Eviction. In a uni-
+fied radix-tree, shareable nodes often branch because many tenants                6    SECURITY ANALYSIS
+reuse the same prefixes, while private nodes tend to form long,
+                                                                                     Adversary Model and Security Goals. SafeKV targets timing-based
+mostly linear paths tied to a single tenant. This asymmetry cre-
+                                                                                  side-channel leakage caused by cross-tenant KV-cache reuse in
+ates two practical issues: (i) private-heavy lookups can incur deep
+                                                                                  multi-tenant LLM serving, as described in § 3. We consider a black-
+pointer chasing, and (ii) naive eviction may prioritize deleting en-
+                                                                                  box, API-only adversary who uses repeated probes and statistical
+tire large private branches. To address these issues, SafeKV adds
+                                                                                  tests on TTFT to distinguish cache hits from misses. Our design
+two mechanisms for private paths: path compression to reduce tra-
+                                                                                  goals are: (G1) block cross-tenant reuse of KV blocks that contain
+versal overhead and progressive eviction to reclaim space without
+                                                                                  privacy-sensitive content, (G2) preserve reuse benefits for prefixes
+removing useful prefixes.
+                                                                                  that are verified safe, and (G3) limit the impact of misclassification
+    Path Compression. SafeKV SafeKV compresses consecutive pri-                   using runtime safeguards.
+vate nodes belonging to the same tenant to reduce traversal depth
+on long private chains ( Figure 7). The system collapses a private                   Leakage Surface and Security Property. The leakage surface we
+chain into one composite node, denoted as pri_root. This node ag-                 focus on is API-visible TTFT distinguishability that arises from cross-
+gregates the KV addresses of the compressed descendants into a                    tenant cache hits. SafeKV enforces reuse using an explicit visibility
+single vector and sets is_compressed = true. During lookup, traversal             state for each cached prefix. Let 𝑟 𝑣 = {𝑡 1, . . . , 𝑡𝑘 } be a victim prefix.
+stops at pri_root; the system reads the required KV blocks directly               Let 𝐶 (𝑡 1, . . . , 𝑡𝑘 ) indicate whether the corresponding KV block is
+from the address vector, which reduces pointer chasing and avoids                 Shareable to other tenants. A probing request 𝑟 𝑎 with the same
+deep traversal.                                                                   prefix can exhibit a cache-hit TTFT only when 𝐶 = True:
+                                                                                                                  (
+    Compression does not remove the logical structure needed for                                                   𝑇hit  if 𝐶 (𝑡 1, . . . , 𝑡𝑘 ) = True,
+lifecycle management. Compressed descendants remain in the meta-                                  TTFT(𝑟 𝑎 ) ∈
+                                                                                                                   𝑇miss otherwise.
+data hierarchy but are marked inactive (after_compress = true) and
+linked back to pri_root via lightweight references. pri_root also                    SafeKV inserts new blocks as Private by default and sets 𝐶 =
+records the aggregate memory footprint of its compressed sub-                     True only after the block passes multi-tier detection and is explicitly
+tree so the memory manager can charge usage and make eviction                     promoted to Shareable. Consequently, sensitive prefixes eliminate
+decisions without expanding the chain.                                            cross-tenant hit signals unless they are incorrectly promoted.
+    Progressive Eviction. To avoid coarse-grained eviction of private                 Misclassification Risk and Exposure Control. Let 𝑆 denote the
+branches, SafeKV reclaims private subtrees incrementally from leaf                event that a KV block is privacy-sensitive. The only way for cross-
+to root. The system maintains a global epoch_counter, and each                    tenant reuse of a sensitive block is a false negative that leads to
+node stores its most recent access epoch. The evictor first prunes                promotion. Define 𝛼 1 as the false-negative rate of Tier-1. Define
+inactive leaves, which frees space while keeping the prefix context               𝛼 2|1 as the false-negative rate of Tier-2 conditioned on passing
+that may still be useful. For a compressed private chain, reclamation             Tier-1, and 𝛼 3|12 as the false-negative rate of Tier-3 conditioned
+removes stale descendant entries from the pri_root address vector                 on passing Tier-1 and Tier-2. Then the probability that a sensitive
+incrementally. The pri_root becomes eligible for eviction only after              block becomes shareable is
+all subentries in its address vector have been released. This policy
+                                                                                                𝑃leak ≜ 𝑃 (𝐶 = True | 𝑆) = 𝛼 1 · 𝛼 2|1 · 𝛼 3|12,
+frees idle segments early without tearing down the entire tenant-
+local prefix.                                                                     where each term is measured in 7.
+                                   Kexin Chu, Zecheng Lin, Dawei Xiang, Zixu Shen, Jianchang Su, Cheng Chu, Yiwei Yang, Wenhui Zhang, Wenfei Wu, and Wei Zhang
+
+
+   Even when a sensitive block is mistakenly promoted, SafeKV                                             Phi-4-14B          Qwen3-32B          Qwen3-235B
+                                                                                                          Qwen3-30B          Llama3-70B         DeepSeek-R1
+treats sharing as revocable and limits the exposure window using                                100
+
+
+                                                                                 Accuracy (%)
+                                                                                                 75
+runtime monitoring. The safeguard tracks reuse dispersion per
+block using the reuse diversity ratio (RDR),
+                                    𝑢 cnt
+                                                                                                 50
+                          RDR𝑏 =
+                                   hitcnt
+                                          ,                                                      25
+                                                                                                  0
+computed over a fixed window, where 𝑢 cnt is the number of distinct                                   english_pii     french_pii   german_pii       italian_pii
+tenants that accessed block 𝑏 in the window and hitcnt is the total
+number of hits. Probe-heavy access patterns typically increase                  Figure 8: Defense success rate of SafeKV under Timing Side-
+hitcnt faster than 𝑢 cnt , which lowers RDR𝑏 . If RDR𝑏 stays below              Channel Attacks.
+a threshold for consecutive windows, the safeguard demotes the
+block (Shareable→Private) and enqueues it for re-validation.
+After demotion, future cross-tenant hits on that block stop.
+                                                                                Security Evaluation Setup. We evaluate SafeKV under the black-
+   Limitations and Out-of-Scope Attacks. SafeKV reduces TTFT dis-               box, API-only adversary defined in § 3. The attacker can create mul-
+tinguishability that is attributable to cross-tenant reuse of sensitive         tiple accounts, issue requests repeatedly, and adapt future queries
+prefixes. It does not provide cryptographic secrecy, and it does not            based on observed timing. The attacker observes TTFT and aims
+address attackers with privileged access (e.g., kernel, hypervisor, or          to infer whether a victim’s prefix has been cached through cross-
+direct memory read). We also do not attempt to handle side chan-                tenant KV reuse. Our evaluation follows this end-to-end objective.
+nels outside the TTFT surface, such as network jitter, token-count              In each experiment, we run attacker sessions for each target sen-
+leakage, or other co-resident system attacks. Our evaluation there-             sitive prefix drawn from the pii-masking workload. The attacker
+fore focuses on measurable reductions in hit/miss distinguishability            generates candidate queries without access to the victim’s plaintext.
+under repeated-query attackers that match prior prefix/KV-cache                 The attacker replays prefixes, collects TTFT traces under the live
+probing settings.                                                               serving stack, and applies statistical analysis to decide whether the
+                                                                                target prefix is cached. Finally, we report the defense success rate
+7     EVALUATION                                                                and ROC-AUC across models to quantify access success.
+In this section, we evaluate SafeKV on a diverse set of recent                  Performance Evaluation Setup. We compare SafeKV against
+LLMs, including Phi-4 [10], Qwen3-30B-A3B [15], Qwen3-32B [16],                 three representative KV-cache management strategies:
+Qwen3-235B-A22B [14], Llama-3.3-70B [9] and DeepSeek-R1 [13].                    • (1). SGLang [12]: Full global cache sharing with no privacy
+We focus on three research questions:                                                protection, achieving maximum efficiency;
+ • [RQ1] Effectiveness: Does SafeKV suppress TTFT-based dis-                     • (2). Cache-Partition [42]: A state-of-the-art defense for KV-
+    tinguishability for sensitive prompts under cross-tenant KV-                     cache timing side channel attacks that isolates KV-cache per
+    cache reuse? ( § 7.2)                                                            user via separate radix trees, eliminating cross-user reuse to
+ • [RQ2] Cost: What runtime overhead does SafeKV introduce,                          achieve strong privacy;
+    including the latency and throughput impact of privacy detec-                • (3). Shared System Prompt: A conservative and widely adopted
+    tion? ( § 7.3)                                                                   practice that shares KV-cache only for a fixed system prompt
+ • [RQ3] Performance: Compared to recent isolation baselines                         across users, while keeping user-provided prompts isolated to
+    for KV-cache timing defenses, how much throughput/latency                        avoid cross-tenant exposure.
+    benefit does SafeKV retain under realistic workloads? ( § 7.4)              We report throughput and TTFT on the three performance work-
+                                                                                loads above.
+7.1    Experiment Setup.
+Testbed. We evaluate the SafeKV prototype described in § 5. Unless              7.2              Security Against Timing Probing
+stated otherwise, all experiments run on one server with 8×NVIDIA               This section evaluates whether SafeKV suppresses API-visible TTFT
+H20 GPUs (96 GB each). We report the mean across repeated runs                  timing signals that enable cross-tenant cache probing on sensitive
+and include P95/P99 when latency tails matter.                                  prefixes.
+Workload. We use two groups of workloads. For privacy-sensitive
+inputs, we use the pii-masking workload with multilingual sam-                  7.2.1 Overall Defense Effectiveness. We first evaluate SafeKV’s
+ples spanning 54 PII categories. This workload drives the detector              ability to mitigate timing-based KV-cache side-channel attacks. Fig-
+pipeline and provides the sensitive-prompt cases used in the secu-              ure 8 summarizes the results across multiple model backbones.
+rity evaluation. For performance comparisons (RQ3), we use three                Overall, SafeKV achieves an average defense success rate exceeding
+serving patterns that reflect common deployments. Single-Request                94% via its three-tier privacy pipeline, which identifies and sup-
+PII contains short privacy-sensitive queries. Multi-Turn Chat con-              presses the majority of malicious probes during inference. Here,
+tains conversational sessions with embedded PII and repeated pre-               defense success is defined as the fraction of probe windows in
+fixes within a session. System Prompt contains requests that share              which the attacker cannot reliably distinguish sensitive-hit from
+a common system prompt across users and include user-specific                   sensitive-miss TTFT. Moreover, the effectiveness of SafeKV im-
+PII in the remainder of the prompt.                                             proves as the model and the service mature over time. For example,
+Selective KV-Cache Sharing to Mitigate Timing Side-Channels in LLM Inference
+
+
+                 Tier 1           Phi-4-14B           Qwen3-32B        Qwen3-235B                             Phi-4-14B           Qwen3-32B          Qwen3-235B
+                 Tier 2           Qwen3-30B           Llama3-70B       DeepSeek-R1
+                100                                                                                           Qwen3-30B           Llama3-70B         DeepSeek-R1
+
+
+ Accuracy (%)
+                 75
+
+
+
+                                                                                      Mean Latency (s)
+                 50                                                                                      10
+                 25
+                                                                                                          5
+                  0
+                           english_pii   french_pii     german_pii   italian_pii
+                                            (a) Accuracy                                                  0
+                                                                                                                  english_pii french_pii german_pii italian_pii
+                                                                                                                               (a) Mean Latency
+                80
+
+
+ Accuracy (%)
+                60
+                                                                                                         80
+
+
+                                                                                      P95 Latency (s)
+                40
+                20                                                                                       60
+                 0                                                                                       40
+                          english_pii    french_pii    german_pii    italian_pii
+                                 (b) Accuracy with Complex Prompts
+                                                                                                         20
+                                                                                                          0
+Figure 9: Comparison of the Accuracy of Multi-Tier Privacy                                                        english_pii french_pii german_pii italian_pii
+Detectors under simple/complex requests                                                                                        (b) P95 Latency
+
+                                                                                                         150
+on a privacy-sensitive dataset spanning four languages, DeepSeek-
+
+
+
+                                                                                       P99 Latency (s)
+                                                                                                         100
+R1 attains a defense success rate of 96.24%-96.90%; Microsoft Phi-4
+is nearly fully robust to adversarial probing, consistent with its
+security-oriented post-training. These results indicate that SafeKV
+provides an adaptive defense mechanism that remains effective                                             50
+under evolving workloads and model deployments.
+                                                                                                              0
+                                                                                                                   english_pii french_pii german_pii italian_pii
+   Importantly, in SafeKV, static classification errors are not equiv-
+alent to cross-tenant exposure. Each newly created KV block is
+inserted as Private by default and is therefore ineligible for cross-                                                           (c) P99 Latency
+
+tenant reuse; a block becomes shareable only after the asynchro-
+nous pipeline explicitly promotes it to Shareable. Promotion is also                    Figure 10: Latency of PII detection for large-scale LLMs
+revocable: SafeKV’s runtime feedback loop continuously monitors
+cross-tenant access patterns and demotes (re-privatizes) KV blocks                   balance between detection accuracy, inference latency, and GPU re-
+that exhibit suspicious reuse. As a result, static classification pri-               source utilization. It achieves 96.85–97.15% across languages while
+marily affects how quickly reuse becomes available, whereas the                      maintaining low latency.
+promotion gate and revocation determine whether cross-tenant                            Tier-3: Context-Aware Validation. Tier-3 invokes the in-service
+reuse can persist under attack. Under sustained probing, the adap-                   LLM to resolve hard, context-dependent cases. As shown in Figure 9,
+tive demotion mechanism prevents previously attacked entries from                    on regular PII-style prompts the lightweight Tier-2 detector can be
+remaining shareable, driving the effective protection rate toward                    more accurate than most of the in-service model; however, when
+near-complete coverage.                                                              longer prompts include richer context, Tier-2 accuracy drops notice-
+                                                                                     ably. In contrast, stronger in-service models such as DeepSeek-R1
+7.2.2 Accuracy of Multi-Tier Detection. The hybrid pipeline
+                                                                                     remain robust and can lift accuracy from roughly 50% (Tier-2) to
+complements fast pattern checks with semantic detection and con-
+                                                                                     above 90%. This gap highlights why Tier-3 is necessary for subtle
+text validation:
+                                                                                     privacy risks that only become apparent given broader context.
+   Tier-1: Rule-Based Pattern Matching. As outlined in Sec-
+tion 4.2.1, the first stage performs fast keyword and regular expres-                7.2.3 Safeguard Robustness and Fallback Protection. False
+sion matching to capture structured and explicit sensitive content.                  negatives in multi-tier privacy detection can lead to incorrect pro-
+On multilingual test sets, the Tier-1 engine achieves detection accu-                motion of a sensitive KV-cache block and re-enable cross-tenant
+racies of 39.24%, 38.09%, 37.35%, and 37.33% respectively (as shown                  reuse. We therefore evaluate whether SafeKV’s Safeguard can termi-
+in Figure 9(a)). While lightweight, this tier lacks semantic under-                  nate TTFT-based probing under the black-box, API-only adversary
+standing and demonstrates limited accuracy.                                          model in § 3. In this experiment, the attacker repeatedly issues
+   Tier-2: General Privacy Detector. Tier-2 employs a compact                        queries for a target prefix and uses TTFT to statistically distinguish
+transformer-based language model to detect privacy-sensitive con-                    cache hits from misses. Safeguard operates on a sliding window
+tent that escapes pattern matching. Among candidates (Figure 5),                     of length 𝑊 and demotes a KV block from Shareable to Private
+we choose Llama-3.2-1B as the default Tier-2 detector to achieve a                   once the RDR-based trigger condition is satisfied. Figure 12 reports
+                                                                        Kexin Chu, Zecheng Lin, Dawei Xiang, Zixu Shen, Jianchang Su, Cheng Chu, Yiwei Yang, Wenhui Zhang, Wenfei Wu, and Wei Zhang
+
+
+                                          Tier-1                     Tier-2                                 Tier-3                                               Phi-4-14B        Qwen3-32B          Qwen3-235B
+                                                                                                                                                                 Qwen3-30B        Llama3-70B         DeepSeek-R1
+                             7.2%                                   1.8%                                              1.9%
+
+
+
+
+                                                                                                                                         Mean Latency (s)
+                    37.8%                                  40.0%                                            39.9%
+                                                                                      58.3%                                58.2%
+                                                                                                                                                            40
+                                55.1%
+                                                                                                                                                            20
+                     (a) Phi-4-14B                          (b) Qwen3-30B                                    (c) Qwen3-32B
+                                                                                                                                                             0
+                                                                                                                                                                  english_pii french_pii german_pii italian_pii
+                             2.0%                                   2.1%                                               4.0%                                                   (a) Mean Latency
+                    39.9%                                  39.8%                                            39.1%
+                                58.1%                                                 58.1%                                56.9%                            100
+
+
+                                                                                                                                        P95 Latency (s)
+               (d) Llama-3.3-70B                           (e) Qwen3-235B                                   (f) DeepSeek-R1                                  50
+Figure 11: Workload ratio of multi-tier detectors across dif-
+                                                                                                                                                              0
+ferent large-scale LLMs.                                                                                                                                           english_pii french_pii german_pii italian_pii
+                                                                                                                                                                               (b) P95 Latency
+                                         Phi-4-14B                                                    Qwen3-30B-A3B
+                                                                                       0.9
+
+
+
+
+                                                                                                                                        P99 Latency (s)
+                   0.9
+                                                                                                                                                            150
+
+ ROC-AUC on TTFT                                                    ROC-AUC on TTFT
+                   0.8                                                                 0.8
+                   0.7                                                                 0.7
+                                                                                                                                                            100
+                                                     No-Safeguard                                                     No-Safeguard
+                   0.6                               Safeguard                         0.6                            Safeguard                              50
+                   0.5                                                                 0.5                                                                    0
+                         0          50        100
+                                          Time (s)
+                                                          150                                0       50        100
+                                                                                                           Time (s)
+                                                                                                                           150                                     english_pii french_pii german_pii italian_pii
+                               (a) Phi-4-14B                                                      (b) Qwen3-30B                                                                (c) P99 Latency
+
+                                         Qwen3-32B                                                        Llama3-70B                 Figure 13: The Latency breakdown of Tier-3 PII detection
+                   0.9                                                                 0.9                                           across four languages.
+
+
+ ROC-AUC on TTFT                                                     ROC-AUC on TTFT
+                   0.8                                                                 0.8
+                   0.7                                                                 0.7
+                                                     No-Safeguard                                                     No-Safeguard
+                   0.6                               Safeguard                         0.6                            Safeguard
+                   0.5                                                                 0.5
+                         0          50        100         150                                0       50        100         150       detection pipeline across several LLM backends. Figure 10 summa-
+                                          Time (s)                                                         Time (s)
+                                                                                                                                     rizes the average, P95, and P99 service latencies for the three-tier
+                              (c) Qwen3-32B                                                      (d) LLama-3.3-70B
+                                                                                                                                     detection process. Although larger models incur higher analysis
+                                                                                                                                     costs, this increase is primarily due to the Tier-3 inference stage.
+Figure 12: Attack distinguishability over time measured as                                                                           As shown in Table 7, the rule-based detection in Tier-1 completes
+ROC-AUC on TTFT using a time window (𝑊 = 5𝑠). Without                                                                                within 0.2 ms per prompt, while Tier-2, which employs the com-
+Safeguard, cache-hit vs. cache-miss TTFT remains separa-                                                                             pact Llama-3.2-1B model, adds an average latency below 125 ms. In
+ble, yielding consistently high AUC. With Safeguard enabled,                                                                         contrast, Figure 13 shows that Tier-3 exhibits substantially higher
+once the RDR drops the configured threshold, the correspond-                                                                         latency.
+ing KV blocks are demoted (shareable→private), collapsing                                                                                However, its overall impact on service time remains limited. As
+AUC to ≈ 0.5 and keeping it stable despite continued probing.                                                                        illustrated in Figure 11, over 92% of requests are fully classified by
+                                                                                                                                     the first two tiers, leaving only a small fraction to be processed
+                                                                                                                                     by the more expensive Tier-3 analysis. Furthermore, SafeKV em-
+ROC-AUC computed from TTFT samples within each window for                                                                            ploys an asynchronous detection pipeline that decouples privacy
+probing-style traces. Without Safeguard, AUC remains high over                                                                       classification from the token generation path. Consequently, pri-
+time, indicating a persistent hit–miss timing signal. With Safeguard                                                                 vacy checks never block inference. Even when Tier-3 experiences
+enabled, AUC drops to ≈ 0.5 after the trigger and stays near ran-                                                                    long-tail latency, the effect is confined to delaying the promotion
+dom guess thereafter, indicating that Safeguard stops the exploitable                                                                of certain KV-cache entries from private to shared state. This delay
+signal rather than only weakening it.                                                                                                neither weakens ongoing privacy protection nor disrupts intra-
+                                                                                                                                     session reuse; it only postpones cross-user sharing for a small sub-
+7.3                      Overheads of Asynchronous Detection                                                                         set of cache blocks. Given that Tier-3 handles fewer than 8% of
+  Overhead of Multi-Tier Detection. We measure the end-to-                                                                           all requests, such worst-case overhead is well within acceptable
+end runtime cost introduced by the complete multi-tier privacy                                                                       operational bounds.
+Selective KV-Cache Sharing to Mitigate Timing Side-Channels in LLM Inference
+
+
+                                                        Table 7: Latency breakdown of Tier-1 and Tier-2 across four languages.
+
+                                           english_pii                                french_pii                                      german_pii                   italian_pii
+  Tier                       Mean(ms)        P95(ms) P99(ms)                  Mean        P95    P99                         Mean        P95     P99      Mean         P95     P99
+  Tier-1                          0.10           0.16           0.20          0.11       0.17     0.20                        0.11       0.17     0.21     0.11       0.17      0.20
+  Tier-2                         124.93         152.14         171.85        113.03     125.68   127.17                      113.91     126.31   129.54   116.12     128.77    140.77
+
+
+
+
+                                                                                                    Throughput (token/s)
+                        SGLang        Cache-Partition        Shared-System-Prompt      SafeKV                                                                         SGLang
+                       300
+
+
+
+    Mean Latency(ms)
+                                                                                                                           4000                                       Cache-Partition
+                                                                                                                                                                      Shared-System-Prompt
+                       200                                                                                                                                            SafeKV
+                                                                                                                           2000
+                       100
+                                                                                                                             0
+                                                                                                                                         4B      0B      2B       0B       5B        R1
+                         0
+                                    4B      0B     2B      0B       5B      R1                                                    Phi-4-1 Qwen3-3 Qwen3-3 Llama3-7 Qwen3-23DeepSeek-
+                             Phi-4-1Qwen3-3Qwen3-3Llama3-Q7wen3-D23eepSeek-
+                                    (a) Single-Request PII Mean Latency                                 Figure 15: Comparison of Throughput of SafeKV with
+                                                                                                        SGLang, Cache-Partition, and Shared-System-Prompt
+
+
+
+
+  Mean Latency(ms)
+                     2000
+                                                                                                        to embed privacy-sensitive information), substantial opportunities
+                     1500
+                                                                                                        for prefix reuse emerge, resulting in notable performance variations.
+                     1000                                                                               Against full isolation, SafeKV cuts the extra TTFT overhead from
+                      500                                                                               50.41% to 11.74% on Qwen-235B-A22B, and from 118% to 34.28% on
+                        0                                                                               DeepSeek-R1. Finally, in the system prompt scenario (pii-masking
+                                    4B      0B     2B      0B       5B      R1
+                             Phi-4-1Qwen3-3Qwen3-3Llama3-Q7wen3-D23eepSeek-                             requests with a uniform system prompt (approximately 8192 to-
+                                                                                                        kens)), SafeKV continues to perform effectively, although slightly
+                                          (b) Multi-Turn Mean Latency
+                                                                                                        behind the Shared-System-Prompt method explicitly optimized
+                                                                                                        for this scenario. Overall, these results demonstrate that SafeKV
+
+
+
+
+  Mean Latency(ms)
+                                                                                                        consistently achieves superior latency performance compared to
+                     4000                                                                               Cache-Partition and remains adaptable across diverse real-world
+                                                                                                        use cases.
+                     2000
+                                                                                                           LLM Inference Throughput. Throughput is critical for evaluat-
+                         0                                                                              ing a system’s capability to handle sustained high-volume requests.
+                                    4B      0B     2B      0B       5B      R1
+                             Phi-4-1Qwen3-3Qwen3-3Llama3-Q7wen3-D23eepSeek-
+                                                                                                        To measure this, we conduct throughput benchmarking at a fixed
+                                                                                                        input rate of 16 RPS (request per second), reporting token through-
+                                      (c) System Prompt Mean Latency                                    put as the total number of tokens divided by the end-to-end infer-
+                                                                                                        ence time. Test workloads are derived from: pii_masking [4],
+Figure 14: Comparison of TTFT of SafeKV with SGLang,                                                    ShareGPT [1], and the requests with uniform system prompt.
+Cache-Partition, and Shared-System-Prompt in different                                                  As shown in Figure 15, SafeKV improves over Cache-Partition
+working scenarios                                                                                       by 1.36×–2.66× across the evaluated workloads by isolating only
+                                                                                                        sensitive paths and preserving reuse for shareable prefixes. Gains
+7.4                    Performance Under Multi-Tenant                                                   are larger on heavier foundation models (e.g., DeepSeek-R1), where
+                                                                                                        LLM prefill dominates utilization.
+                       Workloads
+This section compares SafeKV against isolation-based cache man-
+                                                                                                        8                   DISCUSSION
+agement and conservative sharing baselines under representative
+multi-tenant workloads. We report throughput and TTFT to show                                           Detection Robustness and Safeguard SafeKV uses a three-tier
+how much performance SafeKV recovers while enforcing privacy-                                           detector to decide whether a block may become shareable (§ 4.2,
+aware reuse.                                                                                            § 4.2.1), and false negatives remain possible as privacy formats
+                                                                                                        evolve. The design limits the consequence of such errors by con-
+   LLM Inference Latency. Our primary evaluation metric is in-                                          struction: blocks are private by default, promotion is asynchronous,
+ference latency, particularly focusing on TTFT, since TTFT effec-                                       and promotion is revocable. The remaining risk is an incorrect pro-
+tively reflects prefill savings from KV-cache reuse. As depicted                                        motion that enables cross-tenant reuse for a limited time window.
+in Figure 14, In single-request PII, reuse is scarce; all methods are                                   Safeguard reduces this window by monitoring access dispersion
+similar. In multi-turn conversational scenarios (constructed using                                      and demoting blocks whose reuse pattern is consistent with probing
+SharedGPT [1] dialogues augmented with pii-masking [4] queries                                          (§ 4.2.2). In deployment, the demotion threshold should be tuned
+                                  Kexin Chu, Zecheng Lin, Dawei Xiang, Zixu Shen, Jianchang Su, Cheng Chu, Yiwei Yang, Wenhui Zhang, Wenfei Wu, and Wei Zhang
+
+
+to the expected workload: aggressive demotion reduces exposure                 namespaces per user. This containment strategy eliminates cache-
+time but can also reduce reuse on benign popular prefixes.                     based interactions between users and is adopted by some LLM
+Deployment and Integration Considerations The main opera-                      providers (OpenAI [41] and DeepSeek [25]) and by researchers [42]
+tional costs come from detector and the cache metadata required                for prefix caching. While effective, such strict isolation sacrifices
+to enforce visibility and support demotion. Since detection is off             memory efficiency and undermines the performance benefits of
+the critical inference path (§ 4.2), higher-tier slowdowns primarily           cache reuse.
+delay private-to-shareable promotion rather than stalling genera-                 Rate Limiting serves as a complementary defense by throttling
+tion. On the serving side, integration requires storing a per-block            the frequency of user queries, thereby impeding rapid probing
+visibility state and creator binding, plus lightweight accounting for          required for cache-timing attacks. For instance, OpenAI enforces
+monitoring and demotion (§ 4.3). As a result, SafeKV is easiest to             rate limits to prevent abuse and ensure infrastructure stability [40].
+adopt in stacks that already maintain structured KV indices (e.g.,             However, rate limiting must be carefully tuned to avoid degrading
+radix-tree or block-based caching), where these fields can be added            service quality for benign users.
+without changing the request execution model.                                     A third line of defense is Timing Obfuscation, which aims to
+Generality and Transferability SafeKV separates enforcement                    eliminate observable latency differences between cache hits and
+from classification: the cache indexing and visibility checks are              misses. Prior work in model extraction has shown that response
+model-agnostic, while the detector depends on the workload and                 time can correlate with internal architecture details [19, 26, 27],
+privacy policy (§ 4.3, § 4.2). This separation makes the cache-                motivating similar countermeasures in LLM serving. Two com-
+management layer transferable across models and serving stacks                 mon strategies are: (i) enforcing constant-time execution [38] or
+that support prefix-indexed reuse. For multimodal systems, the en-             injecting random delays to flatten latency variance [20], and (ii)
+forcement layer carries over directly, but detection must expand to            disabling token-level streaming, which removes fine-grained timing
+modality-specific signals (e.g., text extracted from images or image-          signals from observable outputs. While these approaches can mask
+derived identifiers). This suggests treating detection as a pluggable          timing patterns, they often incur latency penalties or reduce the
+policy module while keeping cache enforcement unchanged.                       interactivity of real-time systems.
+
+                                                                               10      CONCLUSION
+9 RELATED WORK
+                                                                               This paper presented SafeKV, a system-level framework for privacy-
+9.1 Multi-tenant Security                                                      preserving KV-cache management in LLM serving. The design inte-
+Side-channel attacks have long threatened multi-tenant systems                 grates hybrid privacy detection with cache-level sensitivity control
+due to shared resource usage. They can be broadly categorized                  to mitigate timing side channels introduced by shared caches. By
+into classical system-level attacks and emerging model-level side              combining rule-based filtering, lightweight model classification,
+channels.                                                                      and context-aware validation with a unified radix-tree cache man-
+    Classical side-channel attacks exploit shared hardware or OS               ager, SafeKV enables selective reuse of non-sensitive entries while
+abstractions in multi-tenant systems. Cross-VM attacks recover                 securely isolating private content. Evaluations across multiple LLMs
+sensitive data between co-located virtual machines by monitoring               show that SafeKV improves throughput by up to 2.66× compared
+CPU caches or memory access patterns [49, 54, 61, 62]. Other works             to per-user cache isolation. Our experiments confirm that privacy-
+leverage shared OS resources, such as OS data structure or public              aware cache sharing is not only feasible but essential for scalable
+file systems, to launch cross-application attacks in Unix, Android,            and secure LLM serving.
+or iOS environments [21, 30, 51, 57, 59, 60]. Recent studies further
+reveal that multiple WebAssembly modules isolated in the same                  REFERENCES
+runtime are vulnerable to cross-module attacks [33, 39].                        [1] 2023. anon8231489123/ShareGPT_Vicuna_unfiltered. https://huggingface.co/
+    Complementing these, recent work highlights a new class of                      datasets/anon8231489123/ShareGPT_Vicuna_unfiltered.
+                                                                                [2] 2023. BelleGroup/multiturn_chat_0.8M. https://huggingface.co/datasets/
+attacks targeting LLM inference backends. These attacks exploit                     BelleGroup/multiturn_chat_0.8M.
+timing differences caused by shared KV-cache reuse to infer user in-            [3] 2024. ab-ai/pii_model. https://huggingface.co/ab-ai/pii_model.
+puts [47, 53, 65]. For example, PromptPeek [53] and InputSnatch [65]            [4] 2024. ai4privacy/pii-masking-200k. https://huggingface.co/datasets/ai4privacy/
+                                                                                    pii-masking-200k.
+reconstruct user prompts via TTFT measurements in black-box                     [5] 2024. beki/flair-pii-distilbert. https://huggingface.co/beki/flair-pii-distilbert.
+settings. Unlike classical channels, these attacks are unique to LLM-           [6] 2024. iiiorg/piiranha-v1-detect-personal-information. https://huggingface.co/
+                                                                                    iiiorg/piiranha-v1-detect-personal-information.
+serving pipelines, where performance optimizations inadvertently                [7] 2024. meta-llama/Llama-2-13b-hf. https://huggingface.co/meta-llama/Llama-2-
+expose privacy risks. Our work builds on these findings by propos-                  13b-hf.
+ing a practical, multi-tier defense system that addresses this emerg-           [8] 2024. meta-llama/Llama-2-70b-hf. https://huggingface.co/meta-llama/Llama-2-
+                                                                                    70b-hf.
+ing attack surface.                                                             [9] 2024. meta-llama/Llama-3.3-70B-Instruct. https://huggingface.co/meta-llama/
+                                                                                    Llama-3.3-70B-Instruct.
+                                                                               [10] 2024. microsoft/phi-4. https://huggingface.co/microsoft/phi-4.
+9.2    Defenses Against KV-cache Side Channels                                 [11] 2024.     omshikhare/dbert-pii-detection-model.         https : / / huggingface . co /
+                                                                                    omshikhare/dbert-pii-detection-model.
+To mitigate KV-cache side-channel attacks, researchers and practi-             [12] 2024. The sglang source code. https://github.com/sgl-project/sglang.
+tioners have proposed a range of defenses.                                     [13] 2025. deepseek-ai/DeepSeek-R1-0528. https://huggingface.co/deepseek- ai/
+                                                                                    DeepSeek-R1-0528.
+   The most straightforward solution is user-level cache isola-                [14] 2025. Qwen/Qwen3-235B-A22B. https://huggingface.co/Qwen/Qwen3-235B-
+tion: it prevents cross-user sharing by allocating distinct cache                   A22B.
+Selective KV-Cache Sharing to Mitigate Timing Side-Channels in LLM Inference
+
+
+[15] 2025. Qwen/Qwen3-30B-A3B. https://huggingface.co/Qwen/Qwen3-30B-A3B.                         In 30th USENIX Security Symposium (USENIX Security 21).
+[16] 2025. Qwen/Qwen3-32B. https://huggingface.co/Qwen/Qwen3-32B.                            [40] OpenAI. 2024. Openai developer platform, Rate limits. https://platform.openai.
+[17] Anthropic. 2024. Prompt caching with Claude. https://www.anthropic.com/                      com/docs/guides/rate-limits/what-are-the-rate-limits-for-our-api Accessed:
+     news/prompt-caching Accessed: 2025-07-17.                                                    2025-07-17.
+[18] Fu Bang. 2023. Gptcache: An open-source semantic cache for llm applications             [41] OpenAI. 2024. Prompt caching: Reduce latency and cost with prompt caching.
+     enabling faster answers and cost savings. In Proceedings of the 3rd Workshop for             https://platform.openai.com/docs/guides/prompt-caching Accessed: 2025-07-17.
+     Natural Language Processing Open Source Software (NLP-OSS 2023). 212–218.               [42] Zixuan Pang, Wenhao Wang, and Yong Liao. 2024. Cache Partitioning for Miti-
+[19] Lejla Batina, Shivam Bhasin, Dirmanto Jap, and Stjepan Picek. 2019. { CSI } { NN } :         gating Timing Side-Channel Attacks in LLM Serving Systems. In 2024 6th Interna-
+     Reverse engineering of neural network architectures through electromagnetic                  tional Conference on Frontier Technologies of Information and Computer (ICFTIC).
+     side channel. In 28th USENIX Security Symposium (USENIX Security 19). 515–532.               IEEE, 1238–1245.
+[20] Jakub Breier, Dirmanto Jap, Xiaolu Hou, and Shivam Bhasin. 2023. A                      [43] Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang,
+     desynchronization-based countermeasure against side-channel analysis of neural               Yongwei Wu, Weimin Zheng, and Xinran Xu. 2025. Mooncake: Trading more
+     networks. In International Symposium on Cyber Security, Cryptology, and Machine              storage for less computation—a { KVCache-centric } architecture for serving
+     Learning. Springer, 296–306.                                                                 { LLM } chatbot. In 23rd USENIX Conference on File and Storage Technologies
+[21] Qi Alfred Chen, Zhiyun Qian, and Z Morley Mao. 2014. Peeking into your app                   (FAST 25). 155–170.
+     without actually seeing it: { UI } state inference and novel android attacks. In 23rd   [44] Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang,
+     USENIX Security Symposium (USENIX Security 14).                                              Michael Matena, Yanqi Zhou, Wei Li, and Peter J. Liu. 2019. Exploring the
+[22] Kexin Chu, Zixu Shen, Dawei Xiang, and Wei Zhang. 2025. MCaM: Efficient LLM                  Limits of Transfer Learning with a Unified Text-to-Text Transformer. arXiv
+     Inference with Multi-tier KV Cache Management. In Proceedings of the 45th IEEE               e-prints (2019). arXiv:1910.10683
+     International Conference on Distributed Computing Systems (ICDCS). Glasgow,             [45] Yuntian Shen, Zilyu Ji, Jionghao Lin, and KR Koedginer. 2025. Enhancing the
+     Scotland.                                                                                    De-identification of Personally Identifiable Information in Educational Data.
+[23] Kexin Chu, Zixu Shen, Dawei Xiang, and Wei Zhang. 2025. SafeKV: Safe KV-                     arXiv preprint arXiv:2501.09765 (2025).
+     Cache Sharing in LLM Serving. In Machine Learning for Computer Architecture             [46] Mahdi Soleimani, Grace Jia, In Gim, Seung-seob Lee, and Anurag Khandelwal.
+     and Systems 2025. https://openreview.net/forum?id=jhDsbd5eXL                                 2025. Wiretapping LLMs: Network side-channel attacks on interactive LLM
+[24] deepmind. 2025. Gomini. https://deepmind.google/technologies/gemini/.                        services. Cryptology ePrint Archive (2025).
+[25] DeepSeek. 2024. DeepSeek API Docs: DeepSeek API introduces Context Caching              [47] Linke Song, Zixuan Pang, Wenhao Wang, Zihao Wang, XiaoFeng Wang, Hongbo
+     on Disk, cutting prices by an order of magnitude. https://api-docs.deepseek.                 Chen, Wei Song, Yier Jin, Dan Meng, and Rui Hou. 2024. The early bird catches
+     com/news/news0802/ Accessed: 2025-07-17.                                                     the leak: Unveiling timing side channels in llm serving systems. arXiv preprint
+[26] Gaofeng Dong, Ping Wang, Ping Chen, Ruizhe Gu, and Honggang Hu. 2019.                        arXiv:2409.20002 (2024).
+     Floating-point multiplication timing attack on deep neural network. In 2019 IEEE        [48] Xiongtao Sun, Gan Liu, Zhipeng He, Hui Li, and Xiaoguang Li. 2024. Deprompt:
+     International Conference on Smart Internet of Things (SmartIoT). IEEE, 155–161.              Desensitization and evaluation of personal identifiable information in large
+[27] Vasisht Duddu, Debasis Samanta, D Vijay Rao, and Valentina E Balas. 2018.                    language model prompts. arXiv preprint arXiv:2408.08930 (2024).
+     Stealing neural networks via timing side channels. arXiv preprint arXiv:1812.11720      [49] Venkatanathan Varadarajan, Yinqian Zhang, Thomas Ristenpart, and Michael
+     (2018).                                                                                      Swift. 2015. A placement vulnerability study in { Multi-Tenant } public clouds.
+[28] Victor Gallego. 2024. Configurable Safety Tuning of Language Models with                     In 24th USENIX Security Symposium (USENIX Security 15).
+     Synthetic Preference Data. arXiv:2404.00495 [cs.CL]                                     [50] Shenao Wang, Yanjie Zhao, Zhao Liu, Quanchen Zou, and Haoyu Wang. 2025.
+[29] Namgyu Ho, Sangmin Bae, Taehyeon Kim, Hyunjik Jo, Yireun Kim, Tal Schuster,                  SoK: Understanding Vulnerabilities in the Large Language Model Supply Chain.
+     Adam Fisch, James Thorne, and Se-Young Yun. 2024. Block transformer: Global-                 arXiv preprint arXiv:2502.12497 (2025).
+     to-local language modeling for fast inference. Advances in Neural Information           [51] Zihao Wang, Jiale Guan, XiaoFeng Wang, Wenhao Wang, Luyi Xing, and Fares
+     Processing Systems 37 (2024), 48740–48783.                                                   Alharbi. 2023. The Danger of Minimum Exposures: Understanding Cross-App
+[30] Suman Jana and Vitaly Shmatikov. 2012. Memento: Learning secrets from process                Information Leaks on iOS through Multi-Side-Channel Learning. In Proceedings
+     footprints. In 2012 IEEE Symposium on Security and Privacy. IEEE.                            of the 2023 ACM SIGSAC Conference on Computer and Communications Security.
+[31] Nikhil Kandpal, Brian Lester, Colin Raffel, Sebastian Majstorovic, Stella Bider-        [52] Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Clement De-
+     man, Baber Abbasi, Luca Soldaini, Enrico Shippole, A. Feder Cooper, Aviya                    langue, Anthony Moi, Pierric Cistac, Tim Rault, Rémi Louf, Morgan Funtowicz,
+     Skowron, John Kirchenbauer, Shayne Longpre, Lintang Sutawika, Alon Albalak,                  et al. 2020. Transformers: State-of-the-art natural language processing. In Pro-
+     Zhenlin Xu, Guilherme Penedo, Loubna Ben Allal, Elie Bakouch, John David                     ceedings of the 2020 conference on empirical methods in natural language processing:
+     Pressman, Honglu Fan, Dashiell Stander, Guangyu Song, Aaron Gokaslan, Tom                    system demonstrations. 38–45.
+     Goldstein, Brian R. Bartoldson, Bhavya Kailkhura, and Tyler Murray. 2025. The           [53] Guanlong Wu, Zheng Zhang, Yao Zhang, Weili Wang, Jianyu Niu, Ye Wu, and
+     Common Pile v0.1: An 8TB Dataset of Public Domain and Openly Licensed Text.                  Yinqian Zhang. 2025. I Know What You Asked: Prompt Leakage via KV-Cache
+     arXiv:2506.05209 [cs.CL] https://arxiv.org/abs/2506.05209                                    Sharing in Multi-Tenant LLM Serving. In Proceedings of the 2025 Network and
+[32] Salman Khan, Muzammal Naseer, Munawar Hayat, Syed Waqas Zamir, Fa-                           Distributed System Security (NDSS) Symposium. San Diego, CA, USA. https:
+     had Shahbaz Khan, and Mubarak Shah. 2022. Transformers in vision: A survey.                  //doi.org/10.14722/ndss.2025.241772
+     ACM computing surveys (CSUR) 54, 10s (2022), 1–41.                                      [54] Yuan Xiao, Xiaokuan Zhang, Yinqian Zhang, and Radu Teodorescu. 2016. One bit
+[33] Paul Kocher, Jann Horn, Anders Fogh, Daniel Genkin, Daniel Gruss, Werner Haas,               flips, one cloud flops: { Cross-VM } row hammer attacks and privilege escalation.
+     Mike Hamburg, Moritz Lipp, Stefan Mangard, Thomas Prescher, Michael Schwarz,                 In 25th USENIX security symposium (USENIX Security 16).
+     and Yuval Yarom. 2019. Spectre Attacks: Exploiting Speculative Execution. In            [55] Dongsheng Yang, Austin Li, Kai Li, and Wyatt Lloyd. [n.d.]. Learned Prefix
+     2019 IEEE Symposium on Security and Privacy (SP). https://doi.org/10.1109/SP.                Caching for Efficient LLM Inference. In The Thirty-ninth Annual Conference on
+     2019.00002                                                                                   Neural Information Processing Systems.
+[34] Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng,                      [56] Wenxuan Zeng, Ye Dong, Jinjin Zhou, Junming Ma, Jin Tan, Runsheng Wang,
+     Cody Hao Yu, Joseph Gonzalez, Hao Zhang, and Ion Stoica. 2023. Efficient                     and Meng Li. 2025. MPCache: MPC-Friendly KV Cache Eviction for Efficient
+     memory management for large language model serving with pagedattention. In                   Private LLM Inference. https://openreview.net/forum?id=QliOktBcy3
+     Proceedings of the 29th Symposium on Operating Systems Principles. 611–626.             [57] Kehuan Zhang and XiaoFeng Wang. 2009. Peeping Tom in the Neighborhood:
+[35] Haoyang Li, Yiming Li, Anxin Tian, Tianhao Tang, Zhanchao Xu, Xuejia Chen,                   Keystroke Eavesdropping on Multi-User Systems.. In USENIX Security Sympo-
+     Nicole Hu, Wei Dong, Qing Li, and Lei Chen. 2024. A survey on large lan-                     sium.
+     guage model acceleration based on kv cache management. arXiv preprint                   [58] Tianchen Zhang, Gururaj Saileshwar, and David Lie. 2024. Time will tell: Timing
+     arXiv:2412.19442 (2024).                                                                     side channels via output token count in large language models. arXiv preprint
+[36] Tianyang Lin, Yuxin Wang, Xiangyang Liu, and Xipeng Qiu. 2022. A survey of                   arXiv:2412.15431 (2024).
+     transformers. AI open 3 (2022), 111–132.                                                [59] Xiaokuan Zhang, Xueqiang Wang, Xiaolong Bai, Yinqian Zhang, and XiaoFeng
+[37] Joseph Lucas and Rich Harang. 2025. Structuring Applications to Secure the KV                Wang. 2018. Os-level side channels without procfs: Exploring cross-app informa-
+     Cache. https://developer.nvidia.com/blog/structuring-applications-to-secure-                 tion leakage on ios. In Proceedings of the Symposium on Network and Distributed
+     the-kv-cache/. Accessed: 2025-05-01.                                                         System Security.
+[38] Saurav Maji, Utsav Banerjee, and Anantha P Chandrakasan. 2021. Leaky nets:              [60] Xiaokuan Zhang, Yuan Xiao, and Yinqian Zhang. 2016. Return-oriented flush-
+     Recovering embedded neural network models and inputs through simple power                    reload side channels on arm and their implications for android devices. In Pro-
+     and timing side-channels—Attacks and defenses. IEEE Internet of Things Journal               ceedings of the 2016 ACM SIGSAC Conference on Computer and Communications
+     8, 15 (2021), 12079–12092.                                                                   Security.
+[39] Shravan Narayan, Craig Disselkoen, Daniel Moghimi, Sunjay Cauligi, Evan                 [61] Yinqian Zhang, Ari Juels, Michael K Reiter, and Thomas Ristenpart. 2012. Cross-
+     Johnson, Zhao Gang, Anjo Vahldiek-Oberwagner, Ravi Sahita, Hovav Shacham,                    VM side channels and their use to extract private keys. In Proceedings of the 2012
+     Dean Tullsen, et al. 2021. Swivel: Hardening { WebAssembly } against spectre.                ACM conference on Computer and communications security.
+                                          Kexin Chu, Zecheng Lin, Dawei Xiang, Zixu Shen, Jianchang Su, Cheng Chu, Yiwei Yang, Wenhui Zhang, Wenfei Wu, and Wei Zhang
+
+
+[62] Yinqian Zhang, Ari Juels, Michael K Reiter, and Thomas Ristenpart. 2014. Cross-        et al. 2024. Sglang: Efficient execution of structured language model programs.
+     tenant side-channel attacks in PaaS clouds. In Proceedings of the 2014 ACM             Advances in Neural Information Processing Systems 37 (2024), 62557–62583.
+     SIGSAC Conference on Computer and Communications Security.                        [65] Xinyao Zheng, Husheng Han, Shangyi Shi, Qiyan Fang, Zidong Du, Xing Hu,
+[63] Junqi Zhao, Zhijin Fang, Shu Li, Shaohui Yang, and Shichao He. 2024. Buzz:             and Qi Guo. 2024. InputSnatch: Stealing Input in LLM Services via Timing
+     Beehive-structured sparse kv cache with segmented heavy hitters for efficient          Side-Channel Attacks. arXiv preprint arXiv:2411.18191 (2024).
+     llm inference. arXiv preprint arXiv:2410.23079 (2024).                            [66] Zhen Zheng, Xin Ji, Taosong Fang, Fanghao Zhou, Chuanjie Liu, and Gang Peng.
+[64] Lianmin Zheng, Liangsheng Yin, Zhiqiang Xie, Chuyue Livia Sun, Jeff Huang,             2024. Batchllm: Optimizing large batched llm inference with global prefix sharing
+     Cody Hao Yu, Shiyi Cao, Christos Kozyrakis, Ion Stoica, Joseph E Gonzalez,             and throughput-oriented token batching. arXiv preprint arXiv:2412.03594 (2024).
+

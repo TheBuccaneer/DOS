@@ -1,0 +1,1006 @@
+                                                         Remote Timing Attacks on Efficient Language Model Inference
+
+                                                                                      Nicholas Carlini   Milad Nasr
+                                                                                             Google DeepMind
+
+                                         Abstract—Scaling up language models has significantly increased   aware methods to improve efficiency by accessing data in a
+                                         their capabilities. But larger models are slower models, and      memory efficient manner.
+                                         so there is now an extensive body of work (e.g., speculative           Recent techniques take a different approach; and instead
+
+
+
+
+arXiv:2410.17175v1 [cs.CR] 22 Oct 2024
+                                         sampling or parallel decoding) that improves the (average case)   of directly improving the underlying numerical efficiency of
+                                         efficiency of language model generation. But these techniques     the computation that a model performs, develop methods that
+                                         introduce data-dependent timing characteristics. We show it is    improve the algorithms themselves. For example, recent work
+                                         possible to exploit these timing differences to mount a timing    has demonstrated that it is possible to perform an adaptive
+                                         attack. By monitoring the (encrypted) network traffic between     amount of compute per token, depending on the difficulty
+                                         a victim user and a remote language model, we can learn           of that token. It is easier, for instance, to predict the token
+                                         information about the content of messages by noting when          following “1 + 2 = ” than for “log(53.5) = ”. Other work
+                                         responses are faster or slower. With complete black-box access,   draws inspiration from speculative execution in processors,
+                                         on open source systems we show how it is possible to learn the    and predicts future tokens many steps into the future, and
+                                         topic of a user’s conversation (e.g., medical advice vs. coding   then checks if these predictions were correct (and then repeats
+                                         assistance) with 90%+ precision, and on production systems like   the process), or “rolls back” and takes only the next one
+                                         OpenAI’s ChatGPT and Anthropic’s Claude we can distinguish
+                                                                                                           token as a standard model would do if the prediction was
+                                         between specific messages or infer the user’s language. We
+                                                                                                           wrong. Importantly, each of these techniques introduces data-
+                                                                                                           dependent timing characteristics into the inference procedure:
+                                         further show that an active adversary can leverage a boosting
+                                                                                                           it is thus possible for models to behave slower on one query
+                                         attack to recover PII placed in messages (e.g., phone numbers
+                                                                                                           because it is hard, and faster on another because it is easy.
+                                         or credit card numbers) for open source systems. We conclude
+                                         with potential defenses and directions for future work.           Contributions. We introduce the first timing attacks on effi-
+                                                                                                           cient language model inference. Under strong assumptions,
+                                                                                                           we show how a network adversary can recover PII contained
+                                         1. Introduction                                                   in the model’s prompt. And under practical assumptions, we
+                                                                                                           show how a passive network adversary can learn limited
+                                             In order to support increasingly advanced capabilities,       information (e.g., the topic of conversation) about the con-
+                                         language models are rapidly increasing in size. Just five years   versation of users querying OpenAI’s GPT or Anthropic’s
+                                         ago the largest language models had one billion parameters—       Claude family of language models.
+                                         today, the largest models contain over one trillion parameters.       Classical timing attacks on systems are remarkably diffi-
+                                         This scale necessitates that large models be deployed in          cult to exploit given the slight (e.g., microsecond) difference
+                                         specialized data-centers on hardware designed for performing      in time a computation takes to perform, e.g., depending on
+                                         language model inference; and so to access these models           whether or not a specific memory address is in the in L1
+                                         users must make queries of these remote systems and can           cache. But because language models are much slower (and
+                                         not easily deploy them on their own machines.                     often take fractions of a second to generate a single token),
+                                             This increase in model size also increases both the           our attacks can easily be exploited over the network.
+                                         monetary cost of serving models and also increases the                Specifically, we make the following contributions:
+                                         inference latency. But expensive and slow are undesirable             •   We formalize the threat model of timing attacks on
+                                         properties of products. And so there has been significant                  efficient language model inference.
+                                         work directed towards developing techniques to efficiently            •   We demonstrate that production language models
+                                         serve language models without degrading utility.                           today use efficient inference techniques, and demon-
+                                             Classical techniques improve performance uniformly                     strate they are vulnerable to our attacks.
+                                         across all queries. Low-precision inference evaluates the             •   We construct the first timing attacks in both the
+                                         expensive matrix multiplication over reduced-precision do-                 passive and active settings.
+                                         mains, e.g., float-16 [46] or float-8 [42]. Techniques such as        •   We propose and evaluate several defenses that can
+                                         weight quantization [12] reduce the memory requirements                    completely prevent our attacks.
+                                         of storing the model in RAM and thereby allows for larger
+                                         batches of examples, again improving speed and reducing           Responsible Disclosure. We disclosed our attack to OpenAI
+                                         cost. And methods like FlashAttention [10] develop hardware-      in January 2024, and Anthropic in April 2024.
+                                TABLE 1: Comparison of Efficient Language Model Inference Methods.
+Method Name                             Data-Dependent      Vulnerable?     Key Idea
+Distillation [19]                       No                       No         Train an efficient small model to mimic a larger model.
+Quantization [22]                       No                       No         Use low precision arithmetic, saving memory and using faster hardware.
+Flash Attention [10]                    No                       No         Compute attention in a hardware-aware manner to maximize cache efficiency.
+Speculative Decoding [41]               Yes                     Yes1        A small draft model predicts multiple tokens at a time, and the large target
+                                                                            model (in a single evaluation) accepts or rejects the predicted tokens.
+SpecInfer [29]                          Yes                     Yes1        Like speculative decoding, but trains a boosted collection of small speculative
+                                                                            models and performs a tree-based verification.
+Speculative Streaming [2]               Yes                     Yes2        Like speculative decoding, but trains a language model to predict multiple
+                                                                            tokens at a time and uses the future predicted tokens as speculative.
+Mixture of Depths [36]                  Yes                     Yes2        Trains a model to conditionally perform more or less computation by skipping
+                                                                            certain layers of the transformer when it is deemed unnecessary.
+Medusa [3]                              Yes                     Yes1        Like speculative streaming, but trains multiple independent prediction heads
+                                                                            and so is more accurate but has higher memory overhead.
+Parallel Decoding [38]                  Yes                     Yes2        Uses Jacobi-iteration to find a fixed-point solution to predicting future tokens
+                                                                            by repeatedly querying a single model on multiple future tokens.
+Lookahead Decoding [15]                 Yes                     Yes1        An improvement of parallel decoding using historical k-gram predictions to
+                                                                            more rapidly converge on the Jacobi-iteration fixed-point.
+Consistency language models [25]        Yes                     Yes1        A further improvement of parallel decoding with Jacobi-iteration by fine-tuning
+                                                                            the model to more accurately predict blocks of tokens at a time.
+  1
+      The official implementation is public, and we verify it is vulnerable to timing attacks in §4.3.2.
+  2
+      The implementation is not public, but by studying the algorithm we are confident it will be vulnerable.
+
+
+
+2. Background                                                                       But language models make new efficient inference tech-
+                                                                                niques possible. One of the simplest and most widely adopted
+                                                                                approaches to minimizing latency is to have the language
+Large Language Models (LLMs) are the basis of most                              model stream its response to the user token-by-token. This
+modern NLP applications [45], [13]. While the exact tech-                       allows the user to start to read a (partial) reply before the
+niques used have varied over time, one key fact of language                     complete output is available. This is the approach taken
+models has remained constant: they generate text one “token”                    by all of the largest language model providers, including
+(e.g., a word or sub-word) at a time by modeling the data                       OpenAI, Google, and Anthropic.
+distribution P r(xi |x1 , . . . , xi−1 ), and then autoregressively                 Other techniques, like the memory-layout-aware Flash
+sampling future tokens.                                                         Attention [10] have provided significant gains. But develop-
+     Language models have grown rapidly in size over the                        ing methods that improve the efficiency of models for all
+past several years—from 1 billion parameters in 2019 to 1                       inputs uniformly has become increasingly difficult.
+trillion parameters in 2023.                                                        Recent work has thus turned to developing methods that
+     For the purpose of this paper it is necessary to understand                improve LLM efficiency on average, potentially at the cost
+two properties of current transformer-based language models.                    of increasing (or, not reducing) latency in the worst case. As
+      •    Generation is sequential. This autoregressive sam-                   mentioned earlier, these methods rely on the observation that
+           pling has a significant drawback: text generation                    some predictions are “easier” and can therefore be performed
+           is inherently sequential. The ith token must be                      with less work than others. But this introduces a timing side
+           generated before the i + 1st token can begin being                   channel, which we show is exploitable in this paper.
+           processed.                                                               Table 1 lists several recent advances in efficient language
+      •    Scoring is parallelizable. Due to the design of                      modeling, along with whether or not the technique introduces
+           the transformer architecture, the cost to compute                    data-dependent timing characteristics. Of the eight methods
+           P r(xi |x1 , . . . , xi−1 ) is almost identical to the cost          we identify here, five have public implementations we
+           to compute P r(xj |x1 , . . . , xj−1 ) for all j ≤ i. There-         are able to reproduce, and which we demonstrate are all
+           fore, verifying that a sequence of tokens has been                   vulnerable to the timing attacks we develop.
+           correctly generated is much faster than generating                       A complete description of each of these methods is not
+           that same sequence.                                                  possible due to the space constraints of this paper. Fortunately,
+                                                                                for the purpose of our attacks in the remainder of this paper,
+                                                                                it will not be necessary to understand exactly how each of
+Efficient LLM inference. Language models employ a                               these methods work.
+number of techniques to reduce their response latency. As
+mentioned previously, traditional efficiency improvement                        Example: speculative decoding. Nevertheless, to provide
+techniques like weight/activation quantization or methods                       intuition for how efficient inference techniques introduce data-
+like FlashAttention [10] that are designed to utilize the                       dependent properties, we provide a complete description of
+architecture of hardware used in running the LLMs.                              speculative decoding (also known as speculative sampling)
+here. Consider a model provider who has two models: a large,        Passive Attacks In the simplest setting, a victim user is
+powerful, and slow model fbig and a small and efficient             interacting with a language model, and a network adversary
+model fsmall . Whenever we would like to query the large            monitors the (encrypted) traffic between the user and the
+model on the prompt p, we first query the small model on            language model. This is a common threat model in traffic
+the same prompt. Once we have generated k tokens with the           analysis works [54], [33], [31], [20], [28], [48], [17], [23],
+small model, we then invoke the large model once to check           [24]. A network adversary could obtain this capability
+the work of the small model on all k tokens simultaneously.         through many means. For example, they could be a malicious
+Importantly, the processing time necessary to evaluate k            internet service provider; could have compromised a router
+tokens is (much) faster than the time needed to sequentially        along the path between the user and language model; or
+generate k tokens.                                                  could have a device on the same wireless network as the
+    Then, drawing inspiration from speculative execution,           user. In each of these cases the adversary can monitor the
+if the large model agrees with the small model on these             connection—but not modify any data.
+new tokens, we accept this token sequence and repeat the
+procedure. However, if there is some token at which the             Active Attacks In the other setting we consider, the adversary
+large model and small model disagree, we roll back to the           plays a more active role in the attack. Specifically, we assume
+point of disagreement (up to and including the very first           an adversary who can exercise (some) control over the
+token) and repeat from this location. Empirically, speculative      content of the message sent to the language model—but
+decoding can double the speed of large language models.             still can not view anything about the response other than
+                                                                    the time it takes. (This threat model is similar to that of a
+Traffic Analysis Attacks Traffic analysis focuses on ex-            chosen plaintext attack on a cryptographic system, where the
+tracting sensitive information from the characteristics of          adversary is presumed to be able to request the encryption
+network communication, like packet sizes, timings, and their        of arbitrary inputs.) While this threat model may seem to
+derivatives. Traffic analysis is particularly important when        be extremely strong, there are several scenarios where this
+encryption and other content-masking techniques prevent             threat model is meaningful.
+direct inspection of the communication content. The common               Consider the setting where a malicious company provides
+types of the traffic analysis techniques are protocol/website       a service that (behind the scenes) makes use of another
+fingerprinting [9] where they are mainly used to extract            company’s language model. This service could be anything,
+the protocol a victim is using or the website a victim is           for example it could be a research tool designed to help users
+visiting, when the victim is using some encrypted proxy             explore various topics. The malicious company controls the
+system (such as VPNs or anonymous networks). Alternatively,         exact template used to call the language model’s API. While
+in flow correlation attacks the goal is to correlate traffic        the user’s input remains private on their device, the malicious
+going to and coming out of a “mixnet”. Other than common            company can still monitor network metadata, like the time
+traffic analysis applications, traffic analysis attacks have been   it takes for a response. The target end user’s device can
+applied to other application scenarios in order to extract          send multiple requests to the model and manipulate parts
+sensitive information. Various types of side channel attacks        of those requests, but they cannot see the actual responses.
+are built on traffic analysis. For instance, multiple studies       Think of it like a "blind SQL injection" attack, where the
+use traffic analysis to uncover not only the language spoken        adversary tries to extract sensitive information by crafting a
+over encrypted VoIP connections [54], but also the spoken           sequence of queries to the remote system, relying on subtle
+phrases [53], [52]. Chen et al.[39] use traffic analysis to infer   variations in the responses to deduce the hidden data. Here,
+the video streams being watched over encrypted channels.            the malicious company, much like a traditional adversary
+     Concurrent work [51] discovered a simple length side           attempting SQL injection, sends a series of crafted prompts
+channel present in several language model services. Our             through their seemingly innocuous research tool, probing the
+attack is independent, and remains effective even after all         language model for vulnerabilities and attempting to glean
+services patched this paper’s length side channel attack.           confidential information based on the timing and patterns of
+                                                                    the responses they receive. While research topics might not
+                                                                    be very sensitive, this attack can be applied to extract more
+3. Threat Model                                                     sensitive information.
+
+    We assume an adversary who aims to exploit the timing           Formalism. We assume a user U and interacts with a
+characteristics of a language model to learn information            language model oracle O. Consider a predicate ϕ that can be
+that should not otherwise be visible. For example, an               applied to a conversation; e.g., ϕ may represent the specific
+adversary may wish to learn approximate information, such           question “is the message exactly [message]”, something more
+as the language the user is conversing with the model (e.g.,        broad “is this a about medical advice?”, or something in
+English or French), or the topic of conversation (e.g., coding      between “does this message contain the number 527?” The
+assistance or medical advice). Alternatively, the adversary         user then flips a coin and decides to either send a message to
+may wish to learn an exact piece of information e.g., whether       the model that satisfies predicate p, or with equal probability,
+or not the conversation contains the phrase “my pin is 1234”.       does not satisfy p. The model responds and streams the
+    We consider two possible situations that may arise:             response back to the user as a sequence of tokens mi . Each
+of the messages mi exchanged by the user and model are                          the remote model many (e.g., 100) times with each prompt
+annotated with the time ti , and when sent over the network                     pA and pB , and record the inter-token response time.
+are encrypted by a perfect encryption algorithm that leaks no                       We then train a classifier to distinguish between these
+information about the content of the message. The objective                     two distributions. This classifier can be as simple as a single
+of the adversary is to study {ti }n1 and then predict with                      average-and-threshold (if one query is systematically faster
+probability greater than 21 whether or not p({mi }n1 ).                         at responding than the other), or in other cases a Gaussian
+                                                                                Mixture Model [27] or neural network. Regardless of the
+Knowledge. Throughout this paper, we consider an adversary                      exact technique, the classifier f is designed so that negative
+who has black-box access to the system the victim will                          values indicate the message was probably pA and positive
+eventually use. That is, the adversary is allowed to make an                    values the message was pB ; this allows us to sweep a
+arbitrary (but cost-limited) number of queries of the system,                   threshold τ to compute a precision-recall plot.
+but assume the adversary does not have complete unrestricted
+access to the language models to, e.g., perform gradient-based
+attacks. (In Section 6.3 we show that, even if an adversary                     Phase 2: Inference At attack time, a victim user makes
+could get white-box access to the target language model,                        a request to the language model sending either prompt pA
+current attacks are insufficiently powerful to make use of                      or pb . The adversary then monitors the network traffic and
+these additional capabilities.)                                                 records the inter-packet response time {ti }. From here, the
+    We additionally consider either an entirely passive adver-                  adversary computes the goodness of fit between this mea-
+sary who can only view the network traffic between a victim                     sured distribution {ti } and each of the observed distributions
+user and a remote language model, or an active adversary                        from initialization using the pretrained classifier.
+who can control (part of) a user’s queries.
+                                                                                4.2. Evaluation Methodology
+4. Passive Attacks on Open Source Models
+                                                                                    We place a language model server on a machine running
+    When an adversary sits on the network path, or can
+                                                                                FastChat2 , the most popular service that exposes a language
+otherwise monitor communication between a victim user and
+                                                                                model remotely via a standard API. We integrate each
+the remote language model, we can learn information about
+                                                                                of the five efficient inference methods we identify that
+the encrypted messages.
+                                                                                contain public implementations from Table 1: Speculative
+                                                                                Decoding [41], SpecInfer [29], Speculative Streaming [2],
+4.1. Attack Primitive: A/B Testing
+                                                                                Medusa [3], Parallel Decoding [38], and Consistency Large
+     We begin with our simple attack primitive that performs a                  Language Models [25]. Because FastChat exposes an HTTP
+hypothesis test to reliably distinguish between a user sending                  interface, we implement an HTTPS proxy with Nginx so
+one of two prompts pA and pB to a model. (Formally: we let                      that all communication with the language model can occur
+ϕ(x) = (x == pA ).) Depending on the exact set of prompts                       over an encrypted channel to best simulate realistic settings.
+pA and pB there may or may not be any immediate security                            We place the victim user inside of a virtual machine on
+relevance to this question per se; nevertheless, demonstrating                  a separate cloud machine (in our setup, a Docker container),
+that it is possible to learn anything about a user’s conversation               with the adversary acting as a network adversary that can
+with a language model by observing the timing characteristics                   have access to the communication link and can observe the
+of the model is a privacy violation. Our attack has two phases:                 communication between the users and the serving servers. In
+initialization and inference.                                                   all cases, the API sends requests over the HTTPS channel,
+     In many ways, this attack is completely analogous to                       which, following the guarantees of a secure channel, should
+the methods that are used by network adversaries in the                         prevent the adversary from learning anything about the
+website fingerprinting literature [23], [49], [37], [40], [8],                  contents of these messages.
+[6], [47], [34], [18]. Website fingerprinting attacks aim to                        The adversary monitors all network traffic sent to or
+identify the specific website a user is visiting when they                      from the victim’s virtual machine; by inspecting the target
+are using encrypted channels like VPNs or the Tor network.                      IP address and port, it is possible to limit the packets to just
+This comparison is particularly relevant in the context of                      those intended for a specific language model provider. When
+closed-world website fingerprinting, where the goal is to                       the victim makes the language model request, the adversary
+differentiate among a limited set of websites, mirroring our                    captures all packets, discards their (unreadable, encrypted)
+focus on two specific prompts. (Later we will generalize this                   contents, records the time at which the packet was received,
+to 1-of-N prompts.)                                                             and then computes the inter packet delay.
+                                                                                    For this attack we train simple Gaussian Mixture Models
+Phase 1: Initialization To begin, we construct a signature of                   (GMMs) on 100 queries in advance of the attack, but
+the timing of response tokens when querying the model either                    following the same protocol. Then, at attack time, the
+with prompt pA or prompt pB .1 Specifically, we query the                       adversary computes the goodness of fit between the observed
+   1. To ensure that our attack is relying only on timing characteristics and   inter packet delay and each of the two training distributions.
+not, e.g., the length of the message we request just 150 tokens of output
+from the model.                                                                   2. https://github.com/lm-sys/FastChat
+                                                                                    Methodology. To simulate this, we construct a set of initial
+                                     1.0                                            prompts that a user might ask, either (1) providing a set of
+
+
+
+
+      A/B Test Attack Success Rate
+                                                                                    symptoms and asking for medical advice, or (2) stating a
+                                     0.8                                            potential coding task and asking for help. We then query
+                                                                                    the victim model with one of these (randomly selected)
+                                     0.6                                            messages. To then generate a human-like response, we query
+                                                                                    ChatGPT to reply to whatever response was generated, and
+                                     0.4                                            re-query the victim model with this reply. (Importantly, note
+                                                                                    that we do not perform any timing analysis of the ChatGPT
+                                     0.2
+                                                                                    human-like response; this step is included only to increase
+                                                                                    the duration of the conversation.) We repeat this procedure
+                                                                                    for eight rounds.
+                                     0.0
+                                            Spec SpecInfer Medusa Lookahead CLLMs       In all cases, the victim is monitored using the protocol de-
+                                           Decode                  Decoding         scribed in the prior section. We train a classifier on a disjoint
+                                                                                    dataset of conversations to distinguish between messages
+Figure 1: All efficient inference methods we tested are                             about medical advice and messages about coding assistance,
+vulnerable to timing attacks, and we can reliably distinguish                       and then run the attack on a new set of conversations.
+between two queries with near 100% attack success rate.
+
+                                                                                    Results. Overall, we achieve an attack success rate of
+4.3. Results                                                                        between 89.5% and 99.8% at distinguishing between the
+                                                                                    potential topics after observing ten messages between the
+    We evaluate our attacks in two different settings, for each                     (simulated) user and the remote model. Figure 2 shows the
+of the five efficient inference methods discussed above.                            complete curve as we vary the number of conversation turns
+    Because several of these efficient methods require a                            from 0 (only one response is given, the user never replies)
+model specially-adapted to that technique, it is not meaning-                       to 8 (the user replies 8 times).
+ful to draw direct comparisons between different methods—
+                                                                                        While we do find that some methods are (much!) more
+because the underlying language models may be different.
+                                                                                    vulnerable than others, we caution readers from reading too
+Instead, our hope in performing these experiments is to
+                                                                                    much into this. Several of these techniques require fine-tuning
+demonstrate that regardless of the exact technique used, all
+                                                                                    models to be effective, and not all techniques choose the
+exhibit exploitable data-dependent timing characteristics.
+                                                                                    same base models to fine-tune. Therefore, in several cases
+                                                                                    we have changed not only the efficient inference method,
+4.3.1. A/B testing experiments. We begin with a simple
+                                                                                    but also the model.
+experiment to evaluate the ability of our attack to distinguish
+between one of two possible input messages. Specifically, we                            Nevertheless, the conclusion we can draw from this
+send either the message “generate a sequence of 50 random                           analysis is that each of these efficient inference methods
+numbers” or “generate the first 50 numbers in order” and                            that depend on the content is vulnerable to a timing attack
+record the packet timing for each of these queries.                                 that leaks the content of the user message. This is inline
+    Figure 1 shows the result of this experiment. Overall,                          with other traffic analysis attacks that use the dependency
+we find that the attack success rate is exceptionally high for                      on the content to gain unintended information from the
+all efficient inference methods. This preliminary experiment                        communication patterns [6], [53], [52], [39], [55]. We believe
+confirms that, if an adversary were to have specific a priori                       it would be interesting for future work to more rigorously
+knowledge that a victim was going to send one of a small                            study the reasons behind why some of these techniques are
+set of messages, it would be possible to precisely identify                         much more vulnerable to attack than others.
+which message was sent.
+
+4.3.2. Semi-Open-World experiments. While being able to                             5. Passive Attacks on Production Models
+distinguish between one of two possible messages is clearly
+a privacy violation in some cryptographic sense, it is not a                            We now show that our timing attack is effective not
+very realistic attack: adversaries do not often know that a                         only for open-source efficient inference methods, but also
+victim user will send exactly one of two specific messages.                         is practical in the fully end-to-end setting for large produc-
+    Thus, in this section we consider a more “open world”                           tion models including OpenAI’s ChatGPT and Anthropic’s
+experiment, where we assume the victim user is asking                               Claude. For the attacks we consider in this setting, exactly
+questions on one of two topics, and either asks for medical                         which techniques have been deployed by these language
+advice, or coding assistance. 3                                                     model services are not relevant: all that matters is that
+   3. Even this open world experiment is not fully open-world in the sense
+                                                                                    efficient inference strategies are in use. As such, we first
+that the users can talk about any topic at all. But we nevertheless believe         begin with a very simple experiment to confirm that these
+this setting is much more realistic.                                                techniques are being applied.
+                                 1.00
+                                                                                                             2.0
+
+
+
+
+     Topic Attack Success Rate
+                                 0.95
+
+
+
+                                                                                       Relative speedup of
+                                 0.90                                                                        1.5
+
+
+                                                                                       easy vs hard tasks
+                                 0.85
+                                                                      SpecDecode                             1.0
+                                 0.80                                 SpecInfer
+                                 0.75
+                                                                      SpecInfer
+                                                                      SpecDecode
+                                                                                                             0.5
+                                 0.70                                 CLLM
+                                                                                                             0.0
+                                        0    2          4            6         8                                   gpt-4-      gpt-4-    gpt-4-turbo-
+                                            Number of conversation turns                                           0613     0125-preview 2024-04-09
+Figure 2: Our attack reliably distinguishes between a user                         Figure 3: Later versions of GPT-4 implement more advanced
+either asking for coding assistance or asking for medical                          efficient inference techniques. Whereas the June 2023 model
+advice across all five efficient inference strategies. When                        takes just as long to answer easy versus hard queries, and
+a user interacts with a model for multiple back-and-forth                          the January 2024 “preview” model is 10% faster on easier
+conversations the attack success rate grows considerably.                          queries than harder queries, the April 2024 release of the
+Some methods are much more vulnerable to attack than                               gpt-4-turbo model is twice as fast on easy queries
+others, with up to 100% attack success rate.                                       compared to hard queries.
+
+
+5.1. GPT-4 uses data-dependent efficient inference                                 being used would be an interesting avenue for future work.)
+                                                                                   Instead, we focus on measuring the consequences of the
+     We begin with an extremely simple experiment to verify                        fact that this series of models—and others like them–employ
+whether or not we will have any hope at determining the                            efficient inference techniques, and determining how much
+content of a message based on the timing characteristics of                        information is leaked as a result of this efficient inference.
+the model response. First, we construct two sets of queries;
+one of these are “easy” queries that even simple models
+                                                                                   5.2. Results
+should be able to solve correctly (e.g., “count from 1 to
+100”); the other are “hard” queries that are challenging (e.g.,
+“write a program to check if a number is prime”). We then                          5.2.1. Evaluation Methodology. Our evaluation method-
+query the model on each of these sets of queries, and compute                      ology closely follows that of the prior section; we again
+the time the model takes to return the first 100 tokens. (We                       place a victim user inside of a virtual machine with the
+ensure all queries generate over 100 tokens of output.)                            adversary acting as an on-path network adversary on the
+     Figure 3 shows the results of this analysis for three                         host machine. Because both OpenAI and Anthropic send
+different releases of OpenAI’s GPT-4 model. The initial                            all requests encrypted over HTTPS we need no server-side
+June 2023 release of the model is just as fast on the easy                         modifications, and simply query the remote language model
+set of queries as on the hard set of queries; because this                         using the latest version of the corresponding model’s Python
+was the first release of this model, we suspect OpenAI had                         API. Again, the adversary captures all packets between the
+little time to build efficient inference infrastructure. Then,                     victim machine and the remote language model service,
+in November 2023 and January 2024, OpenAI released a                               discards the content, and records the inter-packet delay.
+“Preview” of the gpt-4-turbo model, and charged 50%
+less for queries to the model. We find that this model                             5.2.2. ChatGPT Results. We perform our attack on several
+on average responds to easy queries 10% faster than it                             OpenAI models. In this section on their most popular model
+responds to harder queries—a statistically significant increase                    families: GPT-3.5 and GPT-4.
+in performance, if limited. And then, most recently (as                                For each model, we query the remote model 500 times
+of writing this paper), in April 2024 OpenAI released the                          to establish the timing signature: 250 times with Pa and
+official gpt-4-turbo model. This version exhibits extreme                          250 times with Pb . We then use this data and fit a GMM
+data-dependent timing characteristics: it is twice as fast at                      on these samples. At test time, we query the model another
+responding to easy queries compared to hard queries.                               500 times. (Later, in Section 5.4 we will validate the impact
+     While it is difficult to speculate on the exact techniques                    of how long has passed between when we train our GMMs
+that are being applied to make this model perform faster on                        and when we run the attack.)
+some queries than others, for the purpose of this section we                           Figure 4 shows a histogram of the GMM likelihood
+leave this question aside. (We believe developing techniques                       scores and the precision/recall curve for the GPT-3.5 model—
+that could identify the exact efficient inference techniques                       the model least vulnerable to our attack. Even on this model
+                   1.00
+                                                                              1.2       Random
+                   0.98                                                                 Sequential
+                                                                              1.0
+                   0.96
+       Precision
+                                                                              0.8
+                   0.94
+                                                                     Timing   0.6
+                   0.92                                                       0.4
+                   0.90                                                       0.2
+                          0.0   0.2   0.4     0.6   0.8   1.0
+                                         Recall                               0.0
+                                                                                    0   25      50 75 100 125 150
+Figure 4: A network adversary can reliably distinguish                                          Packet Number
+between a user who has asked GPT-3.5 to either “generate
+the first 50 numbers” or “generate 50 random numbers”. By        Figure 5: Inter-packet delay on a token-by-token basis for
+training a Gaussian Mixture Model on the packet response         two different queries, with 100 independent results overlaid.
+times, we can achieve 94.7% accuracy at distinguishing these
+two queries; and can label over 50% of interactions with
+perfect precision.                                               packet that is sent by the model. Notice that there appear
+                                                                 to be distinct “buckets” of sizes for packets: this is because
+                                                                 each extra token that is generated is placed within its own
+we see that we can achieve a recall of 50% with perfect          150-byte JSON object. This means that when we compute
+precision at identifying which question has been asked.          the timing signature for a sequence of packets, we are not
+                                                                 accounting for the mismatch where sometimes individual
+Delving deeper. Why is it so easy to fingerprint easy versus     packets contain multiple tokens and sometimes they contain
+hard queries for these models? In Figure 5 we plot the           just one.
+response time on a per-token basis for 100 queries for
+“generate the first 50 numbers” and 100 queries for “generate    Compensating for token clustering. Given this new under-
+50 random numbers”.                                              standing, we can now develop an improved attack. Specifi-
+    Initially responses to the two queries have similar re-      cally, we first fit a model to predict the number of distinct
+sponse timing characteristics. But then, at the 50th token,      tokens contained in a single packet of data. But this is
+there is a significant qualitative change to the behavior:       easy to do. Because each token is contained within a large
+whereas the model prompted with sequential numbers starts        JSON object (of over a hundred bytes), this step is rather
+to have a delayed response followed by two very fast             straightforward: we fit k Gaussians to the histogram in
+tokens in reply, when prompted to generate random numbers        Figure 6(b), and then given a packet size s we choose the
+the behavior stays consistent throughout generation. This        Gaussian that best fits the the data; formally
+suggests that, for one of these methods, there has been an
+                                                                            # tokens = arg max Pr[s | N (µi , σi2 )]
+                                                                                                                   
+explicit switch from one type of generation behavior to                                      i∈[1..B]
+another type.
+                                                                     This allows us to construct Figure 6(c) which aligns the
+5.2.3. Claude 3 Results. When we implement the same              token timings and shows that two independent runs of the
+attack on Claude 3 Opus (the latest and largest model released   same data have the same timing signature. And therefore, we
+by Anthropic), it initially appears to not be very vulnerable    are able to significantly increase our attack success rate: in
+to this attack. Our attack achieves a 60% attack success rate,   fact, we are able to reach a 100% accuracy at distinguishing
+and the AUC of the precision recall curve is under 0.7.          between two different queries with an AUC of 1.0.
+
+Delving deeper. It is important to realize that there is a       5.3. Vulnerability over size and optimization
+distinct difference between the time that packets are sent,
+and the time between when tokens are sent. In the case of            Next we turn towards investigating the effect of model
+our open source attacks and attacks on OpenAI’s models,          size, and the amount of optimization effort that has gone
+this difference wasn’t important.                                into each model, starting with size.
+    But for Claude 3 we notice that the backend server will
+occasionally group together multiple tokens and send it to       Larger models are more vulnerable. Within a model family,
+the client in a single TCP packet. Figure 6(a) shows the         we find that models gpt-3.5 vs gpt-4 and Claude 3 Opus
+inter-packet delay for two identical queries repeated twice      vs Claude 3 Sonnet vs Claude 3 Haiku), we find the attack
+on the model. We find that not all packets encode just one       success rate increases as models increase in size. Intuitively
+token. For example, in Figure 6(b) shows the size of each        this makes sense: efficient inference algorithms come with
+                         1.2                                                                104                                                             0.7
+                                                           Run 0                                                                                                                                Run 0
+                         1.0                               Run 1                                                                                            0.6                                 Run 1
+
+
+
+
+                                                                    Frequency (log scale)
+                                                                                            103
+                         0.8                                                                                                                                0.5
+                                                                                                                                                            0.4
+                Timing
+                         0.6                                                                102                                                    Timing   0.3
+                         0.4
+                                                                                            101                                                             0.2
+                         0.2                                                                                                                                0.1
+                         0.0                                                                100                                                             0.0
+                               0   20        40     60    80                                       200    400       600      800                                  0      20   40     60    80   100
+                                          Packet Number                                                  Packet size (bytes)                                                  Token Number
+
+Figure 6: (a) We query Claude 3 twice with the same prompt. Because Claude 3 occasionally merges multiple tokens into
+one packet, this merging breaks the alignment between packets and tokens, and makes it difficult to mount our timing attack.
+(b) But a second side-channel exists: the number of bytes in each packet reveals the number of tokens in that packet. (c) By
+combining both side-channels together to obtain the inter-token-delay (instead of the inter-packet-delay) we can restore the
+timing alignment of the two independent runs, and achieve near perfect attack success rates.
+
+
+                1.0                                                                                                                      1.0
+                0.9                                                                                                                      0.9
+
+
+
+                                                                                                                       Attack Accuracy
+                                                                                                                                         0.8
+                0.8
+    Precision                                                                                                                            0.7
+                0.7                                                                                                                                     gpt-4-turbo
+                                                                                                                                         0.6
+                                   gpt-4-turbo-2024-04-09                                                                                               gpt-3.5-turbo
+                0.6                gpt-4-0125-preview                                                                                    0.5            claude-3-opus
+                                   gpt-4-0613                                                                                                           claude-3-sonnet
+                0.5                                                                                                                      0.4
+                          0.0       0.2         0.4     0.6        0.8                            1.0                                          0                  10         20         30              40
+                                                   Recall                                                                                                              Days since fitting
+Figure 7: Each subsequent release of GPT-4 has increased                                                         Figure 8: Some language model behavior changes over time.
+its vulnerability to timing attacks. This correlates strongly                                                    While attacks on Claude remain consistently effective a
+with the fact that subsequent releases appear to employ more                                                     month after the initial fitting, attacks on GPT 3.5 and GPT
+sophisticated efficient inference techniques.                                                                    4 become less effective as more time passes.
+
+
+                                                                                                                 5.4. Attacks over time
+a performance overhead, and so applying them to smaller
+models will result in a smaller relative gain. Moreover, faster                                                       The timing attack literature has discovered many ways
+models will exhibit more subtle timing signatures compared                                                       in which timing attacks can be unreliable [8], [23]. In this
+to the network overhead.                                                                                         section we consider one way that timing attacks often fail in
+                                                                                                                 practice: the timing characteristics at one point in time are
+                                                                                                                 often different from the timing characteristics for a future
+                                                                                                                 point in time [31].
+                                                                                                                      In order to investigate this, we query four language
+More optimized models are more vulnerable. While there                                                           models (GPT 4 Turbo, GPT 3.5 turbo, Claude 3 Opus, and
+is no way for us to measure the quantity “how optimized was                                                      Claude 3 Sonnet) over a period of a month, and report the
+this model?”, we can crudely estimate it by when the model                                                       attack success rate over time if we train our attack on the
+was released. Presumably, more recent models make use of                                                         first day, and repeat the attack for the remaining days.
+more advanced optimization techniques and will therefore                                                              We can draw several interesting lessons from this figure:
+be more vulnerable to timing attacks.
+                                                                                                                      •                  Claude models appear to remain unchanged over a
+   And that is exactly what we find in Figure 7: when we                                                                                 period of a month. The attack success rate remains
+compare the success rate of our attack on three different GPT-                                                                           consistently high.
+4 base models (gpt-4-0613, gpt-4-0124-preview,                                                                        •                  Attacks on GPT 3.5 remain high, and then suddenly
+and gpt-4-turbo-2024-04-09), we find that the attack                                                                                     after a month of data gathering the attack success
+success rate increases significantly.                                                                                                    rate drops to random guessing. This suggests that
+                                                  he      zh     fa      ar      en     ja                       fr      de     es     ru             language models via the APIs. We test this case because,
+                                                                                                                                                1.0
+                                                                                                                                                      while in principle the model being served is the same, there
+                                           he     0.44   0.06    0.00    0.31    0.00   0.19                     0.00    0.00   0.00   0.00
+                                                                                                                                                      is likely a significant difference in the front-end application
+                                           zh     0.11   0.74    0.00    0.05    0.00   0.05                     0.05    0.00   0.00   0.00           that serves the responses. Moreover there might be more
+                                                                                                                                                0.8
+                                                                                                                                                      noise due to the additional communication between the web
+                                           fa     0.06   0.06    0.44    0.38    0.00   0.06                     0.00    0.00   0.00   0.00
+                                                                                                                                                      interface and the servers.
+                                           ar     0.17   0.04    0.26    0.39    0.09   0.04                     0.00    0.00   0.00   0.00
+
+
+
+
+                           True Language
+                                                                                                                                                0.6
+                                                                                                                                                      Methodology. We use Selenium to automate a user in-
+                                           en     0.00   0.17    0.00    0.00    0.50   0.04                     0.12    0.08   0.08   0.00
+                                                                                                                                                      teracting with the ChatGPT web interface available at
+                                           ja     0.05   0.45    0.00    0.09    0.00   0.41                     0.00    0.00   0.00   0.00           chatgpt.com. Given the limitations of working through
+                                                                                                                                                0.4
+
+                                           fr     0.00   0.04    0.00    0.00    0.11   0.00                     0.36    0.00   0.50   0.00
+                                                                                                                                                      the UI we limited the attacks in this section to just inferring
+                                                                                                                                                      the language and the topic of the conversation by observing
+                                           de     0.00   0.00    0.00    0.00    0.00   0.00                     0.00    1.00   0.00   0.00
+                                                                                                                                                      the network traffic between a user and the ChatGPT servers.
+                                                                                                                                                0.2
+
+                                           es     0.00   0.00    0.00    0.00    0.05   0.00                     0.36    0.05   0.55   0.00
+                                                                                                                                                      In this experiment we choose 10 popular languages and
+                                                                                                                                                      query the ChatGPT Web UI to write three paragraph stories
+                                           ru     0.00   0.00    0.00    0.07    0.03   0.00                     0.00    0.00   0.00   0.90
+                                                                                                                                                      in each of these languages. We experimented with both
+                                                                                                                                                0.0
+                                                                        Predicted Language                                                            GPT-4 and GPT-4o. Similarly for the topic experiment we
+                                                                                                                                                      used 40 different questions in two topics of programming or
+                                                                         (a) GPT-4                                                                    medical questions and capture the response packets. Overall
+Figure 9: Performance comparison of a language model                                                                                                  we repeated these experiments 300 times for each language
+across various languages. The figure illustrates the probability                                                                                      and 20 times for each question, for topic classification tasks.
+of correct language prediction for ten languages. Each value                                                                                          In all of the experiments, we only look at the communication
+represents the model’s recall in identifying that language and                                                                                        between our target client and language model serving servers.
+errors. We see both models have comparable leakage about                                                                                              At the time of writing this paper, ChatGPT uses Cloudflare
+different languages.                                                                                                                                  therefore we capture all communication between the target
+                                                                                                                                                      client and any destination in the CloudFlare network.
+                                                                                                                                                          As in the previous section, we find that it is sometimes
+                                  OpenAI made a change to the way this model is                                                                       important to include the relative size of each packet to
+                                  served, and prevents the specific timing signatures                                                                 improve attack success rate; this observation is well known
+                                  learned initially from transferring.                                                                                in the classical packet analysis literature [31], [18], [16], [4].
+        •                         Attacks on GPT 4 decay slowly over time. It is                                                                      We therefore extract Inter Packet Delays (IPD) and packet
+                                  harder to immediately draw a near-certain conclusion                                                                sizes for each connection. In order to ensure that our attack
+                                  from this figure: it could, for example, indicate the                                                               does not just look at the response’s length as the method to
+                                  serving infrastructure is being iterated on daily, or                                                               identify the language, we extract the first 400 packets from
+                                  that the usage patterns of this model have changed                                                                  each experiment, and discard experiments that had fewer
+                                  significantly over time and so it behaves differently                                                               than 400 packets.
+                                  from being queried more (or less) frequently.
+                                                                                                                                                      Evaluation. To begin, we run the same Gaussian Mixture
+5.5. End-to-end ChatGPT Website Attack                                                                                                                Model attack as we successfully applied to the API. Un-
+                                                                                                                                                      fortunately, we find that the GMMs are less effective on
+                                       Medical           Programming                                                  Medical     Programming
+                                                                                                                                                      this dataset, and achieve attack success rates below 30%.
+                                                                                1.0                                                             1.0   To improve the attack success rate, we next implemented
+                                                                                                                                                      an improved detection strategy: instead of hand-designing
+
+         True Topic                                                                            True Topic
+                                                                                0.8                                                             0.8
+                                           0.72                0.28                                                     0.78           0.22
+                                                                                                                                                      a classifier, we train a simple convolutional neural network
+                                                                                0.6                                                             0.6
+                                                                                                                                                      with two convolution layers and a fully connected network to
+                                                                                                                                                      predict the language/topic of conversations from the network
+
+  Programming    Medical                                                                Programming    Medical
+                                                                                0.4                                                             0.4
+                                           0.16                0.84
+                                                                                0.2
+                                                                                                                        0.07           0.93
+                                                                                                                                                0.2
+                                                                                                                                                      packet timing and sizes.
+                                                                                                                                                          Figure 10 summarizes the results of our attack when
+                                                                                0.0                                                             0.0
+                                            Predicted Topic                                                              Predicted Topic              the victim interacts with the ChatGPT Web UI. We find
+                                                                                                                                                      that, similar to the open source model analysis, we can
+                                            (a) GPT-4                                                                   (b) GPT-4o
+                                                                                                                                                      distinguish whether or not the user is asking about medical
+Figure 10: Performance comparison of a language model                                                                                                 advice or coding assistance with over 80% probability in a
+across two different topics of medical or programming                                                                                                 single message. For the topic identification task the overall
+questions. As we see in both models we can distinguish                                                                                                accuracy is 79% (respectively, 82%) for GPT-4 and GPT-4o.
+between these two topics.                                                                                                                             (We do not study multiple conversation turns due to the
+                                                                                                                                                      difficulty of instrumenting the Web UI.)
+   We now implement the same end-to-end attack on the                                                                                                     We also experiment with identifying the user’s language
+ChatGPT web interface directly, instead of querying the                                                                                               (e.g., English, French) among one of the ten most popular
+languages. 4 Figure 9 presents the results of this analysis.            combination of prompt pi and each possible adversary suffix
+This attack an overall top-1 accuracy of 49% (respectively,             q j , record the timing characteristics, and train a classifier
+48%) at distinguishing between the 10 languages with GPT-4              f j (·) that predicts which victim prompt was selected for
+(respectively, GPT-4o); however, some languages have much               each adversary suffix q j . Then, in the inference phase, the
+higher success rates than others. For example, both GPT-4               adversary queries each of the q j prompts with the victim’s
+and GPT-4o models have similar leakages of languages in                 unknown prompt p ∈ {pi }, and runs the classifier f j on
+the conversation. In particular, both models have surprisingly          each of the response timings. With this data, the adversary
+high leakage of German, Russian, and Chinese.                           can aggregate the predictions across each of the independent
+                                                                        queries.
+6. Stealing Prompts with Active Adversaries
+                                                                        Evaluation Setup. We implement this attack on each of the
+     Recall that under our threat model, an active adversary            five efficient inference methods from the prior section. We
+is given control over (part of) the conversation between a              choose victim prompts to be one of 1000 questions from the
+user and remote model, but can not observe the content of               Alpaca dataset [43]. We then choose 100 alternate prompts,
+either the query or the response.                                       and query the language model with 100 different modifiers
+     Unlike previously where the adversary can only view the            (e.g., “summarize the answer briefly”, “explain the answer
+messages exchanged between the user and the model, here the             like I’m five”, “speak like a pirate when answering”). We
+adversary plays an active role. Specifically, the objective of          query the model on each of the 100 × 1000 possible queries
+the adversary is to construct a sequence of tokens {ti }N               and record the inter-packet delay for the first 100 tokens of
+                                                        i=1 so
+that when the user sends a query with the combined prompt               the model’s response.
+p||⃗t, the timing of the model’s response leaks information
+about the (unknown) message p.                                          Results. We find that it is possible to perfectly determine
+                                                                        the secret number that has been selected by looking at the
+6.1. Restricted-Domain attack                                           timing characteristics of the corresponding 100 questions for
+                                                                        each of the five efficient inference methods. Moreover, we
+    We begin by introducing a simple boosting-like approach             find that even 20 questions are sufficient if network latency
+to significantly improve the attack success rate of the passive         is ignored.
+attack, under the assumption the adversary can cause the
+victim to issue repeated queries with a (fixed) base prompt.            6.2. Stronger Black-box Attacks
+
+Attack setting: 1-of-N Like our previous A/B testing strategy               In cases where the adversary wishes to learn something
+that distinguishes between one of two possible prompts, here            that is not one of a small set of questions, it will be necessary
+we consider a setting where a victim chooses one of N                   to develop alternate attacks. In this section we consider one
+possible prompts p ← {pi }N                                             such method. However, before we do this, we briefly review
+                           i=1 . (We move from 1-of-2 to the
+harder 1-of-N because we can already nearly perfectly solve             key details of speculative decoding that are important to the
+1-of-2 even without an active attack.) Then, the adversary              attack details here.
+is allowed to construct various prompts q j and query the
+model to observe the response time for the message O(p||q j ).          6.2.1. Speculative Decoding. Recall that this method works
+Importantly, note the adversary can neither view the content            by generating potential responses using a smaller (and thus
+of the message nor the reply.                                           faster) draft model, which a larger (“target”) model can
+                                                                        accept or reject.
+Method. The reason our simple A/B testing, distinguishing                   Given a prompt p, speculative decoding first samples
+attack was effective is that the model behaves (slightly)               several (e.g., 5) sequential tokens from the small draft model.
+differently when issued one query compared to another. But              This requires several invocations of the small model, each
+in this more general attack setting, where the adversary                time generating one new token qi . Then, this candidate
+can repeatedly cause different queries to be issued to the              response q is provided to the large target model to score;
+language model O, it is possible to do significantly better             this requires just one forward pass of the target model. The
+by aggregating multiple results together.                               target model then either accepts the entire response, some
+    To do this, we simply collect a set of semi-arbitrary               prefix of the generated response q1..k , or rejects the response
+prompts (“write me a story about a unicorn”, “tell me the               entirely and provides a new token qi′ .
+history of the Americas”, “what is the integral of log(x)”)
+                                                                        6.2.2. Intuition. Generally, the attack approach we will con-
+and, as the adversary, cause the victim to issue queries with
+                                                                        sider here exploits the fundamental capability gap between
+each of these messages present in the combined prompt.
+                                                                        the model’s ability to generate a fast and slow response.
+    The adversary then repeats the prior attack setup. In
+                                                                        Because of the way each of the efficient methods work,
+the initialization phase, they query the model with each
+                                                                        models are almost always less capable when they give fast
+  4. The open source models we study were all English-only, and so we   responses compared to when they give slow responses. In
+do not have a comparison point for this experiment.                     the case of speculative decoding, this is because the draft
+model is much smaller than (and thus not as “smart” as) the             Question                                        Success Rate
+target model. And so by constructing queries that can be                Is the first digit in the number X?                56.2%
+solved by only one of the models—and not the other—we                   Is the first numeral in the number a X?            65.6%
+can reliably induce the model to respond either quickly or              Yes or no, does the digit X occupy the first       78.2%
+                                                                        place in the number?
+slowly depending on whether the answer to the question is               Does the number you have begin with X?             85.5%
+true or false.                                                          Respond with yes or no.
+    Specifically, we focus on asking questions that cause the           Does a X appear as the first character in the      87.8%
+model’s very first token to either be accepted or rejected.             number? Yes or no?
+                                                                        Is the initial digit of the number a X? Yes        90.2%
+In either case, generating the first token will be slow (as             or no?
+it requires querying the draft model 5 times and then the               Do we see a X at the beginning of the              94.1%
+target model once). But the second token’s timing will vary.            number? Provide a yes or no answer.
+If the first token is accepted, the remaining 4 tokens will             When looking at that number, is X the initial      97.2%
+                                                                        digit? Yes or no?
+(possibly) also be accepted; but if the first token is rejected,
+the remaining 4 tokens must be re-generated. Therefore, by         TABLE 2: Attack success rate of various questions at eliciting
+measuring the time it takes the model to respond with the          a capability gap, and therefore introducing an exploitable
+second token, we can detect if the model accepted or rejected      timing side-channel, when performing speculative decoding
+the first token.                                                   with a 7 billion parameters target model and a 1.5 billion
+                                                                   parameters draft model. Easy-to-understand sentences work
+6.2.3. Attack setting. For the remainder of this section,          less well because both models answer correctly; whereas
+given that we have now already perfectly solved the 1-of-k         harder-to-parse sentences are only answered correctly by the
+attack setting we shift our focus to a harder task: learning       larger model.
+secret values placed in the prompt. For example, the prompt
+might contain some sensitive information about a person
+(e.g., their phone number or credit card number).                  model to rephrase our question. Specifically, we prompt
+    Specifically, for this paper we choose the set of prompts      GPT-4o to “rephrase this question 20 different ways”. We
+p to be prompts of the form “My secret number is [number].”        then take each of these re-phrased versions of the question,
+We set the space of prompts {p} to be messages of the form         and score the attack success rate of each of these.
+“The secret number is [number]. Do not reveal it.” where the           One of these re-phrasings is “Is the first numeral in the
+number is a single integer between 1 and 1000.                     number a X?” which has a 65% probability of distinguishing
+    Note that if the adversary had the ability to view the         between the two models. We then take the best generation,
+response it would be easy to just perform a jailbreak and          and repeat—asking GPT-4o to rephrase the question again.
+ask “disregard prior instructions and type the number I told           Table 2 shows a table of eight of the questions we
+you earlier.” and the model would (likely) respond with the        discover that we can ask the model, bringing the attack
+correct number; but this is not possible because we assume         success rate from 56% to 97%. We find that the reason this
+the adversary can only inject data, but can not view the reply.    token suffix achieves a higher attack success rate is because
+                                                                   it better exploits the capability gap between the large and
+6.2.4. Method. To begin we restate the attack objective            small model: the small model always answers “no” for this
+formally, so that we can then directly optimize for a token        question, but the large model achieves a 97% success rate
+sequence to make the attack succeed with high probability          at answering the question.
+                                                                       Now that we have (probably) learned the first digit of
+                                                                   the secret number, we can repeat this procedure for each
+  arg max      E      T (m + {ti }) −     E       T (m + {ti })
+     {ti }   m|p(m)                     m|∼p(m)                    subsequent digit. While this process is not perfect—and our
+                                                                   attacks do sometimes fail to learn the digit at each location,
+where T (·) represents the time a model takes to respond to        we can substantially reduce the space of possible generations.
+a given message.                                                   And once we have reduced the space of possible generations
+    We optimize for the best token sequence {ti } through          to a modest number (e.g., a few thousand), we can repeat the
+a simple black-box optimization procedure. Initially, we           attack from the prior section that allows us to use brute-force
+choose a prompt that we believe might cause a capability gap       methods and perfectly recover the prompt.
+between the two models (e.g., “is the first digit in the number        Note that the benefit of this attack method is that it
+X?”). Then, we evaluate this token suffix, and measure how         automatically discovers prompts that exploit the capability
+often it causes the two models to differ in timing and thus        gap between the large and small model, without requiring
+leak the timing information to the adversary. We find that         time-consuming manual effort.
+this simple question does not exhibit any significant timing
+signature: only 56.2% of the time does the model’s latency         Evaluation Methodology. As stated above, we implement
+at returning the second token reveal whether or not the first      our attack on just one of the efficient inference methods,
+digit of the number matched our guess.                             speculative decoding. We use the same experiment setup
+    Then, we iteratively begin to refine this question. But        from the previous section, and consider a model provider
+instead of doing this by hand, we make use of a language           who deploys an efficient inference method with a 7 billion
+parameter model and a 2 billion parameter draft model, and        the most effective method was to maximize the difference
+another setting where the victim uses a 70 billion parameter      between the token output probabilities:
+target model with a 7 billion parameter draft model.
+    We run our attack for 10 iterations starting with the                    dif f iculty(x) = Pr [y | x] − Pr [y | x]
+                                                                                                target        draft
+simple question written above, and each time retain the
+top-10 scoring outputs. This results in 91 (= 1 + 10 × 9)         where y is the desired distinguishing token (e.g., “yes” or
+total calls to GPT-4o at a cost of $0.2 per attack, generating    “no” as used in the prior section). However we believe it may
+910 possible candidate suffixes. We evaluate each of these        yet be possible to develop even better difficulty functions
+by querying the target and draft model on 1000 randomly           (see below).
+selected numbers, which takes under an hour on a single
+A100 GPU.                                                         6.3.1. Evaluation. We now evaluate this attack for both of
+                                                                  the settings considered previously.
+Results When we consider the 7B/2B model setting, after
+ten rounds of optimization, our attack returns a question that    1-of-N Testing: Unsurprisingly, given white-box access it is
+reaches 97.2% success rate at causing a timing discrepancy        straightforward to construct adversarial suffixes that cause
+between the target and draft models. We find that it is easier    the model to behave differently when the adversary knows
+to implement the attack in the 70B/7B setting: after ten          the victim will send one of a (small) set of queries. We
+rounds of optimization our attack returns a question that         can construct adversarial suffixes that succeed at this goal
+yields a higher 99.3% success rate at causing a timing            in under 100 iterations of the attack, requiring under 30
+discrepancy between the target and draft models.                  minutes of compute on a single A100 GPU.
+
+                                                                  Secret Stealing: Surprisingly, despite our best attempts, we
+6.3. White-box gradient-based attacks                             were unable to succeed at generating adversarial suffixes
+                                                                  using GCG that could be reliably applied to large prompt
+    Let us now approach this problem differently. Instead of      spaces. On one hand it may not be seen as surprising that
+trying—through black-box search—to happen upon queries            this failed. But we had three good reasons to believe this
+that exploit capability gaps to induce timing discrepancy         attack should work:
+between the fast and slow inferences, we can try to directly
+optimize for this to occur.                                           •   We can successfully optimize for prompts that detect
+    We will attempt to leverage recent advances in discrete               between a fixed 1-of-N set of prompts for small N.
+optimization to generate text sequences that maximize the             •   Prior work [56] has found that adversarial suffixes
+timing difference between two potential queries. Specifically,            generalize across prompts in other domains.
+we will apply the recent GCG attack [56] to try and construct         •   Most importantly: We know a solution exists! In
+an adversarial suffix that directly achieves this goal.                   the prior section, we found—with black-box attacks—
+    But we encounter a problem: GCG, and other gradient-                  queries that could reliably distinguish between mes-
+based optimizers, require a differentiable objective function             sages where numbers started with one digit versus
+in order to work efficiently. Unfortunately, the two calls to             numbers that did not.
+T in Equation 6.2.4 are not differentiable, and so it is not          Taken together we believe this implies that more work
+possible to directly optimize this metric.                        is needed to improve the efficacy of adversarial suffix
+    Our observation is that, in all of the efficient inference    generation. While GCG and related efforts show marked
+techniques we consider, the time function can actually be         improvements compared to prior work, here we have found
+decomposed as                                                     a case where we know there exists a string of tokens that
+                          (                                       maximizes the timing difference, but current optimization
+                            t1 if query is easy                   methods are unable to find it.
+             T (query) ≈                                    (1)
+                            t2 if query is hard
+                                                                  7. Defenses
+and so it is possible to approximate
+
+          T (x) ≈ t1 + (t2 − t1 ) ∗ dif f iculty(x)                   There are a number of general-purpose strategies to
+                                                                  defend against timing attacks. In this section we briefly
+where dif f iculty(x) ∈ {0, 1} is a function that                 review two of the most popular methods and discuss how
+dif f iculty(x) = 1 if it is hard and 0 otherwise. But by         they may be applied to preventing timing attacks on efficient
+increasing the domain of this dif f iculty function and mak-      language model inference.
+ing it continuous, we can construct an entirely differentiable
+T (·) function and therefore compute end-to-end gradients         Modifying packet timing and sizes. The most common
+and optimize this attack.                                         defense [24], [50], [7], [5], [32], [44], [35], [26], [1] against
+    But how should we construct this difficulty function?         traffic analysis attacks is to modify the packets’ timing to
+We explored several different settings, and ultimately found      prevent any data leakage. In the traditional traffic analysis
+                                                                                              guages. As we can observe, different languages have slightly
+                            1.0
+                                                                                              different timing distributions, however, the distribution is not
+                                                                                              heavily tailed. This allows us to use fixed-rate communication
+                            0.8
+                                                                                              to remove any identifying marks from the communication
+                                                                                              patterns.
+            CDF             0.6                                                                   Figure 12 presents the complete curve of latency versus
+                                                             he        ja
+                                                             zh        fr                     bandwidth overhead. As we can see, by transmitting a token
+                            0.4                              fa        de                     every 10 milliseconds (100 times per second) we introduce
+                                                             ar        es                     essentially no latency, but increase bandwidth between 50%
+                            0.2                              en        ru                     and 300%. Alternatively, by transmitting tokens every 80
+                                    0   20 40 60 80 100 120 140 160 180 200                   milliseconds, we can ensure that at least 90% of packets
+                                             Inter Packet Delay (ms)                          have real data and so the bandwidth overhead drops to below
+                                                                                              a 10% increase, at a slight cost of between 4ms and 13ms
+Figure 11: CDF of the inter packet delays of the responses                                    per token delivered.
+in GPT-4o for different languages. As we can see the
+distributions do not have a very large tail and we can use                                    Protocol Morphing. To defend against general traffic analy-
+many of the existing defenses without overhead cost.                                          sis attacks, there are other types of defenses such as tunneling
+                                                                                              the traffic through other protocols or other applications [30],
+                                                                                              [28], [14]. Unfortunately, not only there are many difficulties
+                                        Bandwidth            Timing 20                        implementing such approaches [21], but also they usually
+                            3                                                                 have heavy additional costs. Therefore, we do not believe
+
+
+
+
+       Bandwidth Overhead                                                  Latency Overhead
+                                                                       15                     they would be a good defense for these attacks.
+                            2
+                                                                       10                     8. Conclusion
+                            1                                          5                           Machine learning models have grown in scale from
+                                                                                              simple models that can be described in a few dozen lines
+                            0                                          0                      of code to complex distributed systems that span entire
+                                  10 31 52 73 94 115 136 157 178 200                          datacenters. As these models become widely deployed, it
+                                       Transmission Interval (ms)                             begins to be necessary to re-evaluate their attack surface in
+                                                                                              light of classical attacks from the security literature.
+Figure 12: By increasing interval between transmission of                                          This paper reconsiders how one such attack—timing side
+each token in our defense, we can reduce the bandwidth                                        channels—might be adapted to leak the content of messages
+overhead. (And, conversely, by increasing the bandwidth                                       exchanged between a user and a remote language model. Just
+overhead, we can reduce the latency of the defense i.e,                                       as website fingerprinting attacks allow a network adversary
+reducing the transmission interval.)                                                          to predict which webpage a user is viewing, or SSH timing
+                                                                                              attacks allow a network adversary to recover the password
+                                                                                              a user types, our timing attacks allow a network adversary
+settings, using such defenses is very costly and is often not                                 to predict the topic of conversation (analogous to which
+effective [32], [11], [40].                                                                   website someone is visiting)—or even, in more restricted
+    Fortunately, these defense approaches are more viable in                                  settings, learn the exact message a user has sent (analogous
+our use-case since (1) we require relatively high precision                                   to recovering passwords).
+timing measurements and, (2) the variance in timing between                                        We focus our analysis not on developing qualitatively
+the fastest and slowest responses is usually relatively small,                                new approaches to designing timing attacks or defenses to
+which allows us to introduce delays without significantly                                     timing attacks, but on applying these well-studied attacks to
+degrading full utility. Therefore, we can utilize similar                                     a new domain: that of efficient LLM inference.
+techniques without significantly impacting communication                                           More broadly, we believe that the rapidly accelerating
+latency or introducing excessive overhead traffic.                                            field of language modeling will encounter increasingly many
+    Specifically, we apply a simple constant output rate de-                                  challenges previously studied by the computer security
+fense which will thwart our attacks completely [35], [44].                                    community. We hope that because these problems have been
+This defense strategy works by choosing some output rate                                      already studied extensively in these other domains, it will be
+r, and returns an output token exactly every 1/r seconds.                                     possible to rapidly explore the space of attacks and present
+If no data is ready, we send an empty message (wasting                                        effective defenses to these attacks—as we have done here.
+bandwidth). If more data is ready than can be sent, we send
+just one message (increasing latency).
+    To determine the optimal rate we can measure the fre-
+quency of response times. Figure 11 illustrates the cumulative
+distribution of the inter packet delays across different lan-
+References                                                                      [19] Geoffrey Hinton, Oriol Vinyals, and Jeff Dean. Distilling the
+                                                                                     knowledge in a neural network. arXiv preprint arXiv:1503.02531,
+                                                                                     2015.
+[1]   Ittai Abraham, Benny Pinkas, and Avishay Yanai. Blinder–scalable,
+      robust anonymous committed broadcast. In Proceedings of the 2020          [20] Amir Houmansadr and Nikita Borisov. SWIRL: A Scalable Watermark
+      ACM SIGSAC Conference on Computer and Communications Security,                 to Detect Correlated Network Flows. In NDSS, 2011.
+      pages 1233–1252, 2020.
+                                                                                [21] Amir Houmansadr, Chad Brubaker, and Vitaly Shmatikov. The Parrot
+[2]   Nikhil Bhendawade, Irina Belousova, Qichen Fu, Henry Mason, Mo-                Is Dead: Observing Unobservable Network Communications. In S&P,
+      hammad Rastegari, and Mahyar Najibi. Speculative streaming: Fast llm           2013.
+      inference without auxiliary models. arXiv preprint arXiv:2402.11131,
+      2024.                                                                     [22] Benoit Jacob, Skirmantas Kligys, Bo Chen, Menglong Zhu, Matthew
+                                                                                     Tang, Andrew Howard, Hartwig Adam, and Dmitry Kalenichenko.
+[3]   Tianle Cai, Yuhong Li, Zhengyang Geng, Hongwu Peng, Jason D                    Quantization and training of neural networks for efficient integer-
+      Lee, Deming Chen, and Tri Dao. Medusa: Simple llm inference                    arithmetic-only inference. In Proceedings of the IEEE conference on
+      acceleration framework with multiple decoding heads. arXiv preprint            computer vision and pattern recognition, pages 2704–2713, 2018.
+      arXiv:2401.10774, 2024.
+                                                                                [23] Marc Juarez, Sadia Afroz, Gunes Acar, Claudia Diaz, and Rachel
+[4]   X. Cai, X. Zhang, B. Joshi, and R. Johnson. Touching from a Distance:
+                                                                                     Greenstadt. A critical evaluation of website fingerprinting attacks. In
+      Website Fingerprinting Attacks and Defenses. In CCS, 2012.
+                                                                                     Proceedings of the 2014 ACM SIGSAC Conference on Computer and
+[5]   Xiang Cai, Rishab Nithyanand, and Rob Johnson. Cs-buflo: A                     Communications Security, pages 263–274. ACM, 2014.
+      congestion sensitive website fingerprinting defense. In Proceedings
+      of the 13th Workshop on Privacy in the Electronic Society, pages          [24] Marc Juarez, Mohsen Imani, Mike Perry, Claudia Diaz, and Matthew
+      121–130. ACM, 2014.                                                            Wright. Toward an efficient website fingerprinting defense. In
+                                                                                     European Symposium on Research in Computer Security, pages 27–46.
+[6]   Xiang Cai, Xin Cheng Zhang, Brijesh Joshi, and Rob Johnson.                    Springer, 2016.
+      Touching from a distance: Website fingerprinting attacks and defenses.
+      In Proceedings of the 2012 ACM conference on Computer and                 [25] Siqi Kou, Lanxiang Hu, Zhezhi He, Zhijie Deng, and Hao
+      communications security, pages 605–616. ACM, 2012.                             Zhang. Cllms: Consistency large language models. arXiv preprint
+                                                                                     arXiv:2403.00835, 2024.
+[7]   Giovanni Cherubin, Jamie Hayes, and Marc Juarez. Website finger-
+      printing defenses at the application layer. Proceedings on Privacy        [26] David Lazar, Yossi Gilad, and Nickolai Zeldovich. Karaoke: Dis-
+      Enhancing Technologies, 2017(2):186–203, 2017.                                 tributed private messaging immune to passive traffic analysis. In 13th
+                                                                                     USENIX Symposium on Operating Systems Design and Implementation
+[8]   Giovanni Cherubin, Rob Jansen, and Carmela Troncoso. Online                    (OSDI 18), pages 711–725, 2018.
+      website fingerprinting: Evaluating website fingerprinting attacks on
+      tor in the real world. In 31st USENIX Security Symposium (USENIX          [27] Geoffrey J McLachlan and Kaye E Basford. Mixture models: Inference
+      Security 22), pages 753–770, 2022.                                             and applications to clustering, volume 38. M. Dekker New York,
+                                                                                     1988.
+[9]   Manuel Crotti, Maurizio Dusi, Francesco Gringoli, and Luca Salgarelli.
+      Traffic classification through simple statistical fingerprinting. ACM     [28] Richard McPherson, Amir Houmansadr, and Vitaly Shmatikov. Covert-
+      SIGCOMM Computer Communication Review, 37(1):5–16, 2007.                       cast. Proceedings on Privacy Enhancing Technologies, 2016.
+[10] Tri Dao, Dan Fu, Stefano Ermon, Atri Rudra, and Christopher Ré.            [29] Xupeng Miao, Gabriele Oliaro, Zhihao Zhang, Xinhao Cheng, Zeyu
+     Flashattention: Fast and memory-efficient exact attention with io-              Wang, Zhengxin Zhang, Rae Ying Yee Wong, Alan Zhu, Lijie Yang,
+     awareness. Advances in Neural Information Processing Systems,                   Xiaoxiang Shi, et al. Specinfer: Accelerating large language model
+     35:16344–16359, 2022.                                                           serving with tree-based speculative inference and verification. In Pro-
+[11] Debajyoti Das, Sebastian Meiser, Esfandiar Mohammadi, and Aniket                ceedings of the 29th ACM International Conference on Architectural
+     Kate. Anonymity trilemma: Strong anonymity, low bandwidth                       Support for Programming Languages and Operating Systems, Volume
+     overhead, low latency-choose two. In 2018 IEEE Symposium on                     3, pages 932–949, 2024.
+     Security and Privacy (SP), pages 108–126. IEEE, 2018.                      [30] H. Moghaddam, B. Li, M. Derakhshani, and I. Goldberg. SkypeMorph:
+[12] Tim Dettmers, Mike Lewis, Younes Belkada, and Luke Zettlemoyer.                 Protocol Obfuscation for Tor Bridges. In CCS, 2012.
+     Llm.int8(): 8-bit matrix multiplication for transformers at scale, 2022.
+                                                                                [31] Milad Nasr, Alireza Bahramali, and Amir Houmansadr. Deepcorr:
+[13] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova.               Strong flow correlation attacks on tor using deep learning. In
+     Bert: Pre-training of deep bidirectional transformers for language              Proceedings of the 2018 ACM SIGSAC Conference on Computer
+     understanding. arXiv preprint arXiv:1810.04805, 2018.                           and Communications Security, pages 1962–1976, 2018.
+[14] Cecylia Bocovich Arlo Breault David Fifield and Serene Xiaokang            [32] Milad Nasr, Alireza Bahramali, and Amir Houmansadr. Defeating
+     Wang. Snowflake, a censorship circumvention system using temporary              {DNN-Based} traffic analysis systems in {Real-Time} with blind
+     webrtc proxies.                                                                 adversarial perturbations. In 30th USENIX Security Symposium
+[15] Yichao Fu, Peter Bailis, Ion Stoica, and Hao Zhang. Break the                   (USENIX Security 21), pages 2705–2722, 2021.
+     sequential dependency of llm inference using lookahead decoding.           [33] Milad Nasr, Amir Houmansadr, and Arya Mazumdar. Compressive
+     arXiv preprint arXiv:2402.02057, 2024.                                          Traffic Analysis: A New Paradigm for Scalable Traffic Analysis. In
+[16] Xun Gong, Negar Kiyavash, and Nikita Borisov. Fingerprinting                    Proceedings of the 2017 ACM SIGSAC Conference on Computer and
+     websites using remote traffic analysis. In Proceedings of the 17th              Communications Security, pages 2053–2069. ACM, 2017.
+     ACM conference on Computer and communications security, pages              [34] Andriy Panchenko, Fabian Lanze, Andreas Zinnen, Martin Henze, Jan
+     684–686. ACM, 2010.                                                             Pennekamp, Klaus Wehrle, and Thomas Engel. Website Fingerprinting
+[17] Jamie Hayes and George Danezis. k-fingerprinting: A robust scalable             at Internet Scale. In Proceedings of the 23rd Internet Society (ISOC)
+     website fingerprinting technique. arXiv preprint arXiv:1509.00789,              Network and Distributed System Security Symposium (NDSS 2016),
+     2016.                                                                           2016.
+[18] Jamie Hayes and George Danezis. k-fingerprinting: A Robust Scalable        [35] Ania M Piotrowska, Jamie Hayes, Tariq Elahi, Sebastian Meiser, and
+     Website Fingerprinting Technique. In USENIX Security Symposium,                 George Danezis. The loopix anonymity system. In 26th USENIX
+     pages 1187–1203, 2016.                                                          Security Symposium, USENIX Security, pages 16–18, 2017.
+[36] David Raposo, Sam Ritter, Blake Richards, Timothy Lillicrap, Pe-            [54] Charles V Wright, Lucas Ballard, Fabian Monrose, and Gerald M
+     ter Conway Humphreys, and Adam Santoro. Mixture-of-depths:                       Masson. Language identification of encrypted VoIP traffic: Alejandra
+     Dynamically allocating compute in transformer-based language models.             y Roberto or Alice and Bob? In USENIX Security, 2007.
+     arXiv preprint arXiv:2404.02258, 2024.
+                                                                                 [55] Hadi Zolfaghari and Amir Houmansadr. Practical censorship evasion
+[37] Vera Rimmer, Davy Preuveneers, Marc Juarez, Tom Van Goethem,                     leveraging content delivery networks. In Proceedings of the 2016
+     and Wouter Joosen. Automated website fingerprinting through deep                 ACM SIGSAC Conference on Computer and Communications Security,
+     learning. arXiv preprint arXiv:1708.06376, 2017.                                 pages 1715–1726, 2016.
+[38] Andrea Santilli, Silvio Severino, Emilian Postolache, Valentino             [56] Andy Zou, Zifan Wang, J Zico Kolter, and Matt Fredrikson. Universal
+     Maiorca, Michele Mancusi, Riccardo Marin, and Emanuele Rodolà.                   and transferable adversarial attacks on aligned language models. arXiv
+     Accelerating transformer inference for translation via parallel decoding.        preprint arXiv:2307.15043, 2023.
+     arXiv preprint arXiv:2305.10427, 2023.
+[39] Roei Schuster, Vitaly Shmatikov, and Eran Tromer. Beauty and the
+     Burst: Remote Identification of Encrypted Video Streams. In USENIX
+     Security, 2017.
+[40] Payap Sirinam, Mohsen Imani, Marc Juarez, and Matthew Wright.
+     Deep fingerprinting: Undermining website fingerprinting defenses with
+     deep learning. In Proceedings of the 2018 ACM SIGSAC Conference
+     on Computer and Communications Security, pages 1928–1943, 2018.
+[41] Mitchell Stern, Noam Shazeer, and Jakob Uszkoreit. Blockwise
+     parallel decoding for deep autoregressive models. Advances in Neural
+     Information Processing Systems, 31, 2018.
+[42] Dusan Stosic and Paulius Micikevicius. FP8 for Deep Learning. https://
+     www.nvidia.com/en-us/on-demand/session/gtcspring23-s52166/, 2023.
+[43] Rohan Taori, Ishaan Gulrajani, Tianyi Zhang, Yann Dubois, Xuechen
+     Li, Carlos Guestrin, Percy Liang, and Tatsunori B Hashimoto. Al-
+     paca: A strong, replicable instruction-following model. Stanford
+     Center for Research on Foundation Models. https://crfm. stanford.
+     edu/2023/03/13/alpaca. html, 3(6):7, 2023.
+[44] Jelle Van Den Hooff, David Lazar, Matei Zaharia, and Nickolai
+     Zeldovich. Vuvuzela: Scalable private messaging resistant to traffic
+     analysis. In Proceedings of the 25th Symposium on Operating Systems
+     Principles, pages 137–152. ACM, 2015.
+[45] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion
+     Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention
+     is all you need. Advances in neural information processing systems,
+     30, 2017.
+[46] Shibo Wang and Pankaj Kanwar.                    BFloat16: The
+     secret to high performance on cloud tpus.                  https:
+     //cloud.google.com/blog/products/ai-machine-learning/
+     bfloat16-the-secret-to-high-performance-on-cloud-tpus,    August
+     23 2019.
+[47] Tao Wang. High precision open-world website fingerprinting. In 2020
+     IEEE Symposium on Security and Privacy (SP), pages 152–167. IEEE,
+     2020.
+[48] Tao Wang, Xiang Cai, Rishab Nithyanand, Rob Johnson, and Ian
+     Goldberg. Effective attacks and provable defenses for website
+     fingerprinting. In 23rd USENIX Security Symposium (USENIX Security
+     14), pages 143–157, 2014.
+[49] Tao Wang and Ian Goldberg. Improved website fingerprinting on tor.
+     In Proceedings of the 12th ACM workshop on Workshop on privacy
+     in the electronic society, pages 201–212. ACM, 2013.
+[50] Tao Wang and Ian Goldberg. Walkie-talkie: An efficient defense
+     against passive website fingerprinting attacks. In 26th {USENIX}
+     Security Symposium ({USENIX} Security 17), pages 1375–1390, 2017.
+[51] Roy Weiss, Daniel Ayzenshteyn, Guy Amit, and Yisroel Mirsky. What
+     was your prompt? a remote keylogging attack on ai assistants. arXiv
+     preprint arXiv:2403.09751, 2024.
+[52] Andrew M White, Austin R Matthews, Kevin Z Snow, and Fabian
+     Monrose. Phonotactic reconstruction of encrypted VoIP conversations:
+     Hookt on fon-iks. In IEEE Symposium on Security and Privacy, pages
+     3–18, 2011.
+[53] Charles V Wright, Lucas Ballard, Scott E Coull, Fabian Monrose, and
+     Gerald M Masson. Spot me if you can: Uncovering spoken phrases in
+     encrypted VoIP conversations. In 2008 IEEE Symposium on Security
+     and Privacy (sp 2008), pages 35–49. IEEE, 2008.
+

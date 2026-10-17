@@ -1,0 +1,9 @@
+{
+  "parser_source": "../icissp2027_rdna_20261017/tools/reanalyze.py",
+  "parser_sha256": "1e4fd2f1692fe9cf4c7dc5a2c4aab94efbf141b53883a6238832f5eac7570a24",
+  "sklearn": "1.9.1",
+  "numpy": "2.5.4",
+  "scipy": "1.18.1",
+  "new_serving_requests": 0,
+  "gpu_inventory": "nvidia-smi: driver communication failed"
+}

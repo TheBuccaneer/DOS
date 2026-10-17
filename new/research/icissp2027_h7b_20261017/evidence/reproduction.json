@@ -1,0 +1,12 @@
+{
+  "date": "2026-10-17",
+  "scope": "offline synthetic plumbing only",
+  "python": "3.12.14",
+  "tests_passed": 26,
+  "new_serving_requests": 0,
+  "fixture_sha256": "5c7737a5b520082cd220995b41f419222788c983ebd9eac50ede40c7f19c1fae",
+  "analysis_sha256": "dedb3795fb8abbb4b850a37c7dbb43cf064a5394a8ae4f380cd710aae8fb3794",
+  "source_sha256": "3f6b627c2600645206c78231f2fb9b58590c4579bdc0cd2e43a0020e367c69ad",
+  "test_source_sha256": "df5665115e29e8d1f5cc5dbfb282b06481c000c2133bd754128bb7a56dd6dc4c",
+  "cli_stdout": "{\"evidence_kind\": \"synthetic_plumbing_only\", \"n_calibration\": 32, \"n_test\": 96, \"hypothesis_demonstrated\": false, \"submission_ready\": false}"
+}

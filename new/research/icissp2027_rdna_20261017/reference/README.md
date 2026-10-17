@@ -1,0 +1,1 @@
+Seven unchanged vLLM v0.17.1 source files, retained for offline inspection and pure AST counter calibration. These are not an installed serving engine. Source provenance and SHA-256 are in ../evidence/source_manifest.json. Apache-2.0 license is retained. No vLLM package, CUDA or network is required by the offline tests.

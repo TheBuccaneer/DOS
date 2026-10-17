@@ -1,0 +1,585 @@
+               Objective- and Utility-Based Negotiation for Access Control*
+
+                                                                           a                        b                                     c
+                                          Aditya Sissodiya                     , Ulf Bodin              and Olov Schelén
+                                                        Luleå University of Technology, Luleå, Sweden
+
+
+
+
+Keywords:             Negotiation, Access Control, Automation, Digital Ecosystems, Stakeholder Collaboration, Interoperability.
+
+Abstract:             Access control in modern digital ecosystems is challenging due to dynamic resources and diverse stakehold-
+                      ers. Traditional mechanisms struggle to adapt, causing inefficiencies and inequities. We propose a novel
+                      algorithm that automates access control policy negotiation via objective optimization and utility-based meth-
+                      ods. It enables stakeholders to jointly select policies aligned with their preferences, provided a suitable policy
+                      exists. Suggested criteria guide the evaluation of predefined policies, and a mathematical formulation quanti-
+                      fies stakeholder preferences with utility functions, using optimization to achieve consensus. The algorithm’s
+                      multilinear scalability is demonstrated through time and space complexity analysis. An evaluation tool sup-
+                      ports practical testing, and the approach enhances efficiency and trust by ensuring equitable data access within
+                      digital ecosystems.
+
+
+
+1        INTRODUCTION                                                                          This integration is crucial in maintaining security
+                                                                                               while enabling collaboration among various organiza-
+The evolution of access control mechanisms is pivotal                                          tions (Subramaniam et al., 2019; Shojaiemehr et al.,
+in the landscape of digital ecosystems for enabling                                            2018). For example, in dynamic cross-enterprise col-
+circular economies, especially with emerging tech-                                             laborations, a negotiation framework can help recon-
+nologies like Digital Product Passports (DPPs) (King                                           cile different access control rules by inferring rela-
+et al., 2023; Jansen et al., 2023). As these ecosys-                                           tionships between disparate attributes, thereby facil-
+tems become increasingly intricate with the involve-                                           itating smoother and secure interactions (Preuveneers
+ment of multiple stakeholders, the limitations of tra-                                         et al., 2018; Martins and Guerreiro, 2019). Hence, the
+ditional access control models become more appar-                                              need for an advanced access control negotiation algo-
+ent (Servos and Osborn, 2017; Zhang et al., 2015). By                                          rithm that can address dynamic access control and the
+using negotiation to address and reconcile differences                                         specific challenges of complex digital environments
+in security policies, stakeholders can achieve a higher                                        is justified.
+level of interoperability (Gligor et al., 2002; Martins                                             Viewing these conflicts as objective optimiza-
+and Guerreiro, 2019). This approach enables them                                               tion problems grounded in cooperative game the-
+to work together more effectively, leveraging their re-                                        ory offers structured strategies for consensus (Moura
+spective systems and security measures to ensure col-                                          et al., 2019), balancing stakeholder interests. Ob-
+lective protection.                                                                            jective optimization refines policies amid competing
+    Negotiation facilitates the integration of diverse                                         goals (Marden and Shamma, 2018; Shamma, 2020;
+security policies without the need for each entity                                             Medvet et al., 2015), aiding usability, accessibility,
+to overhaul their systems (Gligor et al., 2002).                                               and more (Zhang and He, 2015; Wang et al., 2019;
+     a
+                                                                                               Ma, 2015; Zhao et al., 2008).
+          https://orcid.org/0009-0009-9695-2308                                                     We propose an automated access control negotia-
+     b    https://orcid.org/0000-0001-5194-4421
+     c
+                                                                                               tion algorithm using objective optimization to address
+          https://orcid.org/0000-0002-4031-2872                                                modern ecosystem challenges. Its context-aware ap-
+       ∗ The work presented in this paper was supported by
+the European Regional Development Fund, Region Nor-                                            proach enables flexible, secure, and equitable policies
+rbotten, Skellefteå Municipality, Luleå University of Tech-                                    unattainable by standalone systems (Bharadwaj and
+nology, and industrial companies. The work has also been                                       Baras, 2003b; Bharadwaj and Baras, 2003a). Lever-
+funded by Digitala Stambanan IndTech, a Swedish collabo-                                       aging optimization and access control creates poli-
+rative project between the Vinnova strategic innovation pro-                                   cies that are secure, privacy-preserving, adaptable,
+grams PiiA and Produktion 2030.
+
+
+                                                                                                                                                  493
+Sissodiya, A., Bodin, U. and Schelén, O.
+Objective- and Utility-Based Negotiation for Access Control.
+DOI: 10.5220/0013130000003899
+In Proceedings of the 11th International Conference on Information Systems Security and Privacy (ICISSP 2025) - Volume 2, pages 493-501
+ISBN: 978-989-758-735-1; ISSN: 2184-4356
+Copyright © 2025 by Paper published under CC license (CC BY-NC-ND 4.0)
+ICISSP 2025 - 11th International Conference on Information Systems Security and Privacy
+
+
+
+
+and representative of diverse interests (Moura et al.,                    et al., 2019; Otto et al., 2021) demand ongoing
+2019; Zhang et al., 2016; Vamvoudakis and Hes-                            compliance. By continuously negotiating policies
+panha, 2018).                                                             according to current laws, our algorithm helps
+Contributions:                                                            avoid legal risks and protects organizational repu-
+ • We identify key challenges in complex digi-                            tation.
+   tal ecosystems (Section 2) and introduce IDSA-
+   aligned criteria to guide negotiation (Section 3).
+ • We provide a mathematical definition of our ne-                    3     CRITERIA FOR NEGOTIATION
+   gotiation algorithm (Section 4).
+                                                                      Our negotiation algorithm’s success depends on the
+ • We evaluate the algorithm through simulations                      criteria used to evaluate access control policies. To
+   (Section 5), analyze complexity (Section 6).                       ensure these are comprehensive and robust, we base
+    A tool for evaluating the algorithm’s performance                 them on principles from the International Data Spaces
+is available on (GitHub), and related work is dis-                    Association (IDSA).
+cussed in Section 7.                                                      IDSA standards provide a technical foundation
+                                                                      for secure, reliable data exchange (Otto et al., 2021).
+                                                                      In manufacturing, where data sovereignty is crucial,
+2     CHALLENGES IN ACCESS                                            these criteria meet diverse stakeholder needs (Larri-
+                                                                      naga, 2022). By aligning with proven frameworks,
+      CONTROL                                                         we improve access and usage control (Steinbuss et al.,
+                                                                      2021) while ensuring compliance aligned with IDSA
+As digital ecosystems grow more interconnected and                    and GAIA-X, thus reducing legal risks and maintain-
+complex, traditional access control mechanisms must                   ing secure practices (Otto et al., 2021; Huber et al.,
+be reevaluated (Subramaniam et al., 2019). Our ne-                    2022). The criteria are as follows:
+gotiation algorithm addresses critical needs arising in
+collaborative digital platforms.                                       1. Applicability: Reflects the practical benefits and
+                                                                          functionality that the policy provides to stakehold-
+ • Dynamic Requirements and Automation: Dig-                              ers. This includes how well the policy supports
+   ital ecosystems change rapidly in resources, roles,                    the operational goals and needs of each stake-
+   and contexts (Subramaniam et al., 2019). Tradi-                        holder.
+   tional methods struggle to adapt (Servos and Os-
+   born, 2017; Zhang et al., 2015), and existing NAC                   2. Usability: Assesses how understandable and
+   frameworks rely on manual negotiation. By au-                          user-friendly the policy is for those who must ap-
+   tomating negotiation via mathematical optimiza-                        ply it. A user-friendly policy reduces friction, en-
+   tion, our algorithm efficiently adapts to modern                       hances the overall user experience, and mitigates
+   ecosystems.                                                            the risk of misinterpretation or accidental non-
+                                                                          compliance.
+ • Complexity and Scalability: Multiple stakehold-
+   ers with varied interests complicate access con-                    3. Accessibility: Determines the ease with which
+   trol (Shojaiemehr et al., 2018). Our approach                          stakeholders can access the resources they need.
+   centralizes utility aggregation and resolves con-                      This criterion ensures that policies do not unduly
+   flicts objectively, reducing communication com-                        restrict legitimate access or create barriers to col-
+   plexity from quadratic to linear and enabling scal-                    laboration.
+   able stakeholder and policy management.                             4. Compliance: Ensures that the policy adheres to
+ • Equitable Access and Efficient Negotiation:                            relevant legal and regulatory standards, minimiz-
+   Equitable resource access is essential (Subrama-                       ing legal risks and promoting trust among stake-
+   niam et al., 2019; Steinbuss et al., 2021), but exist-                 holders.
+   ing frameworks, including blockchain-based ones                        These criteria keep negotiations relevant and user-
+   like FairAccess (Ouaddah et al., 2016) and Pol-                    friendly as contexts change, reducing complexity in
+   icychain (Chen et al., 2021), often enforce im-                    multi-stakeholder scenarios.
+   mutable policies. Our negotiation mechanism al-
+   lows transparent, compromise-driven policy ad-                     3.1 Policy Evaluation Guidance
+   justments without excessive latency.
+ • Regulatory Compliance and Adaptability:                            We propose a scoring framework (1-10) for each cri-
+   Regulations like GDPR and CCPA (Dasgupta                           terion, with guidelines for interpreting scores. Stake-
+
+
+494
+                                                                    Objective- and Utility-Based Negotiation for Access Control
+
+
+
+
+holders value criteria differently, and subjective rat-         • Let P = {P1 , P2 , . . . , Pm } represent the set of po-
+ings reflect their preferences, leading to satisfactory           tential policies up for negotiation.
+outcomes.
+ 1. Applicability:                                            4.1 Algorithm Steps
+    • 1-3 (Low Applicability): The policy offers min-
+      imal or no benefits to the stakeholder’s needs.
+    • 4-6 (Moderate Applicability): The policy is
+      somewhat relevant but may not fully support
+      the stakeholder’s needs.
+    • 7-8 (High Applicability): The policy aligns
+      well with the stakeholder’s needs, providing
+      significant benefits.
+    • 9-10 (Very High Applicability): The policy is
+      essential, offering maximal benefit and align-
+      ment.
+ 2. Usability:
+    • 1-3 (Low Usability): Complex, difficult to im-
+      plement, causing frustration/errors.
+    • 4-6 (Moderate Usability): Requires multiple
+      approvals/specialized knowledge.                                      Figure 1: Algorithm for Negotiation.
+    • 7-8 (High Usability): User-friendly, clear in-
+      structions, minimal complexity.                           • Utility Evaluation: Calculate the utility Uai (Pj )
+    • 9-10 (Very High Usability): Highly intuitive,               for each policy Pj from the perspective of each
+      streamlined, enhancing user experience.                     stakeholder ai .
+ 3. Accessibility:
+                                                                • Aggregate Utility Calculation: Compute the ag-
+    • 1-3 (Low Accessibility): Severely restricts ac-             gregate utility Uagg (Pj ) for each policy.
+      cess, impeding tasks.
+    • 4-6 (Moderate Accessibility): Allows access               • Optimization: Identify the policy P∗ that maxi-
+      but with limiting constraints.                              mizes Uagg (Pj ).
+    • 7-8 (High Accessibility): Adequate access, en-            • Consensus Check: Verify whether P∗ achieves
+      abling effective task performance.                          consensus among stakeholders.
+    • 9-10 (Very High Accessibility): Seamless,                 • Policy Selection: If P∗ meets the consensus crite-
+      barrier-free access.                                        rion, it is selected for implementation. Otherwise,
+ 4. Compliance:                                                   adjust stakeholder weights, utility functions, or re-
+    • 1-3 (Low Compliance): Fails key regulatory re-              consider policy attributes, followed by a repetition
+      quirements, posing legal risks.                             of the steps until a satisfactory policy is identified.
+    • 4-6 (Moderate Compliance): Complies par-
+      tially, lacking in some areas.                          4.1.1     Aggregate Utility Function
+    • 7-8 (High Compliance): Meets all relevant
+                                                              For a generalized mathematical representation focus-
+      compliance requirements.
+                                                              ing solely on the utility functions, we abstract the
+    • 9-10 (Very High Compliance): Exceeds stan-
+                                                              stakeholders and their preferences towards a set of
+      dards, anticipating regulatory changes.
+                                                              policies.
+                                                                  Each stakeholder ai ∈ A has a utility function Uai :
+                                                              P → R, which maps each policy Pj to a real number
+4    ACCESS CONTROL                                           representing the stakeholder’s preference for that pol-
+                                                              icy. The utility functions are defined as follows:
+     NEGOTIATION ALGORITHM
+                                                              Uai (Pj ) = wai ,1 · f1 (Pj ) + wai ,2 · f2 (Pj ) + · · · + wai ,k · fk (Pj )
+This section represents the negotiation algorithm in-           • f1 (Pj ), f2 (Pj ), . . . , fk (Pj ) are functions that evalu-
+corporating objective optimization and stakeholder                ate policy Pj based on criteria important to stake-
+preferences through utility functions mathematically:             holder ai . These criteria might include aspects
+ • Let A = {a1 , a2 , . . . , an } denote the set of stake-       such as the policy’s security level, its impact on
+    holders involved in the negotiation.                          usability, or compliance with regulations.
+
+
+                                                                                                                                     495
+ICISSP 2025 - 11th International Conference on Information Systems Security and Privacy
+
+
+
+
+ • wai ,1 , wai ,2 , . . . , wai ,k are weights chosen by stake-      process can be represented as:
+   holder ai that reflect the importance of each crite-
+                                                                                                                  !
+                                                                                                     n
+                                                                                     ∗
+   rion in their utility function.                                                 P = arg max
+                                                                                            Pj ∈P
+                                                                                                    ∑ αi ·Uai (Pj )
+                                                                                                    i=1
+    The utility function for each stakeholder is a
+                                                                          A policy Pj is selected if it satisfies the following
+weighted sum of evaluations based on multiple cri-
+                                                                      criteria:
+teria, allowing for a nuanced expression of preference
+that takes into account various aspects of each policy.                 • Maximizing Aggregate Utility: It has the highest
+    In a more generalized form, the utility function for                  aggregate utility among all policies.
+a stakeholder ai regarding a policy Pj can be repre-                    • Consensus Achievement: It meets or exceeds
+sented as:                                                                a predetermined utility threshold for consensus
+                              k                                           among stakeholders, which can be formalized as:
+                Uai (Pj ) = ∑ wai ,l · fl (Pj )                                         (
+                             l=1
+                                                                                         True if Uai (Pj ) ≥ θ, ∀ai ∈ A
+where k is the number of criteria considered, wai ,l is                Consensus(Pj ) =
+                                                                                         False otherwise
+the weight assigned to criterion l by stakeholder ai ,
+and fl (Pj ) is the evaluation of policy Pj based on cri-             where θ is the consensus threshold.
+terion l.
+                                                                      4.2 Algorithm Evaluation Tool
+4.1.2   Objectives Optimization
+                                                                      We developed an Algorithm Evaluation Tool to as-
+The optimization step focuses on identifying the                      sist in evaluating and optimizing various access con-
+policy, denoted as P∗ , that maximizes the aggre-                     trol policies by considering the influence of different
+gate utility, Uagg (Pj ), across all considered policies.             stakeholders and the weights they assign to various
+Mathematically, this process aims to find the pol-                    policy attributes. This tool, available on GitHub un-
+icy that yields the highest level of collective satisfac-             der the MIT license, empowers users to add policies
+tion or preference among all stakeholders based on                    and stakeholders, assign and update weights, and cal-
+the predefined utility functions and their associated                 culate the optimal policy based on the aggregate util-
+weights (Enkhbat et al., 2015; Allahviranloo and Ax-                  ity, ensuring that stakeholder consensus is considered.
+hausen, 2018).                                                        It uses Flask and PostgreSQL for the backend and
+                                                                      HTML/CSS/JavaScript for the frontend, and is con-
+ • A set of potential policies P = {P1 , P2 , . . . , Pm },
+                                                                      tainerized with Docker for easy deployment.
+ • The aggregate utility function for a policy Pj ,                     • Features:
+   Uagg (Pj ), which combines the preferences of all
+                                                                           – Add Policies: Introduce new policies with at-
+   stakeholders for policy Pj ,
+                                                                              tributes like security, applicability, privacy, ac-
+    The objective of the optimization step is to find the                     cessibility.
+policy P∗ where that maximizes Uagg (Pj ):                                 – Add Stakeholders: Include stakeholders and
+                                                                              define influence levels.
+                  P∗ = arg max Uagg (Pj )
+                             Pj ∈P                                         – Assign Weights: Set weights for policy at-
+                                                                              tributes per stakeholder perspective.
+4.1.3   Evaluate Aggregate Utility for Each Policy                         – Calculate Optimal Policy: Identify the policy
+                                                                              with highest aggregate utility.
+For every policy Pj in the set P, calculate the aggre-                     – Check Consensus: Confirm if the chosen policy
+gate utility Uagg (Pj ) as previously defined:                                meets the defined utility threshold across stake-
+                                  n                                           holders.
+                Uagg (Pj ) = ∑ αi ·Uai (Pj )                               (Implementation of the algorithm and the tool is
+                              i=1
+                                                                      available at this GitHub repository.)
+where αi is the weight reflecting the importance of
+stakeholder ai and Uai (Pj ) is the utility of policy Pj
+according to stakeholder ai .
+                                                                      5     REAL-WORLD SCENARIO
+4.1.4   Selection of Optimal Policy                                         EVALUATION
+The policy P∗ with the highest aggregate utility is se-               Consider a connected car ecosystem with multi-
+lected as the optimal policy. Formally, this selection                ple stakeholders sharing sensitive data like vehicle
+
+
+496
+                                                                Objective- and Utility-Based Negotiation for Access Control
+
+
+
+
+telemetry, maintenance records, and user information:          UO (P1 ) = (0.1 × 2) + (0.3 × 2) + (0.1 × 8) +
+ • Car Owner (O): Values privacy and control over              (0.5 × 1) = 2.1
+   data access.                                                Similarly, we calculate the individual utilities for
+                                                               each stakeholder and get the following values, as
+ • Car Manufacturer (M): Needs performance data                shown in Table 1.
+   to improve designs.
+ • Insurance Company (I): Uses driving and main-             Table 1: Utility Values for Each Stakeholder and Policy.
+   tenance data for risk assessment.                              Stakeholder            Uai (P1 )   Uai (P2 )   Uai (P3 )
+ • Car Workshop (W): Requires diagnostics and                    Car Owner (O)             2.1         7.1         7.4
+   history for better service.                               Car Manufacturer (M)          8.3         6.9         4.5
+                                                             Insurance Company (I)         8.2         6.1         3.7
+    They must agree on a policy that balances all in-          Car Workshop (W)            8.2         7.0         5.5
+terests. Three proposed policies are:
+ • Policy P1 : Open access without owner consent.            • Step 4: Compute Uagg (Pj ) for Each Policy. As-
+                                                               suming equal importance for all stakeholders, we
+ • Policy P2 : Role-based access, with personal data
+                                                               set the weights αi = 1 for all i.
+   requiring owner consent.
+ • Policy P3 : Owner approval needed for every data                                             n
+   request.                                                                    Uagg (Pj ) = ∑ Uai (Pj )
+                                                                                             i=1
+   Each stakeholder rates these policies and assigns
+                                                               – Uagg (P1 ) = UO (P1 ) + UM (P1 ) + UI (P1 ) +
+weights to each criterion (summing to 1).
+                                                                 UW (P1 ) = 2.1 + 8.3 + 8.2 + 8.2 = 26.8
+                                                               – Uagg (P2 ) = UO (P2 ) + UM (P2 ) + UI (P2 ) +
+5.1      Algorithm Steps                                         UW (P2 ) = 7.1 + 6.9 + 6.1 + 7.0 = 27.1
+ • Step 1: Define Priorities and Weights                       – Uagg (P3 ) = UO (P3 ) + UM (P3 ) + UI (P3 ) +
+                                                                 UW (P3 ) = 7.4 + 4.5 + 3.7 + 5.5 = 21.1
+   – O: Places a high priority on Compliance and
+     Usability due to privacy concerns and the need          • Step 5: Identify the Optimal Policy P∗ .
+     for ease in managing permissions. wO,A = 0.1,                             P∗ = arg max Uagg (Pj )
+     wO,U = 0.3, wO,Ac = 0.1, wO,C = 0.5.                                                  Pj
+
+   – M: High priority on Applicability and Accessi-
+                                                               Uagg (P1 ) = 26.8, Uagg (P2 ) = 27.1 (Highest),
+     bility to access data for improvements. wM,A =
+                                                               Uagg (P3 ) = 21.1.
+     0.4, wM,U = 0.1, wM,Ac = 0.4, wM,C = 0.1.
+                                                               Therefore, the optimal policy is P∗ = P2 .
+   – I: Prioritizes Applicability and Compliance.
+     wI,A = 0.5, wI,U = 0.1, wI,Ac = 0.3, wI,C = 0.1.        • Step 6: Consensus Check. We need to ensure
+   – W: Places a high priority on Applicability and            that P∗ meets a minimum acceptable utility θ for
+     Accessibility, with a moderate emphasis on Us-            all stakeholders. Let’s set θ = 5.0.
+     ability wW,A = 0.4, wW,U = 0.2, wW,Ac = 0.3,              Check Uai (P2 ) for each stakeholder:
+     wW,C = 0.1.                                               – Car Owner (O): UO (P2 ) = 7.1 ≥ 5.0 ✓
+ • Step 2: Stakeholder Ratings for Policies. Each              – Car Manufacturer (M): UM (P2 ) = 6.9 ≥ 5.0 ✓
+   stakeholder rates each policy on a scale from 1 to          – Insurance Company (I): UI (P2 ) = 6.1 ≥ 5.0 ✓
+   10 for each criterion, as shown in Table 2.
+                                                               – Car Workshop (W): UW (P2 ) = 7.0 ≥ 5.0 ✓
+ • Step 3: Calculate Individual Utilities. For each
+   stakeholder and policy, calculate the utility using         All stakeholders have a utility equal to or above
+   the formula:                                                the threshold θ. Therefore, consensus is achieved.
+                                                                This detailed walkthrough demonstrates how the
+                              k                             negotiation algorithm facilitates collaborative pol-
+                 Uai (Pj ) = ∑ wai ,l × fl (Pj )            icy selection in complex, multi-stakeholder environ-
+                             l=1
+                                                            ments, ensuring that the final decision is both optimal
+      – wai ,l = weight of criterion l for stakeholder ai   and equitable.
+      – fl (Pj ) = rating of policy Pj on criterion l by
+        stakeholder ai
+
+
+
+
+                                                                                                                       497
+ICISSP 2025 - 11th International Conference on Information Systems Security and Privacy
+
+
+
+
+                                     Table 2: Stakeholder ratings for Policies P1 , P2 , and P3 .
+   Stakeholder                  Applicability (A)                 Usability (U)      Accessibility (Ac)          Compliance (C)
+                                                 Policy P1 : Open Access Without Consent
+   Car Owner (O)                  2 (Low benefit)               2 (Poor usability)   8 (High for others)         1 (Fails privacy)
+   Car Manufacturer (M)          9 (High benefit)                8 (Easy access)        9 (Very high)         3 (Regulatory issues)
+   Insurance Company (I)         9 (High benefit)              7 (Easy integration)     9 (Very high)          3 (Privacy concerns)
+   Car Workshop (W)              9 (High benefit)             8 (Easy diagnostics)      9 (Very high)         3 (Compliance issues)
+                                            Policy P2 : Role-Based Access with Owner Consent
+   Car Owner (O)               7 (Moderate benefit)        6 (Complex management)      6 (Acceptable)       8 (Aligns with regulations)
+   Car Manufacturer (M)          7 (Good access)              6 (Some restrictions)    7 (Acceptable)          7 (Better compliance)
+   Insurance Company (I)         6 (Some access)           6 (Moderate complexity)      6 (Restricted)       7 (Improved compliance)
+   Car Workshop (W)            7 (Adequate access)              7 (User-friendly)      7 (Acceptable)          7 (Good compliance)
+                                               Policy P3 : Owner Approval for Each Request
+   Car Owner (O)                  9 (Full control)         5 (Burdensome approval)  5 (Impedes services)      9 (Highly compliant)
+   Car Manufacturer (M)         4 (Limited access)          5 (Complicated process) 4 (Low accessibility)        8 (Compliant)
+   Insurance Company (I)     3 (Difficult data access)          5 (Cumbersome)      3 (Low accessibility)        8 (Compliant)
+   Car Workshop (W)             5 (Access delays)               6 (User-friendly)   5 (Moderate access)          8 (Compliant)
+
+
+5.2     Quantitative Analysis
+By systematically applying the negotiation algorithm,
+stakeholders were able to:
+ • Quantify Preferences: Stakeholders expressed
+   their preferences numerically, allowing for objec-
+   tive comparisons.
+ • Balance Priorities: The algorithm balanced the
+   diverse priorities, ensuring that no stakeholder’s
+   essential needs were ignored.
+ • Ensure Compliance: Policies that failed to meet
+   regulatory requirements (like P1 ) were effectively
+   penalized in the utility calculations.
+                                                                                   Figure 3: Stakeholder Utility Heatmap.
+5.2.1   Utility Distribution Plot
+                                                                        5.2.2    Stakeholder Utility Heatmap
+
+                                                                            • Darker colors mean higher satisfaction. P2 shows
+                                                                              balanced support, while P1 pleases most but not
+                                                                              the car owner.
+                                                                            • Clear conflicts appear (e.g. Car Owner vs. others
+                                                                              on Policy P1 ). P2 is more acceptable to all.
+                                                                            • P3 favors the Car Owner but not others, prioritiz-
+                                                                              ing privacy over accessibility.
+
+
+Figure 2: Utility Distribution Across Policies (Violin Plot).
+                                                                        6      ALGORITHM COMPLEXITY
+                                                                               ANALYSIS
+ • P1 : Higher values for most stakeholders, but the
+   car owner’s utility is much lower.                                       • Time Complexity
+ • P2 : Balanced distribution, values clustered around                        – Utility Calculation: O (c), where c is the num-
+   the median, indicating broad agreement.                                      ber of criteria.
+ • P3 : Lower overall values, except for the car owner,                       – Aggregate Utility Calculation: O (p × s ×
+   indicating varied stakeholder opinions.                                      O (c)), where p is the number of policies and s
+                                                                                is the number of stakeholders and O (c) is called
+                                                                                for each policy.
+
+
+498
+                                                               Objective- and Utility-Based Negotiation for Access Control
+
+
+
+
+    – Optimal Policy Evaluation: O (p), as it needs        grained requirements, letting stakeholders set policies
+      to iterate through the aggregate utilities of all    that reflect various constraints and preferences.
+      policies once to find the maximum.                       Work on Relationship Based Access Control (Re-
+    – Consensus: O (p), as it checks the Aggregate         BAC) includes methods for resolving conflicting pri-
+      Utility value for each policy against the set        vacy needs among co-owners, using SAT solvers
+      threshold.                                           to verify policy satisfiability (Mehregan and Fong,
+                                                           2016). Negotiation in large-scale and dynamic coali-
+    The overall time complexity of the algorithm is
+                                                           tions is explored in (Gligor et al., 2002), while
+    the sum of the complexities of its parts, primar-
+                                                           autonomous agents and a mathematical negotiation
+    ily dominated by Aggregate Utility Calculation:
+                                                           framework are detailed in (Bharadwaj and Baras,
+    O (p × s × O (c)) + O (p) + O (s). Since O (p × s ×    2003b). Adaptive negotiation to manage rapidly
+    O (c)) is the most significant term, we can sim-       changing digital ecosystems is discussed in (Subra-
+    plify the overall complexity to O (p × s × O (c)).
+                                                           maniam et al., 2019).
+    Therefore the complexity would be considered
+                                                               Blockchain-based solutions support transparent,
+    multilinear rather than strictly linear. The compu-
+                                                           decentralized policy management, ensuring auditabil-
+    tational cost increases linearly with an increase in
+                                                           ity and trust. Policychain (Chen et al., 2021) uses
+    any one of p, s, or c while keeping the others con-
+                                                           blockchain nodes for ABAC policy decisions, en-
+    stant, but increases polynomially as all increase
+                                                           suring high availability and autonomy. FairAc-
+    proportionally.
+                                                           cess (Ouaddah et al., 2016) removes centralized au-
+ • Space Complexity                                        thorities to enhance security and privacy. AuthPriva-
+    – Aggregate Utilities: O (p) since there is one en-    cyChain (Yang et al., 2020) employs blockchain node
+      try per policy and a dictionary is where the key     addresses as identities, providing secure encryption
+      is the policy name and the value is its aggregate    and management of cloud-stored data, including au-
+      utility score is stored.                             thorization and revocation processes.
+    – Utility Calculations: Uses a temporary variable          Our algorithm addresses a gap by automating dy-
+      to store the utility score O (1).                    namic, context-aware, and equitable negotiations, re-
+                                                           flecting all stakeholders’ interests.
+    – Consensus Check: The maximum space re-
+      quired is proportional to the number of stake-
+      holders, O (s).
+    When considering the space required for input
+                                                           8    CONCLUSION
+    data and computational storage together, the over-
+                                                           This paper identifies key challenges in multi-party ac-
+    all space complexity of the algorithm can be rep-
+                                                           cess control negotiations and presents both criteria
+    resented as: O (p) + O (s) = O (p + s) this means
+                                                           and an algorithm to address them. The proposed al-
+    the space complexity is linearly proportional to
+                                                           gorithm significantly improves access control in com-
+    the sum of the number of policies and the num-
+                                                           plex, dynamic digital ecosystems by balancing secu-
+    ber of stakeholders.
+                                                           rity, confidentiality, and usability.
+                                                               While traditional methods struggle with the mul-
+                                                           tifaceted needs of diverse stakeholders, our algorithm
+7    RELATED WORK                                          employs objective optimization to support fair, struc-
+                                                           tured negotiations that accommodate various inter-
+Research increasingly recognizes the need for dy-          ests. This fosters trust and cooperation among stake-
+namic, secure, and collaborative policy manage-            holders, enhancing the overall management of digi-
+ment in digital ecosystems. Approaches range from          tal resources. By integrating standardized specifica-
+relationship-based access control to blockchain-based      tions from the International Data Spaces Association,
+frameworks, helping stakeholders reach consensus on        the algorithm remains technically sound, enforceable,
+policies, maintain confidentiality, and enable flexible    and adaptable. Its ability to respond dynamically to
+mechanisms in complex environments.                        changing conditions underscores its relevance in to-
+    Negotiation is critical for managing access con-       day’s evolving digital landscape.
+trol and privacy in digital systems, including cloud           Overall, this work not only advances immedi-
+services, digital ecosystems, and multi-agent plat-        ate outcomes in access control negotiation but also
+forms (Mehregan and Fong, 2016; Subramaniam                encourages rethinking existing frameworks, driving
+et al., 2019). Traditional methods now incorpo-            ongoing innovation in the management of digital
+rate dynamic negotiation algorithms to handle fine-        ecosystems.
+
+
+                                                                                                                     499
+ICISSP 2025 - 11th International Conference on Information Systems Security and Privacy
+
+
+
+
+REFERENCES                                                                 cess control policies. In Evolutionary Multi-Criterion
+                                                                           Optimization: 8th International Conference, EMO
+Allahviranloo, M. and Axhausen, K. (2018). An optimiza-                    2015, Guimarães, Portugal, March 29–April 1, 2015.
+     tion model to measure utility of joint and solo activ-                Proceedings, Part I 8, pages 351–365. Springer.
+     ities. Transportation Research Part B: Methodologi-              Mehregan, P. and Fong, P. W. (2016). Policy negotiation for
+     cal, 108:172–187.                                                     co-owned resources in relationship-based access con-
+Bharadwaj, V. G. and Baras, J. S. (2003a). A framework for                 trol. In Proceedings of the 21st ACM on Symposium on
+     automated negotiation of access control policies. In                  Access Control Models and Technologies, pages 125–
+     DARPA Information Survivability Conference and Ex-                    136.
+     position,, volume 3, pages 216–216. IEEE Computer                Moura, J., Marinheiro, R. N., and Silva, J. C. (2019). Game
+     Society.                                                              theory for cooperation in multi-access edge comput-
+Bharadwaj, V. G. and Baras, J. S. (2003b). Towards auto-                   ing. In Paving the Way for 5G Through the Con-
+     mated negotiation of access control policies. In Pro-                 vergence of Wireless Systems, pages 100–149. IGI
+     ceedings POLICY 2003. IEEE 4th International Work-                    Global.
+     shop on Policies for Distributed Systems and Net-                Otto, B., Rubina, A., Eitel, A., Teuscher, A., Schleimer,
+     works, pages 111–119. IEEE.                                           A. M., Lange, C., Stingl, D., Loukipoudis, E., Brost,
+Chen, E., Zhu, Y., Zhou, Z., Lee, S.-Y., Wong, W. E.,                      G., Boege, G., et al. (2021). Gaia-x and ids.
+     and Chu, W. C.-C. (2021). Policychain: a decentral-              Ouaddah, A., Abou Elkalam, A., and Ait Ouahman, A.
+     ized authorization service with script-driven policy on               (2016). Fairaccess: a new blockchain-based access
+     blockchain for internet of things. IEEE Internet of                   control framework for the internet of things. Security
+     Things Journal, 9(7):5391–5409.                                       and communication networks, 9(18):5943–5964.
+Dasgupta, A., Gill, A., and Hussain, F. (2019). A con-                Preuveneers, D., Joosen, W., and Zudor, E. (2018). Pol-
+     ceptual framework for data governance in iot-enabled                  icy reconciliation for access control in dynamic cross-
+     digital is ecosystems. In 8th International Confer-                   enterprise collaborations. Enterprise Information Sys-
+     ence on Data Science, Technology and Applications.                    tems, 12:279 – 299.
+     SCITEPRESS–Science and Technology Publications.                  Servos, D. and Osborn, S. L. (2017). Current research and
+Enkhbat, R., Enkhbayar, J., and Griewank, A. (2015).                       open problems in attribute-based access control. ACM
+     Global optimization approach to utility maximization                  Computing Surveys (CSUR), 49(4):1–45.
+     problem. International Journal of Pure and Applied               Shamma, J. S. (2020). Game theory, learning, and control
+     Mathematics, 103(3):485–497.                                          systems. National Science Review, 7(7):1118–1119.
+Gligor, V. D., Khurana, H., Koleva, R. K., Bharadwaj, V. G.,          Shojaiemehr, B., Rahmani, A. M., and Qader, N. N. (2018).
+     and Baras, J. S. (2002). On the negotiation of access                 Cloud computing service negotiation: a systematic re-
+     control policies. In Security Protocols: 9th Interna-                 view. Computer Standards & Interfaces, 55:196–206.
+     tional Workshop Cambridge, UK, April 25–27, 2001
+                                                                      Steinbuss, S. et al. (2021). Usage control in the international
+     Revised Papers 9, pages 188–201. Springer.
+                                                                           data spaces.
+Huber, M., Wessel, S., Brost, G. S., and Menz, N. (2022).
+                                                                      Subramaniam, M., Iyer, B., and Venkatraman, V. (2019).
+     Building trust in data spaces.
+                                                                           Competing in digital ecosystems. Business Horizons,
+Jansen, M., Meisen, T., Plociennik, C., Berg, H., Pomp,                    62(1):83–94.
+     A., and Windholz, W. (2023). Stop guessing in the
+                                                                      Vamvoudakis, K. G. and Hespanha, J. P. (2018). Game-
+     dark: Identified requirements for digital product pass-
+                                                                           theory-based consensus learning of double-integrator
+     port systems. Systems, 11(3):123.
+                                                                           agents in the presence of worst-case adversaries.
+King, M. R., Timms, P. D., and Mountney, S. (2023). A                      Journal of Optimization Theory and Applications,
+     proposed universal definition of a digital product pass-              177:222–253.
+     port ecosystem (dppe): Worldviews, discrete capabil-
+                                                                      Wang, Y., Tian, L., and Chen, Z. (2019). Game analysis of
+     ities, stakeholder requirements and concerns. Journal
+                                                                           access control based on user behavior trust. Informa-
+     of Cleaner Production, 384:135538.
+                                                                           tion, 10(4):132.
+Larrinaga, F. (2022). Data sovereignty-requirements analy-
+                                                                      Yang, C., Tan, L., Shi, N., Xu, B., Cao, Y., and Yu, K.
+     sis of manufacturing use cases.
+                                                                           (2020). Authprivacychain: A blockchain-based access
+Ma, S. (2015). Dynamic game access control based on trust.                 control framework with privacy protection in cloud.
+     In 2015 IEEE Trustcom/BigDataSE/ISPA, volume 1,                       IEEE Access, 8:70604–70615.
+     pages 1369–1373. IEEE.
+                                                                      Zhang, Y. and He, J. (2015). A proactive access control
+Marden, J. R. and Shamma, J. S. (2018). Game theory and                    model based on stochastic game. In 2015 4th Interna-
+     control. Annual Review of Control, Robotics, and Au-                  tional Conference on Computer Science and Network
+     tonomous Systems, 1:105–134.                                          Technology (ICCSNT), volume 1, pages 1008–1011.
+Martins, H. and Guerreiro, S. (2019). Access control chal-                 IEEE.
+     lenges in enterprise ecosystems. Research Anthology              Zhang, Y., He, J., Zhao, B., Huang, Z., and Liu, R.
+     on Blockchain Technology in Business, Healthcare,                     (2015). Towards more pro-active access control in
+     Education, and Government.                                            computer systems and networks. Computers & Se-
+Medvet, E., Bartoli, A., Carminati, B., and Ferrari, E.                    curity, 49:132–146.
+     (2015). Evolutionary inference of attribute-based ac-
+
+
+500
+                                                               Objective- and Utility-Based Negotiation for Access Control
+
+
+
+
+Zhang, Y., He, J., Zhao, B., and Liu, R. (2016). Application
+     of game theory for dynamic access control in security
+     systems. International Journal of High Performance
+     Computing and Networking, 9(5-6):451–461.
+Zhao, M., Ren, J., Sun, H., Li, S., and Chen, Z. (2008). A
+     game theoretic approach based access control mech-
+     anism. In 2008 The 9th International Conference for
+     Young Computer Scientists, pages 1464–1469. IEEE.
+
+
+
+
+                                                                                                                     501
+

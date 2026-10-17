@@ -1,0 +1,1 @@
+{"evidence_kind": "synthetic_plumbing_only", "n_calibration": 32, "n_test": 96, "hypothesis_demonstrated": false, "submission_ready": false}

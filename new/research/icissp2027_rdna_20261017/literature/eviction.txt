@@ -1,0 +1,1474 @@
+                                        When Fancy Eviction Fails: Rethinking Cache Replacement For LLM Prefix Reuse
+
+                                                               Yiyu Liu                         Minlan Yu                         Juncheng Yang
+                                                           Harvard University                Harvard University                  Harvard University
+
+
+
+
+arXiv:2609.28870v2 [cs.DC] 1 Oct 2026
+                                                                 Abstract                                     redundant prefill computation [29, 51, 77]. As contexts grow,
+                                                                                                              the efficiency of this cache becomes an increasingly important
+                                        Long-running LLM applications and autonomous agents re-
+                                                                                                              determinant of LLM serving cost and performance.
+                                        peatedly send growing context, making prefix caching critical
+                                                                                                                 Traditional cache workloads, including web content and
+                                        for reducing prefill cost. This raises a fundamental question:
+                                                                                                              block storage, have been studied extensively [8, 10, 28, 32],
+                                        do decades of traditional cache-management techniques trans-
+                                                                                                              yielding a rich set of eviction algorithms [7, 15, 19, 44, 45, 75].
+                                        fer directly to agentic and conversational LLM serving? We
+                                                                                                              Revisiting these algorithms leads to a natural question: what
+                                        analyze production traces comprising over 20 billion pro-
+                                                                                                              makes a good eviction policy for LLM prefix caches? Recent
+                                        cessed tokens and evaluate 14 eviction algorithms across
+                                                                                                              work has begun to characterize aggregate LLM traffic [3, 38,
+                                        capacity-constrained HBM and large memory-pool settings.
+                                                                                                              64, 80], but the access patterns that determine prefix-cache
+                                        We find that simple Least Recently Used (LRU) is surpris-
+                                                                                                              eviction, particularly for agentic workloads, remain largely
+                                        ingly robust, offering competitive performance against sophis-
+                                                                                                              unexplored. To address this gap, we collect production traces
+                                        ticated traditional policies, though substantial headroom to
+                                                                                                              comprising over 20 billion processed tokens from two distinct
+                                        Belady’s optimum remains. The reason is structural: prefix
+                                                                                                              organizations, and build a high-fidelity simulator to evaluate
+                                        reuse is dominated by the steady pacing of active sessions,
+                                                                                                              14 advanced eviction algorithms spanning recency, frequency,
+                                        making recency an unusually strong predictor for eviction.
+                                                                                                              and learned techniques.
+                                        Nevertheless, prefix caching diverges from traditional work-
+                                        loads in ways that recency ignores, notably the prevalence               We first test whether decades of cache-management tech-
+                                        of single-turn requests, extreme session footprint skew, and          niques transfer directly. Most LLM serving systems use Least
+                                        highly non-uniform miss costs because attention computation           Recently Used (LRU) eviction [29,40,51,77], both in capacity-
+                                        scales with token depth. To close the gap to optimality, we es-       constrained per-replica HBM (24–120 GiB per GPU) and in
+                                        tablish several design principles for prefix-cache management:        much larger global memory pools (0.25–12 TiB) [40, 51, 68].
+                                        keeping recency as the baseline while incorporating quick de-         In traditional caches, algorithms that combine recency, fre-
+                                        motion to filter one-hit prompts, compute-aware eviction to           quency, and learned signals can substantially outperform
+                                        prioritize expensive misses, and capacity-adaptive eviction           LRU [5, 18, 26, 45, 57, 62, 73, 75, 78]. We evaluate 14 ad-
+                                        granularity. We will open-source our traces and simulator to          vanced algorithms [56, 64] across both memory regimes and
+                                        enable reproducible research.                                         find a surprising result: most offer little improvement over
+                                                                                                              LRU, while frequency-based algorithms often perform sub-
+                                                                                                              stantially worse. At the same time, Belady’s optimum [6]
+                                        1   Introduction                                                      shows substantial remaining headroom.
+                                                                                                                 This gap suggests that prefix-cache workloads differ funda-
+                                        Long-running conversations and autonomous agents are                  mentally from the workloads these algorithms were designed
+                                        rapidly pushing LLM context lengths into the hundreds of              for. Understanding why LRU is so difficult to beat—and what
+                                        thousands of tokens [49, 50, 59, 64, 74]. Recomputing these           signals remain exploitable beyond recency—is therefore the
+                                        contexts is increasingly expensive because Transformer prefill        key to designing better prefix-cache management.
+                                        cost grows rapidly with sequence length [27, 61]. Fortunately,           Comparing prefix-cache traces with the web and block-
+                                        successive requests within a session typically reuse a long           storage workloads that drove conventional eviction policies
+                                        prefix [23]. Modern serving systems therefore rely on prefix          reveals the source of this mismatch. Most prefix reuse comes
+                                        caching: they retain the key-value (KV) states of previously          from successive turns within the same session. As a result,
+                                        processed tokens and reuse them across requests, avoiding             cached blocks have short, session-bounded lifetimes, and
+
+
+                                                                                                          1
+               Findings                                   Implications                                            Techniques
+Lifetime: Short and session-bounded.         Excess capacity yields little benefit.
+                                                                                            Recency base. Build on LRU: robust, with minimal
+                                             Prioritize recency for retention.              metadata.
+Reuse interval: Short, low variance.
+
+Frequency: Tracks progress, and requests                                                    Quick demotion. Evict one-hit prompts early when they
+                                             Use frequency to admit, not to rank.
+in a session arrive at a steady pace.                                                       account for an extremely high volume of traffic.
+
+Miss cost: Set by the compute intensity      Hit ratio does not predict the compute         Compute-aware eviction. Weight victims by recom-
+of the KV cache at that token depth.         saved.                                         pute cost, and evict partial nodes to avoid fragmentation.
+
+Footprint: A few sessions hold most of       Large sessions require block-level evic-       Eviction granularity. Block-level in HBM; session-
+the KV bytes.                                tion to avoid all-or-nothing decisions.        level only in the pool.
+
+Figure 1: Paper overview: We characterize five fundamental properties of production prefix-cache workloads (§4), derive their implications for
+cache management, and map them to our targeted design techniques (§5).
+
+reuse intervals are tightly concentrated. Recency captures                         open-source our traces and simulator.
+this structure naturally. Frequency, in contrast, largely reflects               • Structural insights into prefix-cache access patterns.
+how long a session has been active and provides little informa-                    By contrasting prefix-cache traces with canonical web and
+tion about when its blocks will be reused. This explains both                      block-storage workloads, we identify the structural prop-
+LRU’s robustness and the poor performance of frequency-                            erties that make recency unusually predictive and render
+based policies.                                                                    many traditional eviction signals ineffective.
+   Beyond these temporal access patterns, prefix caching di-                     • New design principles for prefix-cache management.
+verges from traditional caching in two structural ways. First,                     We introduce the compute-savings ratio to capture the
+miss costs are highly non-uniform [56]: because attention cost                     highly non-uniform cost of prefix-cache misses, and de-
+increases with token position, reconstructing a block deep in                      rive an exact offline optimum and an efficient approxi-
+a prompt is more expensive than reconstructing an equally                          mation that bound achievable performance. Guided by
+sized block near the beginning. Thus, two policies with the                        both our structural findings and these analytical bounds,
+same hit ratio can incur different prefill costs and time-to-                      we show when and how to augment recency with quick
+first-token (TTFT). Second, session KV footprints are highly                       demotion, compute-aware eviction, and capacity-adaptive
+skewed, with a small number of large sessions consuming a                          eviction granularity, yielding concrete guidance for both
+disproportionate fraction of cache capacity and contributing                       constrained HBM caches and large global memory pools.
+to a large portion of hits (i.e., size correlated with frequency).
+Figure 1 summarizes these properties and their implications
+for cache design.                                                             2       Background
+   These observations suggest a simple principle: keep re-
+cency as the foundational baseline, and introduce additional                  2.1      LLM inferences and KV Cache
+signals only to target specific workload characteristics that re-
+                                                                              During LLM inference, Transformer models [61] generate
+cency ignores, such as the prevalence of single-turn requests,
+                                                                              output sequentially, using an attention mechanism that re-
+varying computation costs, or extreme footprint skew. For
+                                                                              quires computing relationships against all preceding tokens.
+example, we find that quick demotion [73] helps primarily
+                                                                              To eliminate the redundant computation of re-evaluating the
+when one-hit prompts are common. For non-uniform miss
+                                                                              entire sequence at every step, systems rely on a KV cache [29]
+costs, we derive an offline optimum and an efficient approx-
+                                                                              to store previously computed key and value states. This cache
+imation, showing that compute-aware eviction can improve
+                                                                              divides the inference process into two distinct phases: prefill
+performance but must control fragmentation. Finally, the right
+                                                                              and decode. During the prefill phase, the model processes the
+eviction granularity depends on cache capacity: constrained
+                                                                              entire prompt, saving the resulting key and value vectors to
+HBM benefits from block-level management, whereas large
+                                                                              GPU memory. The latency of this initial processing, includ-
+memory pools can use session-level eviction to reduce meta-
+                                                                              ing any queuing delay, is measured as Time To First Token
+data overhead with little efficiency loss.
+                                                                              (TTFT). In the subsequent decode phase, the model generates
+   This paper makes the following main contributions:                         tokens sequentially, attending to the KV cache built during
+ • The first production study of prefix-cache eviction. We                    the prefill phase rather than recomputing them. The speed of
+   introduce two production traces and a faithful C++ sim-                    this generation is measured as the Time Per Output Token
+   ulator to systematically evaluate eviction policies across                 (TPOT). Because the KV cache must preserve the states of
+   HBM and memory-pool regimes. We validate our findings                      all active tokens, it rapidly becomes a severe memory bottle-
+   on four additional Qwen Bailian workloads [64], and will                   neck as context lengths and batch sizes grow, fundamentally
+
+
+                                                                         2
+constraining serving capacity [29].                                      Table 1: LLM inference request traces from two organizations. Re-
+                                                                         quests are capped at 256K tokens.
+                                                                                                        FreeInference Trace   Chutes Trace
+2.2    LLM Serving Prefix Cache
+                                                                             Requests                              327.5 K        515.8 K
+In many real-world workloads, requests frequently share com-                   in multi-turn sessions               34.3%          26.1%
+mon prefixes, such as lengthy system prompts [49, 50], few-                  Span                                    7.0 d        130.9 d
+shot examples [11], and, in multi-turn conversations and agent
+                                                                             Tokens processed                       10.5 B           9.7 B
+loops, the whole history of the exchange so far [74].
+                                                                             Unique tokens                          0.63 B          2.23 B
+    Recomputing these shared prefixes for every request is
+highly inefficient because the computational cost of the pre-                Request tokens, average                32.0 K         18.7 K
+fill phase grows rapidly. As context lengths expand to sup-                    99th percentile                     219.3 K         98.3 K
+port document question answering [4, 39] and autonomous
+                                                                         remains the logical unit of interaction.
+agents [49, 74], the compute burden becomes massive. More-
+                                                                            This append-only structure preserves history and maxi-
+over, for the full exact self-attention layers, the computation
+                                                                         mizes prefix cache reuse. Each request appends new infor-
+scales quadratically with sequence length [27, 61]. The rise
+                                                                         mation, such as user inputs or tool outputs, to an earlier turn.
+of Mixture-of-Experts (MoE) models [55, 59, 79] exacerbates
+                                                                         This iterative loop, where a model dispatches a tool call, the
+this quadratic bottleneck by sparsifying MLP computations,
+                                                                         runtime executes it, and the output is seamlessly woven back
+causing attention to dominate the prefill phase and making
+                                                                         into the context for the next turn, forms the agent workflow.
+cache hits even more valuable.
+    To eliminate massive redundant computation, serving sys-
+tems cache previously computed KV states in prefix or radix              2.4      Traditional Web and Storage Cache
+trees [77]. Because a token’s KV state depends on all preced-
+ing tokens, a cached state can be safely reused if and only if its       Traditional caching research evaluates policies against a broad
+entire preceding sequence exactly matches the new request.               spectrum of workloads to capture diverse access patterns. Ma-
+    Recognizing these substantial benefits, modern LLM serv-             jor representative classes include in-memory key-value caches
+ing systems have widely adopted this prefix caching tech-                (e.g., Twitter Twemcache [72] and Meta Memcached [7]),
+nique. In fact, production deployments report that a large               flash caches [19, 44], content delivery networks (CDNs) [8],
+portion of their total traffic is now served directly from these         and cloud block storage [28,32]. In these environments, object
+caches [51, 64]. These systems efficiently manage KV states              lifetimes and reuse intervals are typically driven by long-term
+by chunking them into fixed-length blocks (typically 16 to-              global popularity spanning days or weeks. Popular objects
+kens per block [29]). To maximize hit rates, they typically              experience high request concurrency, making historical fre-
+deploy prefix caches across a two-tiered memory hierarchy.               quency a reliable predictor of future reuse [10, 18]. Further-
+At the first tier, the serving engine keeps KV blocks in the             more, miss costs are generally uniform or only related to ob-
+GPU High-Bandwidth Memory (HBM) [29, 77]. At the sec-                    ject size [5,8]. Decades of eviction algorithms have been heav-
+ond tier, systems like Mooncake [51] and Strata [68] introduce           ily optimized for these specific behaviors [5, 18, 26, 45, 75],
+a massive global pool backed by host DRAM and SSDs. This                 including recent state-of-the-art policies like S3-FIFO [73]
+shared pool is one to two orders of magnitude larger than                and SIEVE [75].
+the local HBM, trading the overhead of cross-device data                    To contextualize how LLM serving departs from these tra-
+transfers for vastly increased capacity.                                 ditional assumptions, our analysis in §4 (Table 4) contrasts our
+    While the prefix tree provides an effective logical data             LLM prefix traces with two representative traditional work-
+structure for organizing and matching these shared KV blocks,            loads from cacheMon [12]: Wikipedia, a CDN request log
+it does not dictate physical cache eviction. As long as the              for article text encompassing 207.6 M requests over 18.4 M
+system can determine that a cached block shares exactly the              objects across 21.0 days; and CloudPhysics w01 [63], repre-
+same prefix as the new request, that block can be safely reused.         senting disk I/O of a production VM volume with 215.8 M
+Hence, physical cache eviction is fundamentally decoupled                requests over 122.8 M objects across 6.3 days.
+from the logical prefix tree structure, allowing algorithms to
+drop blocks from anywhere in the cache.                                  3      Fancy Algorithms Do Not Work Well
+
+2.3    Sessions                                                          To understand the unique character of LLM prefix cache,
+                                                                         we begin by evaluating how state-of-the-art caching algo-
+A session represents a single continuous conversation [13]               rithms perform on production traces. We first establish two
+or autonomous agent task [49, 74]. It comprises sequential               practical cache-size regimes for evaluation (§3.1), and then
+requests (turns) that progressively append to a shared con-              directly compare fourteen online eviction algorithms against
+text. While engines schedule individual requests, the session            the optimal Belady’s oracle across two production serving
+
+
+                                                                     3
+                Table 2: Cache sizes we evaluate.                        marized in Table 2. First, the per-replica HBM regime models
+         Size    Blocks    Example setting                               the constrained memory available directly on accelerators,
+                                                                         ranging from 24 GiB to 120 GiB. Scaling below 24 GiB is
+      HBM, per replica: 24–120 GiB
+                                                                         impractical, as the residency constraint would severely restrict
+       24 GiB     16,384 native-context floor
+       48 GiB     32,768 1×H200 at 0.8 memory fraction
+                                                                         the maximum supported context length. Second, the global
+       96 GiB     65,536 1×B200, bf16 weights                            DRAM/SSD memory pool regime models massive disaggre-
+                                                                         gated storage, spanning from 0.25 TiB to 12 TiB.
+      DRAM/SSD pool, global: 0.25–12 TiB
+        1 TiB 699,051 full node in Mooncake [51]
+                                                                         3.2    Evaluation of Eviction algorithms
+traces (§3.2). Our results demonstrate that most complex algo-           With our traces and simulator established, we sweep both
+rithms yield little benefit over a simple recency-based baseline         cache-size regimes to evaluate how various caching mecha-
+(LRU), and in some cases, actively degrade performance.                  nisms perform under a uniform cost model. We report hit and
+                                                                         compute-savings ratios as fractions, and differences between
+                                                                         them in percentage points.
+3.1     Traces and Simulator                                                Figure 2 shows the hit ratios of 14 online eviction algo-
+Traces. We conduct our evaluation using two production                   rithms across both production traces. We group these al-
+traces from two different public LLM inference services: Free-           gorithms by their primary design principle: Recency, act-
+Inference Trace [22] and Chutes Trace [16]. FreeInference                ing as our baseline (LRU); Quick demotion, which aggres-
+Trace is heavily dominated by agentic workloads with some                sively evicts unproven blocks (ARC [45], Sieve [75], S3-
+non-agentic API usage, while Chutes Trace features a broader             FIFO [73], S4-FIFO [66], LIRS [26]); Analytic modeling,
+mix that includes multi-turn human conversations alongside               using fitted mathematical models (LHD [5]); Frequency
+agentic sessions and non-agentic API usage. To align with                (LFU, W-TinyLFU [18]); Learned algorithms (LeCaR [62],
+practical serving constraints, all evaluations use a 16-token            LRB [57], 3LCache [78]); and recent domain-specific prefix
+block size and the Qwen3-Coder-30B [59] tokenizer, cap-                  caching algorithms (Workload-aware [64], AsymCache [56]).
+ping sequences at its 256k-token maximum context window                  Finally, we use Belady’s optimum [6] to establish an offline
+(4.3% skipped in FreeInference Trace and 0.03% in Chutes                 ceiling for comparison.
+Trace). Table 1 summarizes the key characteristics of each                  Our evaluation reveals that LRU remains remarkably ro-
+trace. Table 3 compares existing public datasets with the                bust across prefix caching workloads, while more complex de-
+two traces introduced in this work. To accurately simulate               signs yield little benefit, or even degrade performance. Rather
+prefix-cache eviction, a trace must provide fine-grained block           than outperforming this simple baseline, the advanced algo-
+identity scoped across sessions and contain multi-turn agen-             rithms fall into three behavioral groups. First, a large major-
+tic traffic. Existing public traces lack at least one of these           ity of algorithms, including ARC, LHD, LeCaR, 3LCache,
+critical properties. The closest alternatives are the Qwen Bail-         LRB, Workload-aware and AsymCache, perform very sim-
+ian traces, which we also evaluate (§4.6). While they offer              ilar, or slightly worse to LRU. Despite their sophisticated
+16-token block hashes, their session information reveals very            designs, they merely reproduce LRU’s hit ratio without pro-
+little agentic workload and a much lower reuse ratio.                    viding any meaningful advantage. Second, quick demotion
+Simulator. To evaluate caching algorithms over these traces,             algorithms (S3-FIFO, S4-FIFO, Sieve, LIRS) prove highly
+standard block-level simulators like libCacheSim [71] are                trace-dependent, offering marginal gains on some workloads
+insufficient because they ignore the request-level residency             but regressing by several points on others. Third, frequency-
+restriction, which requires that all blocks for a request must re-       based algorithms, including LFU and W-TinyLFU, completely
+side in memory simultaneously during its prefill. To faithfully          collapse, trailing far behind. Ultimately, there remains a sig-
+replicate real-world engine behavior, we developed a cus-                nificant headroom: Belady’s offline oracle still sits far above
+tom, high-performance C++ simulator based on libCacheSim.                the best online algorithm. No current “fancy” mechanism fun-
+Our simulator proactively evicts blocks to ensure sufficient             damentally solves the eviction problem for prefix caching.
+space is available to accommodate an incoming request’s en-
+tire prefix at once, and its evaluated hit ratios are very close         4     What Makes Prefix-Cache Different
+to those of the native vLLM [29] engine. Compared to the
+vLLM’s python implementation, this simulator yields up to                Traditional caching algorithms target web CDNs and block
+160× speedup in evaluation.                                              I/O, where objects are drawn from persistent global pools. Pre-
+Cache-size regimes. While memory per block varies by                     fix caching [29,77], however, differs fundamentally. Instead of
+model, block-level eviction dynamics remain consistent and               drawing from static pools, its blocks accumulate dynamically
+the required capacity simply scales accordingly. We evaluate             through conversations and tool executions, creating distinct ac-
+eviction algorithms across two distinct capacity regimes, sum-           cess behaviors. To illustrate this, we compare our prefix-cache
+
+
+                                                                     4
+Table 3: Comparison of public LLM-serving traces with the two traces introduced in this work. Only FreeInference Trace and Chutes Trace
+combine fine-grained block identity scoped across sessions, agentic traffic, and a multi-day span.
+
+    Trace                                               Requests           Tokens       Span                         Block size                      Scope            Agentic
+    TraceLab [80]†                                       357 K              54.9 B      253 d, scattered             none                            —                   ✓
+    Mooncake, tool & agent [51]                         23.6 K              0.20 B      1h                           coarse (512 tokens)             global              ✓
+    AgentX [53]                                         98.8 K              21.6 B      per session                  intermediate (64 tokens)        per session         ✓
+    Qwen Bailian [64]∗                            10.8–172.8 K         0.05–0.25 B      2h                           fine (16 tokens)                global          very little
+    FreeInference Trace (this work)                      327.5 K               10.5 B   7.0 d                        fine (16 tokens)                global                ✓
+    Chutes Trace (this work)                             515.8 K                9.7 B   130.9 d                      fine (16 tokens)                global                ✓
+† Records are LLM interactions from 43 developers’ individual sessions (1.4 K rounds/day over eight months), not a continuous production service stream.
+∗ The dataset comprises four independent traces, each spanning a two-hour window with its own localized clock.
+
+
+       LRU        ARC     Sieve   S3-FIFO     S4-FIFO    LIRS    LHD     LFU     W-TinyLFU               LeCaR   3LCache   LRB    Workload-aware     AsymCache       Belady (OPT)
+            1.0                                                                                          1.0
+                                        HBM                              pool                                                     HBM                              pool
+
+                                                                                                         0.9
+            0.9
+
+                                                                                                         0.8
+            0.8
+
+
+Hit ratio                                                                                    Hit ratio
+                                                                                                         0.7
+
+            0.7
+                                                                                                         0.6
+
+            0.6                                                                                          0.5
+
+                                                                                                         0.4
+            0.5
+
+                        24 GiB         48 GiB           96 GiB           1 TiB                                    24 GiB         48 GiB         96 GiB             1 TiB
+                                            Cache size                                                                                Cache size
+                                   (a) FreeInference Trace.                                                                      (b) Chutes Trace.
+Figure 2: Block hit ratio on the two production traces for fourteen eviction algorithms and offline optimum (Belady). Across different memory
+capacities, none of the state-of-the-art algorithms improve over LRU.
+
+
+workload (FreeInference Trace from §3) with two canonical                                            the lifespans of most blocks. Notably, the proportion of one-
+traces representing the primary workload classes in eviction-                                        hit objects (lifetime of zero in Figure 3a) is similar across all
+algorithm literature [5, 15, 73]: Wikipedia [12] (web CDN)                                           three workloads (53.0%–55.7%).
+and CloudPhysics [12, 63] (production block I/O). Table 4                                               Across the workload, prefix-cache blocks naturally divide
+summarizes these three workloads.                                                                    into three categories with distinct lifecycle dynamics:
+   We treat each KV block [61] as a distinct cache object.                                           System prompts. This category consists of system-role
+The following subsections detail the key characteristics dis-                                        blocks appearing in at least one multi-turn sessions. Despite
+tinguishing these workloads (summarized in Table 5) and                                              comprising only 4.7% of distinct blocks, their cross-session
+identify their root causes.                                                                          reuse drives 18.4% of all accesses. They routinely outlive indi-
+                                                                                                     vidual conversations, persisting in the cache for days (median
+                                                                                                     lifetime 291 s, 99th percentile ∼3.6 days).
+4.1               Session-Bounded Lifetimes                                                          Multi-turn session history. This category includes all non-
+                                                                                                     system blocks that appear in at least one multi-turn session.
+Prefix-cache objects exhibit drastically shorter lifespans than
+                                                                                                     Representing session-specific state like conversational turns
+those in traditional caching workloads. Figure 3a illustrates
+                                                                                                     and tool outputs, these blocks constitute the primary driver of
+this contrast: while traditional objects drawn from persistent
+                                                                                                     prefix reuse. They make up 37.6% of distinct blocks and gen-
+pools remain active for days, most reused prefix-cache objects
+                                                                                                     erate an overwhelming 70.2% of all cache accesses. Because
+exhibit lifetimes under 30 minutes.1 Because these blocks are
+                                                                                                     they are bound to specific conversations, their lifetimes are
+generated by conversations, their utility is usually bounded by
+                                                                                                     strictly confined to their originating session (median 219 s).
+the originating session’s lifespan. Figure 3b further illustrates
+                                                                                                     Single-turn request prompts. Prompts from single-turn re-
+that multi-turn sessions are predominantly short-lived (median
+                                                                                                     quests form the largest fraction of unique blocks (57.8%) but
+55 s, 99th percentile ∼4 hours), imposing a natural ceiling on
+                                                                                                     contribute only 11.4% of total accesses. The vast majority
+            1While recent research has demonstrated long-running agents [33, 36, 69],                exhibit virtually no reuse: 84.9% of these blocks are accessed
+most of the agents in production solve simpler tasks and run shorter.                                exactly once. The remaining 15.1% of single-turn blocks
+
+
+                                                                                        5
+                    Table 4: We compare three different caching workloads in this paper: LLM serving prefix cache, web cache (CDN), and block cache.
+ Class                          Trace                             Requests                        Distinct items                      Span         Description
+ Prefix cache                   FreeInference Trace               327.5 K                        39.6 M blocks                        7.0 d        One week of a public LLM inference service.
+ Web                            Wikipedia 2019 text [12]          207.6 M                        18.4 M objects                      21.0 d        Wikipedia’s CDN request log for article text.
+ Block                          CloudPhysics w01 [12, 63]         215.8 M                       122.8 M objects                       6.3 d        Disk I/O of one VM volume from a production fleet.
+
+Table 5: Summary of the characteristics that separate the prefix-cache workload from the web and block workloads. Each characteristic carries
+the subsection that measures it.
+
+                    Characteristic                 Prefix cache                                                Web                                                                         Block
+                    Lifetime (§4.1)                Minutes, bounded by the session                             Days with a persistent hot core                                             Days without hot core
+                    Reuse interval (§4.2)          Short, low variance                                         Long, high variance                                                         Long, paced by periodic jobs
+                    Frequency (§4.3)               Wide spread; tracks session progress                        Zipfian; a few get most accesses                                            Few accesses; scans dominate
+                    Miss penalty (§4.4)            Grows with block depth                                      One uniform fetch                                                           One uniform fetch
+                    Session footprint (§4.5)       Heavy-tailed per session                                    No session structure                                                        No session structure
+                   1.0                                                                  1.0   med 55s                                                                                                                             LLM Prefix Cache
+                                                                                                                                                                                  0.6                                             Block
+                                                                                              p90 843s
+                                                                                              p99 15,006s                                                                                                                         Web
+
+
+
+
+CDF over objects                                                    CDF over sessions                                                                           Jaccard overlap
+                                                                                                                                                                                  0.4
+                   0.5                                                                  0.5
+
+                                                                                                                                                                                  0.2
+                                               LLM Prefix Cache
+                                               Block
+                                               Web
+                   0.0                                                                  0.0                                                                                       0.0
+                     10−1     101        103          105                                         100          102                          104                                      100                           101          102          103
+                                Object lifetime (s)                                                     Session duration (s)                                                                                     Gap (# 5-min windows)
+
+                             (a) Object lifetime                                                  (b) Session duration                                          (c) Similarity between consecutive working sets.
+ Figure 3: (a) Prefix-cache blocks are short-lived, with lifetimes up to 100× shorter than in traditional caches. (b) Sessions are short: P90 is 14
+ minutes, while the median is under 1 minute. (c) Working set similarity is high at very short intervals due to short reuse but rapidly falls to zero
+ due to short lifetime.
+                                                                                                                                    1.0                                                                          1.0   med 8.2s
+ correspond to shared prefixes across different independent
+
+
+
+                                                                                                                  CDF over reuses                                                           CDF over intervals
+                                                                                                                                                                                                                       p90 47s
+ requests (such as common task templates).                                                                                                                                                                             p99 409s
+
+
+                                                                                                                                    0.5                                                                          0.5
+
+                                                                                                                                                        LLM Prefix Cache
+    This session-bounding also fundamentally changes work-                                                                                              Block
+                                                                                                                                                        Web
+ ing set churn. Figure 3c shows the Jaccard overlap between                                                                         0.0                                                                          0.0
+                                                                                                                                      10−1        101     103           105                                              10−1   101    103     105
+ two 5-minute access windows over time. Web workloads                                                                                          Reuse interval (s)                                                      Intra-session interval (s)
+ maintain a persistent ∼5% globally popular core, while the                                                                               (a) Block reuse Interval                                                 (b) Request inter-arrival
+ block trace exhibits near-zero overlap. The prefix-cache work-                                                   Figure 4: (a) Prefix-cache reuse intervals are short with low variance.
+ ing set, however, completely lacks a persistent core: while                                                      (b) Request inter-interval time within a session is short.
+ adjacent windows share over 30% of their objects, this over-
+ lap decays to near zero beyond a two-hour gap as sessions                                                               Finding & Implication: Prefix-cache working sets churn
+ conclude.                                                                                                               rapidly: blocks have short lifetimes and lack the persistent
+                                                                                                                         hot set common in traditional cache workloads. As a result,
+                                                                                                                         most workloads do not need a large cache size (relative to
+                                                                                                                         unique data).
+    This rapid churn and strict session-bounding have profound
+ implications for cache sizing and eviction. The working set
+ size is straightforward to estimate—roughly the block arrival
+                                                                                                                   4.2                      Recency Provides a Key Signal
+ rate multiplied by the expected session duration. As shown
+ in Figure 2,the 96 GiB hit ratio is very high despite caching                                                    Prefix-cache reuse intervals are remarkably short and con-
+ capacity under 0.2% of unique blocks. More critically, dedi-                                                     centrated, contrasting sharply with the long, high-variance
+ cating capacity to retain older blocks yields no benefit, since                                                  intervals of traditional workloads, as shown in Figure 4a.
+ overlap vanishes after two hours.                                                                                Web interarrival times reflect independent users, producing
+
+
+                                                                                                              6
+                                                                                                                                                                                   1.0
+                                                                                                                  106
+                      105
+
+
+
+
+Reuse interval (s)                                                                          Object lifetime (s)                                                  P(reused again)
+                      103                                                                                         104
+
+
+                      101                                                                                                                                                          0.5
+                                                                                                                  102
+
+                     10−1
+                                 LLM Prefix Cache                                                                                             LLM Prefix Cache                                                 LLM Prefix Cache
+                                 Block                                                                            100                         Block                                                            Block
+                          −3
+                     10          Web                                                                                                          Web                                                              Web
+                                                                                                                                                                                   0.0
+                                   101      102     103      104                      105                                     101       102        103                                   100         101         102
+                                Frequency (accesses per object)                                                         Frequency (accesses per object)                                  Frequency so far (accesses per object)
+
+(a) Reuse interval vs. frequency. Lines show the                                            (b) Object lifetime vs. frequency. Bubble area indi- (c) Probability of further reuse vs. current frequency.
+median and bands the P25–P75 range.                                                         cates the number of objects in each bin.
+ Figure 5: Frequency is not a good indicator for LLM prefix cache. (a) Reuse intervals are largely independent of block popularity in the LLM
+ prefix cache. (b) Block lifetime increases with access frequency and shows a wide spectrum. (c) Frequency is a poor predictor of future reuse.
+
+
+                     1.0                                                        1.0   med 5                                              our initial study of existing algorithms (§3.2).
+
+
+
+CDF over objects
+                                                            CDF over sessions
+                                                                                      p90 30
+                                                                                      p99 168
+                                                                                                                                          Finding & Implication: Eviction should prioritize recency:
+                     0.5                                                                                                                  reuse is concentrated within short intervals, long-idle blocks
+                                                                                0.5
+                                         LLM Prefix Cache                                                                                 should be reclaimed aggressively, as they are unlikely to be
+                                         Block
+                                         Web                                                                                              reused and increasingly costly to retain.
+                     0.0
+                       100           102          104                           0.0
+                                    Frequency                                               101                         102
+                               (accesses per object)                                   Requests per session
+
+                                (a) Frequency.                (b) Requests per multi-turn session.
+                                                                                                                                         4.3      Frequency Tracks Session Progress
+Figure 6: (a) Prefix-cache blocks are reused more frequently than in                                                                     Prefix-cache objects exhibit a vastly wider spread of frequency
+web and storage block caches. (b) Requests per session show a wide                                                                       than traditional workloads. As demonstrated in Figure 6a,
+spectrum.                                                                                                                                while web frequencies plateau early due to Zipfian popularity
+                                                                                                                                         and block objects see minimal reuse, prefix-cache frequency
+smooth curves with a wide interquartile range (P25–P75).                                                                                 fundamentally tracks session progress. As sessions advance,
+Block traces mix diverse behaviors like periodic scans, caus-                                                                            their history blocks are repeatedly re-read. Because a block’s
+ing sharp modal spikes. Prefix caching, however, is dominated                                                                            reuse count depends on both the overall session length and
+by rapid intra-session interactions. Figure 4b highlights this                                                                           its insertion turn, reuses span from a handful to hundreds
+extreme recency. Driven by quick tool executions and conver-                                                                             of times. Figure 6b shows that the number of turns per ses-
+sational turns, the median intra-session interval is a mere 8.2 s,                                                                       sion is exceptionally large and heavy-tailed, reaching up to
+and 99.7% of all gaps fall under a 22-minute reuse window.                                                                               412 requests. This massive variation in session lengths drives
+   While the median reuse interval is short across all block                                                                             extreme frequency variance across the cache, with system
+categories (10.0 s for system prompts, 11.2 s for multi-turn                                                                             prompts and multi-turn history blocks reaching median ac-
+history), they do exhibit a heavy tail, with the 99th percentile                                                                         cesses of 15 and 12 respectively. Such prolonged interactions
+reaching 1,000 s and 562 s respectively. This tail is caused by                                                                          also cause immense context growth, making partial eviction
+extended human interaction and prolonged tool executions,                                                                                highly valuable for preserving the active context.
+which can delay the next request up to several days.                                                                                         Unlike traditional workloads, accumulated frequency in
+   Despite this heavy tail, because the overwhelming majority                                                                            prefix caching provides almost no signal about the timing of
+of reuses are concentrated in extremely short intervals, re-                                                                             the next request. As shown in Figure 5a, web and block traces
+cency remains the dominant signal for whether a block should                                                                             exhibit a downward trend where higher popularity translates
+be retained. When a block goes idle for a long period, it should                                                                         to shorter reuse intervals due to concurrent user requests. In
+be aggressively evicted regardless of its past popularity. This                                                                          contrast, the prefix-cache reuse interval remains completely
+is because a long-idle block likely belongs to a working set                                                                             flat across all frequency bins, demonstrating that accesses
+that has already churned away, meaning it will probably not                                                                              arrive at the stable, sequential pace of individual sessions.
+be reused. Furthermore, even if the block does fall into the                                                                             Consequently, prefix-cache object lifetime increases as fre-
+heavy tail and is eventually reused, the capacity cost of pin-                                                                           quency grows, as demonstrated in Figure 5b. Web and block
+ning it in memory throughout a prolonged idle duration far                                                                               lifetimes, however, remain decoupled from frequency, since
+outweighs the benefit of a single cache hit. This explains why                                                                           objects drawn from a global pool stay active indefinitely with
+simple recency-based eviction algorithms perform so well in                                                                              little reuse. Because frequency fails to predict shorter reuse
+
+
+                                                                                                                                    7
+                                                                                                          Request 1                                                     166 ms          71.1 TFLOP
+
+
+
+
+                                                                    Mean depth of computed tokens
+                                                                  105                                                                   8K Tokens to Compute
+
+                      104
+
+
+
+ Measured TTFT (ms)
+                                                                                                          Request 2                                                     966 ms         493.3 TFLOP
+                                                                  104
+                                                                                                                                           64K Tokens Hit
+                      103                                                                               Figure 8: Depth-dependent recomputation cost on Qwen3-Coder-
+                                                                  103                                   30B [59], measured on NVIDIA H200. Both requests compute 8K
+                      102                                                                               tokens, but the second must attend to an additional 64K cached
+                                                                  102                                   tokens, increasing computation and TTFT.
+
+                      101
+                                                                  101                                                             1.0      all requests
+                            100   101     102   103   104   105                                                                            multi-turn sessions
+
+                                        Computed tokens
+
+
+                                                                                                              CDF over requests
+Figure 7: Measured TTFT against the number of tokens computed
+per request, over 10,000 FreeInference Trace requests replayed on                                                                 0.5
+
+vLLM [29] with Qwen3-Coder-30B [59] under LRU at a 48 GiB
+cache on a single NVIDIA H200. Color indicates the mean depth
+(position in the prompt) of the computed tokens. Similar token counts
+can incur substantially different TTFT.
+                                                                                                                                  0.0
+                                                                                                                                              101        102      103       104        105
+intervals, it proves highly ineffective for ranking eviction can-                                                                                   Request sequence length (tokens)
+
+didates. This fundamental disconnect explains why frequency-                                            Figure 9: Distribution of request sequence lengths in tokens, over
+heavy algorithms suffer such poor performance in our initial                                            all requests and over the requests that belong to multi-turn sessions.
+algorithm comparison (§3.2).                                                                            Long requests both occupy substantial HBM and create deep blocks
+   However, early frequency is an excellent predictor for                                               with high recomputation costs. Dotted lines mark the two medians,
+                                                                                                        3,386 and 66,605 tokens.
+whether a block will be reused at all. As shown in Figure 5c,
+prefix caching exhibits a uniquely sharp increase in future
+reuse probability during the first few hits. Securing just a sec-                                       pute 8K tokens, but one starts from scratch while the other
+ond hit jumps this probability from 69.4% to 88.7%, cleanly                                             follows a cached 64K-token prefix. Each uncached token must
+separating single-turn requests from established multi-turn                                             attend to all preceding tokens in full-attention layers, includ-
+sessions. For workloads flooded with one-hit wonders, this                                              ing those cached tokens. Hence, the second request performs
+implicit classification makes early frequency a helpful ad-                                             more attention work despite computing the same number of
+mission filter to discard transient prompts. We explore this                                            tokens. For a fixed-size block, this attention work grows with
+conditional benefit further in §5.1, demonstrating how quick                                            its depth, making misses on deeper blocks more expensive.
+demotion specifically aids the Qwen To-B trace [64].
+                                                                                                           These cost differences matter because request lengths span
+ Finding & Implication: Because session accesses arrive                                                 a wide range (Figure 9), reaching 111K tokens at the 90th
+ at a steady pace, frequency fails to predict reuse intervals                                           percentile. Such long contexts contain blocks with vastly
+ and should not be used as an eviction ranking metric. How-                                             different recomputation costs, despite occupying identical
+ ever, for workloads dominated by one-hit wonders, early                                                cache space and contributing equally to hit ratio.
+ frequency can serve as a helpful admission filter.
+                                                                                                           Eviction algorithms should therefore account for the com-
+                                                                                                        putation saved by each hit. When blocks have comparable
+                                                                                                        expected reuse, retaining deeper, more expensive blocks and
+4.4                    Position-Dependent Miss Costs                                                    evicting cheaper, shallow blocks can reduce recomputation
+                                                                                                        cost for the same number of hits. The separation of cache
+Hit ratio alone does not determine the benefit of prefix caching.                                       residency from prefix matching (§2.2) makes this possible
+Figure 7 plots measured TTFT against the number of tokens                                               by allowing shallow blocks to be recomputed while deeper
+computed per request. Even among requests computing a                                                   cached blocks are reused. We will evaluate compute-aware
+comparable number of tokens, TTFT varies substantially. The                                             eviction and its implementation tradeoffs in §5.2.
+color of each point shows that requests computing tokens
+deeper in the prompt generally incur higher TTFT at a simi-                                             Finding & Implication: Hit ratio alone does not determine
+lar token count. Thus, the absolute number of tokens left to                                            TTFT because deeper blocks save more computation. Evic-
+compute is insufficient to predict TTFT.                                                                tion should thus account for this depth-dependent cost.
+   Figure 8 illustrates why depth matters. Both requests com-
+
+
+                                                                                                    8
+                100                                                  1.0      equal-sized                  AgentX hit ratios a conservative lower bound.
+
+
+
+                                                 Share of KV bytes
+                                                                              measured
+                                                                                                              The results confirm the core role of recency (§4.2). At
+
+
+Fraction > x
+               10−2                                                                                        each capacity, the best online algorithm is usually recency-
+                                                                     0.5
+                                                                                                           based, and by 1 TiB, LRU is within 0.4 points of the best
+               10−4                                                                                        online algorithm on every trace. Conversely, frequency-based
+                         sessions
+                         KV bytes
+                                                                                                           W-TinyLFU consistently underperforms (§4.3).
+               10−6                                                  0.0                                      These three traces represent distinct serving workloads.
+                        107      109    1011                           10−4 10−3 10−2 10−1       100
+                      Session KV footprint (B)                             Top fraction of sessions        Across them, the recency conclusion is stable, but the capacity
+ (a) Footprint tail (CCDF), by ses- (b) Concentration of KV bytes across                                   at which LRU catches up is workload-dependent. The Qwen
+ sions and KV bytes.                sessions.                                                              traces contain less reusable content than FreeInference Trace:
+               Figure 10: Per-session KV footprint of the prefix-cache trace.
+                                                                                                           compulsory misses account for 34–54% of accesses, com-
+                                                                                                           pared with 6.0% on FreeInference Trace. Conversely, AgentX
+ 4.5                  Heavy-Tailed Session Footprints                                                      contains even more reusable content, with only 3.75% com-
+                                                                                                           pulsory misses. Accordingly, the offline optimum at 1 TiB is
+Session KV footprints span several orders of magnitude. Fig-                                               0.534 (To-B), 0.664 (Coder), and 0.962 (AgentX). At 24 GiB,
+ure 10a shows the median session accumulates just 45 blocks                                                LRU does not lead on any trace; on Qwen To-B, for example,
+(0.07 GiB), whereas the 99th percentile reaches 8.3K blocks                                                S3-FIFO and ARC reach 0.491 versus LRU’s 0.403. LRU
+(12.2 GiB) and the maximum hits 234 GiB. These massive                                                     catches up only at 60–462 GiB, compared with 37 GiB on
+footprints emerge as context accumulates across turns (§4.3)                                               FreeInference Trace. Thus, some workloads require substan-
+and scales with the long requests shown in Figure 9, allowing                                              tially more cache capacity before recency alone is sufficient.
+a single session to easily overwhelm the HBM cache.                                                        This motivates the conditional use of quick demotion in §5.1.
+   Consequently, KV memory concentrates intensely in the                                                   Appendix A presents line plots across the full capacity range
+largest sessions. The Lorenz curve in Figure 10b reveals the                                               for the four Qwen traces, AgentX, and the two traces eval-
+top 10% of sessions hoard 76.2% of all KV bytes, with the                                                  uated in §3, each with the full algorithm set; Appendix B
+top 1% alone consuming 20.3%. By partially trimming these                                                  analyzes sensitivity to session concurrency at fixed capacity.
+heavy sessions, cache managers can reclaim substantial ca-
+pacity without destroying the entire reusable context.
+   This extreme skew forces eviction granularity to adapt to                                               5     What Designs Can Be Helpful?
+capacity constraints. When cache space is tight, treating a
+massive session as an indivisible unit forces a destructive                                                The empirical policy behaviors observed in §3 and the de-
+all-or-nothing choice, while fine-grained eviction gracefully                                              sign implications uncovered in §4 demonstrate that while a
+avoids this by reclaiming selected blocks. Conversely, in an ex-                                           standard recency-based policy like LRU provides a remark-
+pansive secondary pool, session-level management becomes                                                   ably robust baseline, no single caching algorithm universally
+highly attractive for drastically reducing metadata overhead.                                              wins across all deployment scenarios. Because optimal per-
+We quantify this tradeoff in §5.3.                                                                         formance is intimately tied to the interaction between work-
+                                                                                                           load characteristics and cache capacity, we do not propose a
+     Finding & Implication: Session KV footprints are heavy-                                               monolithic “best” policy. Instead, we explore a set of modular
+     tailed. Constrained caches require partial-session eviction,                                          algorithmic techniques that can be selectively deployed to
+     while larger pools may instead trade fine-grained eviction                                            address the specific bottlenecks of prefix caching.
+     for lower metadata overhead.                                                                             LRU as a bedrock. Because recency is the primary predic-
+                                                                                                           tor of future reuse (§4.2), Least Recently Used (LRU) serves
+                                                                                                           as the foundational baseline for our proposed designs. As
+ 4.6                  Findings Generalize Across Workloads                                                 shown in §3, plain LRU is remarkably robust, reliably converg-
+                                                                                                           ing to the optimal offline ceiling on every trace we measured
+ To test whether our findings generalize beyond FreeInference                                              while requiring the absolute minimum metadata overhead.
+ Trace, we extend the algorithm comparison from §3.2 to two                                                Consequently, rather than reinventing the core eviction logic,
+ production Qwen Bailian traces [64] and AgentX [53]. We                                                   we use LRU as the bedrock and introduce several targeted add-
+ evaluate a six-algorithm subset at four cache capacities in                                               ons designed to handle specific edge cases and constrained
+ Figure 11, selecting canonical algorithms for each category.                                              environments where pure recency falls short.
+   AgentX replays 393 Claude Code sessions from the Semi-
+ Analysis corpus [53]. Because the corpus lacks absolute times-
+                                                                                                           5.1    Quick Demotion
+ tamps, we artificially schedule sessions to maintain a steady
+ concurrency of 16, while preserving the exact timing between                                              When capacity is severely constrained and the workload is
+ requests within each session. Because its hashes are session-                                             flooded with single-turn requests, recency alone can strug-
+ scoped, cross-session sharing is modeled as zero, making the                                              gle to protect the active working set. In environments domi-
+
+
+                                                                                                       9
+                                                  LRU    S3-FIFO   ARC   LHD      W-TinyLFU                        Workload-aware
+
+                               Qwen To-B                                  Qwen Coder                                                                       AgentX
+                                                                                                                               1.0
+                              HBM              pool                       HBM                                         pool                           HBM                         pool
+             0.55
+                                                        0.6
+
+
+ Hit ratio
+             0.50                                                                                                              0.8
+                                                        0.5
+             0.45
+                                                        0.4                                                                    0.6
+             0.40
+                                                        0.3
+                    24 GiB   48 GiB   96 GiB   1 TiB          24 GiB     48 GiB                           96 GiB      1 TiB           24 GiB        48 GiB          96 GiB       1 TiB
+
+
+Figure 11: Block hit ratio of six eviction algorithms at the four capacities of Table 2, on two of the four Qwen Bailian traces [64] and on
+AgentX, a replay of 393 Claude Code sessions [53].
+
+
+                                                                                                          LRU      S3-FIFO            PartialNode RandomCompute              BeladyCompute
+nated by one-hit wonders, quick demotion strategies like S3-                                              ARC      RandomCompute      Belady                                 Offline optimum
+FIFO [73] can be highly effective by rapidly filtering out                                                1.0                         HBM                                       pool
+blocks that will never be reused (§4.3). Figure 11 (Qwen To-
+
+
+
+
+                                                                                  Compute-savings ratio
+                                                                                                          0.9
+B panel) shows the value of this filtering: at 24 GiB, S3-FIFO
+achieves a 0.491 hit ratio compared to LRU’s 0.403.
+                                                                                                          0.8
+   However, one-hit wonders typically belong to short, single-
+turn prompts, meaning they occupy a small cache footprint                                                 0.7
+compared to multi-turn sessions. Therefore, quick demotion
+provides substantial benefits only under specific extremes:                                               0.6
+when one-hit prompts account for such an overwhelming
+volume of traffic that their cumulative footprint genuinely
+                                                                                                                   24 GiB            48 GiB                96 GiB               1 TiB
+threatens to flood the cache.                                                                                                                 Cache size
+   Takeaway. Quick demotion strategies like S3-FIFO are
+effective, but should only be enabled when one-hit prompts                        Figure 12: Compute-savings ratio on FreeInference Trace under
+account for an extremely high volume of traffic.                                  the Qwen3-Coder-30B [59] cost model. BeladyCompute tightly
+                                                                                  approximates the ILP optimum, whereas standard Belady falls short.
+                                                                                  Compute-aware eviction substantially improves compute savings,
+5.2            Compute-awareness                                                  and partial-node eviction preserves these gains without degradation.
+
+Because a cache miss in LLM serving triggers recomputation,                       and evicts the block with the highest score. As shown in
+eviction decisions should ideally optimize for compute sav-                       Figure 12, BeladyCompute tracks the offline ILP optimum
+ings rather than pure hit counts, especially when the cost of                     exceptionally well across all constrained cache sizes—falling
+recomputation varies widely across blocks. To evaluate this,                      just 1.03 points below the optimum at 24 GiB, 0.41 points at
+we introduce the compute-savings ratio, a metric that weights                     48 GiB, and a 0.08 points at 96 GiB. This proves it is a robust
+each cache hit by the computational cost avoided. Under this                      and efficient approximation of the absolute theoretical limit.
+framework, the traditional hit ratio simply represents a con-
+                                                                                     These offline oracles offer an easy diagnostic for whether a
+stant cost model that regards all blocks as having the exact
+                                                                                  workload deserves compute-awareness. The gap in compute-
+same cost. To capture real-world variance, we model com-
+                                                                                  savings ratio between the hit-optimal Belady and cost-aware
+pute intensity based on the FLOPs required for each block on
+                                                                                  BeladyCompute bounds the potential gain. On FreeInference
+Qwen3 Coder 30B. Figure 12 illustrates the compute-savings
+                                                                                  Trace, this gap is massive (+12.6 points at 24 GiB), justifying
+ratio of various policies under this cost model. We additionally
+                                                                                  the design effort. Conversely, on the other five traces, the gap
+evaluate an extreme linear cost model where full attention
+                                                                                  is negligible (≤ 1.1 points), meaning standard hit-optimal
+strictly dominates, finding that all conclusions below hold
+                                                                                  evictions is good enough. Thus, running both oracles on a
+with slightly wider margins (Appendix C).
+                                                                                  trace sample can decisively evaluate the necessity of compute-
+   To establish a theoretical optimum for this metric, we frame
+                                                                                  awareness before designing any online policy. Because this
+the caching process as an Integer Linear Programming (ILP)
+                                                                                  cost profile depends primarily on the model and the proportion
+problem, using reuse intervals as variables and capacity as a
+                                                                                  of long sequences, the diagnostic only needs to be repeated
+constraint. Because solving the ILP is computationally expen-
+                                                                                  when these factors change.
+sive, we also introduce BeladyCompute: an efficient offline
+                                                                                     For practical online environments, we design RandomCom-
+algorithm inspired by BeladySize [71]. For a given block i,
+                                                                                  pute, a compute-aware algorithm that targets cheap, shallow,
+BeladyCompute evaluates an eviction score:
+                                                                                  and long-idle blocks for eviction. It achieves this by randomly
+Score(i) = ComputeIntensity(i) × TimeUntilNextAccess(i)                           sampling a subset of blocks in the cache and evicting the one
+
+
+                                                                           10
+                      LRU      RandomCompute                        PartialNodeRandomCompute
+               6
+                                                                                                                   55.2K tokens/s). Fragmentation penalties render the origi-
+                              5.24                                                                       66        nal block-granular RandomCompute unusable: it incurs 4.0×
+
+
+
+
+                                                   Throughput (k tok/s)
+               5                                                          60      55                               higher TTFT and 3.9× lower throughput than LRU. Mech-
+
+
+Avg TTFT (s)
+               4
+                                                                                                                   anistically, our policy trades cheap shallow hits to protect
+                                                                          40
+               3                                                                                                   expensive deep ones: while LRU retains a slightly better me-
+               2                                                                                                   dian TTFT (112 ms vs. 171 ms), our design decisively slashes
+                    1.29                                                  20
+               1
+                                         1.04                                               14                     the 99th-percentile tail from 26.0 s down to 16.8 s.
+                                                                                                                      Takeaway. When sequence lengths are long and recompu-
+               0                                                          0
+                                                                                                                   tation costs vary significantly, compute-aware eviction deliv-
+                    (a) Average TTFT.                                          (b) Prefill throughput.             ers massive efficiency gains. However, practical online im-
+                                                                                                                   plementations must evict blocks in contiguous chunks (e.g.,
+Figure 13: End-to-end performance on H200 with 48 GiB cache                                                        partial-node eviction) to avoid severe memory fragmentation
+replaying 10,000 requests from FreeInference Trace. TTFT (a)                                                       that would otherwise cripple parallel attention computation.
+and throughput (b) were measured in separate runs. Partial-node
+compute-aware eviction yields substantial TTFT and throughput
+gains over LRU, whereas block-based eviction incurs severe degra-                                                  5.3    Block-Level vs. Session-Level Eviction
+dation due to fragmentation.
+                                                                                                                   When managing secondary KV cache pools [51, 68], main-
+with the lowest score, calculated for each sampled block i as:                                                     taining metadata for millions of individual blocks incurs a
+                                            ComputeIntensity(i)                                                    significant overhead. For example, tracking a 12 TiB pool
+                            Score(i) =                                                                             requires indexing 8.4 million 16-token blocks, so systems
+                                          TimeSinceLastAccess(i)
+                                                                                                                   like Mooncake [51] and LMCache [40] use 16–32× coarser
+In long-context scenarios with high variance in block com-                                                         chunks (256–512 tokens). Session-level eviction drastically
+putation costs, this strategy yields massive efficiency gains.                                                     reduces this overhead by evicting entire sessions at once, but
+At a constrained 24 GiB cache under this cost model, Ran-                                                          sacrifices the granular efficiency of partial eviction.
+domCompute achieves a 0.638 compute-savings ratio, outper-                                                            Figure 14 illustrates this fundamental tradeoff. At highly
+forming LRU by 10.4 points and even surpassing the standard                                                        constrained cache sizes (e.g., 24 GiB), session-level eviction is
+hit-optimal Belady oracle [6].                                                                                     disastrous: LRU loses 10.5 points of hit ratio, and the compute-
+   However, as a sample-based algorithm, RandomCompute                                                             aware RandomCompute policy loses a staggering 18.7 points
+introduces a severe problem: it heavily fragments the pre-                                                         of compute savings. When a giant session monopolizes the
+fix, leaving behind numerous “holes”2 that creates massive                                                         cache, failing to partially trim it forces many valuable ses-
+overhead of the attention matrix computation [61]. Random-                                                         sions out. The penalty reduces but stays material at the 48 GiB,
+Compute leaves an average of 9.21 holes per request, with                                                          where LRU still gives up 3.3 points of hit ratio and Random-
+a long tail reaching hundreds of holes. Appendix D reports                                                         Compute 5.5 points of compute savings. Since blocks are
+the full distributions. To mitigate this fragmentation, we intro-                                                  already the native management granularity in HBM, accept-
+duce partial-node eviction, which drops contiguous chunks of                                                       ing this penalty offers no system benefit. This severe penalty
+blocks from the beginning of a node rather than scattered in-                                                      falls off quickly as capacity grows. In the large pool regime,
+dividual blocks. Preferably, this chunk size should align with                                                     the performance gap between session-level and block-level
+the system’s contiguous batching token budget (if applica-                                                         eviction becomes virtually unmeasurable. The only perma-
+ble). This alignment ensures that hole-filling perfectly utilizes                                                  nent drawback to session granularity is cross-session sharing:
+the budget while minimizing any reduction in compute sav-                                                          evicting an entire session inadvertently purges shared system
+ings. Furthermore, because there are no actual computational                                                       prompts that other active sessions still need, though the vast
+dependencies between missing segments, the prefill for differ-                                                     capacity of the pool largely masks this effect.
+ent holes can be batched and executed entirely in parallel. By                                                        Takeaway. Eviction granularity needs to match the mem-
+packing the same recomputation volume into fewer and longer                                                        ory tier. In the HBM regime, systems should strictly employ
+holes, PartialNode RandomCompute slashes the average hole                                                          block-level eviction to maximize performance, which natu-
+count by 8.7×. This optimization effectively eliminates the                                                        rally align with native block management as well. Conversely,
+parallelization bottleneck while sacrificing negligible com-                                                       given the performance penalty vanishes in the large pool
+pute savings at 24 GiB, making it a highly practical design.                                                       regime, designers can freely choose between block-level and
+   We validate these gains on a real vLLM engine serving                                                           session-level eviction based on metadata organization.
+Qwen3-Coder-30B [59] with a 48 GiB cache (Figure 13).
+Against LRU, our partial-node compute-aware design cuts
+average Time-To-First-Token (TTFT) by 19.9% (1.04 s vs.                                                            5.4    Summary
+1.29 s) and raises prefill throughput by 18.8% (65.6K vs.
+                                                                                                                   In summary, designing a cache for prefix-caching workloads
+               2 A hole is a contiguous run of blocks a request has to recompute.                                  requires an approach tailored to specific capacity constraints
+
+
+                                                                                                              11
+            1.0                                                                                                                   1.0
+                                  HBM per-replica                              DRAM–SSD pool                                                           HBM per-replica                              DRAM–SSD pool
+
+            0.9                                                                                                                   0.9
+
+
+
+
+                                                                                                                Compute savings
+                                                                                                                                  0.8
+            0.8
+
+
+Hit ratio
+                                                                                                                                  0.7
+            0.7
+                                                                                                                                  0.6
+            0.6
+                                                                                                                                  0.5
+                                                                                           block-level                                                                                                          block-level
+            0.5
+                                                                                           session-level                                                                                                        session-level
+                                                                                                                                  0.4
+                      24 GiB            48 GiB                96 GiB               1 TiB                                                   24 GiB            48 GiB                96 GiB               1 TiB
+                                                 Cache size                                                                                                           Cache size
+                                  LRU     S3-FIFO     ARC      RandomCompute                                                                           LRU     S3-FIFO     ARC      RandomCompute
+
+
+
+                               (a) Hit ratio at four capacities.                                                                                (b) Compute savings at four capacities.
+Figure 14: Block-level (solid) vs. session-level (hatched) eviction on the prefix-cache trace. While session-level eviction matches block-level
+performance at large capacities, it degrades under tight constraints.
+
+
+and workload characteristics. If the workload is flooded with                                                           6.2              Interaction with Load Balancing
+an extremely high volume of short, single-turn prompts that
+threatens to overwhelm capacity, systems should enable quick                                                           While routing load balancers often use cache affinity to raise
+demotion (e.g., S3-FIFO) to filter them out early. If the sys-                                                         local reuse, they can create uneven cache pressure across
+tem serves models with heavy attention complexity and long                                                             replicas due to the heavy-tailed session footprints we iden-
+sequences, designers should switch to a compute-aware evic-                                                            tified (§4.5) [24, 65]. Regardless of how a router distributes
+tion algorithm (paired with partial-node granularity) to pri-                                                          these requests across the cluster, our findings and policy de-
+oritize retaining expensive blocks without causing fragmen-                                                            signs remain fully applicable. Once a request lands on a spe-
+tation. When combined with quick demotion, this compute-                                                               cific replica or shared memory pool, the underlying access
+awareness should only be applied to the main cache to pre-                                                             patterns—session-bounded lifetimes (§4.1), concentrated re-
+vent the admission queue from prematurely evicting shallow                                                             cency (§4.2), and varying compute costs (§4.4)—still strictly
+blocks. Finally, if managing a constrained HBM cache, strictly                                                         dictate the cache dynamics. Consequently, our recency-based
+employ block-level eviction to maximize performance; con-                                                              eviction insights, quick demotion, and compute-aware opti-
+versely, if managing a massive secondary KV cache pool,                                                                mizations hold true as the foundational eviction layer beneath
+designers can flexibly choose either block-level or session-                                                           any load balancing strategy.
+level eviction, since the latter drastically reduces metadata
+overhead without incurring a performance penalty.
+                                                                                                                        6.3              SSD Offloading
+                                                                                                                       Given the extremely short, session-bounded lifetimes of
+                                                                                                                       prefix-cache blocks (§4.1), offloading evicted blocks from
+6                 Discussion                                                                                           HBM to an SSD tier [40] is generally unnecessary for most
+                                                                                                                       workloads, as the working set churns away before the SSD
+                                                                                                                       capacity provides any benefit. However, in specific cases
+6.1                Other Attention Designs                                                                             where workloads exhibit long-tail reuse or extreme capac-
+                                                                                                                       ity demands, SSD offloading may still be deployed. In these
+While blocks are uniformly sized, the underlying attention                                                             scenarios, a practical SSD tier must employ strict selective
+mechanism dictates a highly variable recomputation cost.                                                               admission to preserve limited flash endurance [52] while cap-
+Our three cost models ablate this dynamic, spanning from                                                               turing the narrow window of actual reuse [19, 44].
+a uniform-cost baseline (§3.2) to the Qwen3-Coder-30B cost
+(§5.2) and an idealized linear model (Appendix C). Alterna-
+tive attention designs dictate where a given deployment falls                                                           7               Related Work
+within this spectrum. Sliding-window attention [25] caps cost
+growth with prefix depth and moves the objective closer to                                                              Prefix caching and storage. vLLM [29] and SGLang [77] en-
+constant cost, while in hybrid attention models [37], the ben-                                                          able prefix reuse via paged and radix-tree KV caches. Moon-
+efit scales with the share of full-attention layers. GQA [2],                                                           cake, Strata, and PTStore [43,51,68] extend KV storage across
+MQA [54], MLA [17], cross-layer KV sharing [9], and KV                                                                  GPU memory, host memory, SSDs, and remote nodes. Cache-
+quantization [42] can also change recomputation cost. These                                                             dAttention and IMPRESS [14, 23] manage retention across
+designs require recalibrating the cost model, while the reuse                                                           these tiers. We study the replacement policy within such mech-
+patterns in §4 still apply.                                                                                             anisms and how it should change with the memory tier.
+
+
+                                                                                                           12
+Prefix-cache eviction. Recent policies predict session con-             provide a concrete foundation for scalable prefix caching.
+tinuation, partition workloads, or rank blocks using recency,
+frequency, and semantic features [20, 34, 46, 56, 64, 70]. Mar-
+coni [47] models compute saved per byte for hybrid attention            References
+models. We instead compare classical, learned, and prefix-
+specific policies over two production traces and a wide capac-           [1] Reyna Abhyankar, Zijian He, Vikranth Srivatsa, Hao
+ity range, then explain their behavior through session-bounded               Zhang, and Yiying Zhang. InferCept: Efficient intercept
+reuse, frequency (accesses per object), non-uniform miss cost,               support for augmented large language model inference.
+and session footprint. These properties motivate our compute-                In Proceedings of the 41st International Conference on
+aware and tier-dependent designs.                                            Machine Learning (ICML), volume 235, pages 81–95,
+Adjacent cache decisions. CacheWise [60] and KVFlow [48]                     2024.
+use tool or workflow metadata unavailable in the access
+stream to predict reuse. Continuum [31], InferCept [1], and              [2] Joshua Ainslie, James Lee-Thorp, Michiel de Jong,
+EvicPress [21] decide whether to preserve or move one re-                    Yury Zemlyanskiy, Federico Lebrón, and Sumit Sang-
+quest’s context, while cache-aware routers [24, 65] decide                   hai. GQA: Training generalized multi-query transformer
+where a request runs. These signals and decisions comple-                    models from multi-head checkpoints. In Proceedings of
+ment eviction, which determines what remains available at                    the 2023 Conference on Empirical Methods in Natural
+each replica.                                                                Language Processing, 2023.
+Workload characterization. Production studies characterize
+prompt composition, sessions, and observed cache reuse [3,38,            [3] Malika Aubakirova, Alex Atallah, Chris Clark, Justin
+64, 80]. However, existing public traces lack the combination                Summerville, and Anjney Midha. State of ai: An em-
+of agentic traffic, accurate multi-day timestamps, and fine-                 pirical 100 trillion token study with openrouter. arXiv
+grained block hashes necessary for robust policy simulation.                 preprint arXiv:2601.10088, 2026.
+By introducing traces with these properties, our controlled
+trace replay enables comparing eviction policies and their               [4] Yushi Bai, Xin Lv, Jiajie Zhang, Hongchang Lyu, Jiankai
+offline optimum on the same request stream.                                  Tang, Zhidian Huang, Zhengxiao Du, Xiao Liu, Aohan
+Approximate KV-cache management. H2O [76], Scis-                             Zeng, Lei Hou, et al. LongBench: A bilingual, mul-
+sorhands [41], StreamingLLM [67], and SnapKV [35] remove                     titask benchmark for long context understanding. In
+KV entries within one active context; Quest [58] and Infini-                 Proceedings of the 62nd annual meeting of the asso-
+Gen [30] skip or prefetch them. These methods may trade                      ciation for computational linguistics (volume 1: Long
+output quality for per-request memory, whereas our cross-                    papers), pages 3119–3137, 2024.
+request blocks are exactly reconstructible and a miss costs
+                                                                         [5] Nathan Beckmann, Haoxian Chen, and Asaf Cidon.
+prefill compute. Our evaluated policies draw from classical
+                                                                             LHD: Improving cache hit rate by maximizing hit den-
+recency, frequency, admission, adaptive, analytic, and learned
+                                                                             sity. In 15th USENIX Symposium on Networked Systems
+replacement [5, 26, 45, 57, 62, 73, 78], with Belady’s algorithm
+                                                                             Design and Implementation (NSDI 18), pages 389–403,
+as the offline optimum [6].
+                                                                             2018.
+
+8   Conclusion                                                           [6] Laszlo A. Belady. A study of replacement algorithms
+                                                                             for a virtual-storage computer. IBM Systems journal,
+As LLM serving scales, prefix caching has become essen-                      5(2):78–101, 1966.
+tial to bypass expensive prefill recomputations, yet we find
+that advanced eviction algorithms built for traditional stor-            [7] Benjamin Berg, Daniel S. Berger, Sara McAllister, Isaac
+age yield surprisingly little improvement over simple LRU.                   Grosof, Sathya Gunasekar, Jimmy Lu, Michael Uhlar,
+Our systematic trace analysis uncovers the root cause: pre-                  Jim Carrig, Nathan Beckmann, Mor Harchol-Balter, and
+fix reuse follows the steady pacing of active sessions, mak-                 Gregory R. Ganger. The CacheLib caching engine: De-
+ing recency very crucial and rendering frequency-based sig-                  sign and experiences at scale. In 14th USENIX Sympo-
+nals ineffective. We also identify unique challenges in prefix               sium on Operating Systems Design and Implementation
+caching: highly non-uniform miss costs that scale with depth                 (OSDI 20), 2020.
+and heavy-tailed session footprints. To optimize beyond sim-
+ple hit ratios, systems must retain a recency foundation but             [8] Daniel S. Berger, Ramesh K. Sitaraman, and Mor
+augment it conditionally: deploying quick demotion to filter                 Harchol-Balter. AdaptSize: Orchestrating the hot object
+one-hit wonders, introducing compute-aware eviction to pri-                  memory cache in a content delivery network. In 14th
+oritize expensive blocks, and adapting eviction granularity                  USENIX Symposium on Networked Systems Design and
+to the capacity tier. Together, these targeted optimizations                 Implementation (NSDI 17), pages 483–498, 2017.
+
+
+                                                                   13
+ [9] William Brandon, Mayank Mishra, Aniruddha                       [21] Shaoting Feng, Yuhan Liu, Hanchen Li, Xiaokun Chen,
+     Nrusimha, Rameswar Panda, and Jonathan Ragan-                        Samuel Shen, Kuntai Du, Zhuohan Gu, Rui Zhang,
+     Kelley. Reducing Transformer key-value cache size                    Yuyang Huang, Yihua Cheng, Jiayi Yao, Qizheng Zhang,
+     with cross-layer attention, 2024.                                    Ganesh Ananthanarayanan, and Junchen Jiang. Evic-
+                                                                          Press: Joint KV-cache compression and eviction for
+[10] Lee Breslau, Pei Cao, Li Fan, Graham Phillips, and Scott             efficient LLM serving, 2025.
+     Shenker. Web caching and Zipf-like distributions: Ev-
+     idence and implications. In Proceedings of IEEE IN-             [22] FreeInference. https://freeinference.org/.
+     FOCOM ’99: Eighteenth Annual Joint Conference of
+     the IEEE Computer and Communications Societies, vol-            [23] Bin Gao, Zhuomin He, Puru Sharma, Qingxuan Kang,
+     ume 1, pages 126–134, 1999.                                          Djordje Jevdjic, Junbo Deng, Xingkun Yang, Zhou Yu,
+                                                                          and Pengfei Zuo. Cost-efficient large language model
+[11] Tom Brown, Benjamin Mann, Nick Ryder, Melanie                        serving for multi-turn conversations with CachedAtten-
+     Subbiah, Jared D Kaplan, Prafulla Dhariwal, Arvind                   tion. In 2024 USENIX Annual Technical Conference
+     Neelakantan, Pranav Shyam, Girish Sastry, Amanda                     (ATC), pages 111–126, 2024.
+     Askell, et al. Language models are few-shot learn-
+                                                                     [24] Philip Hayes. Accelerate multi-turn LLM workloads on
+     ers. Advances in neural information processing systems,
+                                                                          OpenShift AI with llm-d intelligent routing, 2026.
+     33:1877–1901, 2020.
+                                                                     [25] Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch,
+[12] cacheMon.      The cacheMon cache trace col-
+                                                                          Chris Bamford, Devendra Singh Chaplot, Diego de las
+     lection.  https://github.com/cacheMon/cache_
+                                                                          Casas, et al. Mistral 7B, 2023.
+     dataset, 2024. Accessed September 2026.
+                                                                     [26] Song Jiang and Xiaodong Zhang. LIRS: An efficient
+[13] Character.AI. Optimizing AI inference at Character.AI,
+                                                                          low inter-reference recency set replacement policy to
+     2024.
+                                                                          improve buffer cache performance. In Proceedings of
+[14] Weijian Chen, Shuibing He, Haoyang Qu, Ruidong                       the 2002 ACM SIGMETRICS International Conference
+     Zhang, Siling Yang, Ping Chen, Yi Zheng, Baoxing Huai,               on Measurement and Modeling of Computer Systems,
+     and Gang Chen. IMPRESS: An importance-informed                       2002.
+     multi-tier prefix KV storage system for large language
+                                                                     [27] Jared Kaplan, Sam McCandlish, Tom Henighan, Tom B
+     model inference. In 23rd USENIX Conference on File
+                                                                          Brown, Benjamin Chess, Rewon Child, Scott Gray,
+     and Storage Technologies (FAST), pages 187–202, 2025.
+                                                                          Alec Radford, Jeffrey Wu, and Dario Amodei. Scal-
+[15] Ludmila Cherkasova. Improving WWW proxies perfor-                    ing laws for neural language models. arXiv preprint
+     mance with Greedy-Dual-Size-Frequency caching pol-                   arXiv:2001.08361, 2020.
+     icy. Technical Report HPL-98-69R1, Hewlett-Packard
+                                                                     [28] Swaroop Kavalanekar, Bruce Worthington, Qi Zhang,
+     Laboratories, November 1998.
+                                                                          and Vishal Sharda. Characterization of storage workload
+[16] Chutes. https://chutes.ai/.                                          traces from production Windows servers. In 2008 IEEE
+                                                                          International Symposium on Workload Characterization
+[17] DeepSeek-AI. DeepSeek-V2: A strong, economical,                      (IISWC), pages 119–128, 2008.
+     and efficient mixture-of-experts language model, 2024.
+                                                                     [29] Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying
+[18] Gil Einziger, Roy Friedman, and Ben Manes. TinyLFU:                  Sheng, Lianmin Zheng, Cody Hao Yu, Joseph Gonzalez,
+     A highly efficient cache admission policy. ACM Trans-                Hao Zhang, and Ion Stoica. Efficient memory manage-
+     actions on Storage, 13(4), 2017.                                     ment for large language model serving with pagedatten-
+                                                                          tion. In Proceedings of the 29th symposium on operating
+[19] Assaf Eisenman, Asaf Cidon, Evgenya Pergament,                       systems principles, pages 611–626, 2023.
+     Or Haimovich, Ryan Stutsman, Mohammad Alizadeh,
+     and Sachin Katti. Flashield: a hybrid key-value cache           [30] Wonbeom Lee, Jungi Lee, Junghwan Seo, and Jaewoong
+     that controls flash write amplification. In 16th USENIX              Sim. InfiniGen: Efficient generative inference of large
+     Symposium on Networked Systems Design and Imple-                     language models with dynamic KV cache management.
+     mentation (NSDI 19), 2019.                                           In 18th USENIX Symposium on Operating Systems De-
+                                                                          sign and Implementation (OSDI), pages 155–172, 2024.
+[20] Shaoke Fang, Ziang Li, Wenfei Wu, Jiatong Ji, Qing-
+     song Liu, and Ruizhi Pu. Not all tokens are worth               [31] Hanchen Li, Runyuan He, Qiuyang Mang, Qizheng
+     caching: Learning semantic-aware eviction for LLM                    Zhang, Huanzhi Mao, Xiaokun Chen, Hangrui Zhou,
+     prefix caches, 2026.                                                 Huanchen Zhang, Alvin Cheung, Joseph Gonzalez, and
+
+
+                                                                14
+     Ion Stoica. Continuum: Efficient and robust multi-              [41] Zichang Liu, Aditya Desai, Fangshuo Liao, Weitao
+     turn LLM agent scheduling with KV cache time-to-live,                Wang, Victor Xie, Zhaozhuo Xu, Anastasios Kyrillidis,
+     2025.                                                                and Anshumali Shrivastava. Scissorhands: Exploiting
+                                                                          the persistence of importance hypothesis for LLM KV
+[32] Jinhong Li, Qiuping Wang, Patrick P. C. Lee, and Chao                cache compression at test time. In Advances in Neural
+     Shi. An in-depth analysis of cloud block storage work-               Information Processing Systems 36 (NeurIPS), pages
+     loads in large-scale production. In 2020 IEEE In-                    52342–52364, 2023.
+     ternational Symposium on Workload Characterization
+     (IISWC), pages 37–47, 2020.                                     [42] Zirui Liu, Jiayi Yuan, Hongye Jin, Shaochen Zhong,
+                                                                          Zhaozhuo Xu, Vladimir Braverman, Beidi Chen, and
+[33] Keyu Li, Junhao Shi, Yang Xiao, Mohan Jiang, Jie Sun,
+                                                                          Xia Hu. KIVI: A tuning-free asymmetric 2bit quantiza-
+     Yunze Wu, Dayuan Fu, Shijie Xia, Xiaojie Cai, Tianze
+                                                                          tion for KV cache. In Proceedings of the 41st Interna-
+     Xu, Weiye Si, Wenjie Li, Dequan Wang, and Pengfei
+                                                                          tional Conference on Machine Learning, 2024.
+     Liu. AgencyBench: Benchmarking the frontiers of
+     autonomous agents in 1M-Token real-world contexts,              [43] Meghana Madhyastha, Robert Underwood, Randal
+     2026.                                                                Burns, and Bogdan Nicolae. PTStore (prefix tensor
+[34] Yuhang Li, Rong Gu, Chengying Huan, Zhibin Wang,                     store): Distributed prefix caching and replication for
+     Renjie Yao, Chen Tian, and Guihai Chen. HotPrefix:                   high throughput inference serving, 2026.
+     Hotness-aware KV cache scheduling for efficient prefix          [44] Sara McAllister, Benjamin Berg, Julian Tutuncu-Macias,
+     sharing in LLM inference systems. Proceedings of the                 Juncheng Yang, Sathya Gunasekar, Jimmy Lu, Daniel S.
+     ACM on Management of Data, 3(4), 2025. Article 250                   Berger, Nathan Beckmann, and Mor Harchol-Balter.
+     (SIGMOD).                                                            Kangaroo: Caching billions of tiny objects on flash. In
+[35] Yuhong Li, Yingbing Huang, Bowen Yang, Bharat                        Proceedings of the ACM SIGOPS 28th Symposium on
+     Venkitesh, Acyr Locatelli, Hanchen Ye, Tianle Cai,                   Operating Systems Principles, 2021.
+     Patrick Lewis, and Deming Chen. SnapKV: LLM knows
+                                                                     [45] Nimrod Megiddo and Dharmendra S. Modha. ARC: A
+     what you are looking for before generation. In Advances
+                                                                          self-tuning, low overhead replacement cache. In 2nd
+     in Neural Information Processing Systems 37 (NeurIPS),
+                                                                          USENIX Conference on File and Storage Technologies
+     pages 22947–22970, 2024.
+                                                                          (FAST 03), 2003.
+[36] Zongxia Li, Zhongzhi Li, Yucheng Shi, Ruhan Wang,
+                                                                     [46] Bei Ouyang, Yifan Qiao, and Jiarong Xing. UniCache:
+     Junyao Yang, Zhichao Liu, Xiyang Wu, Anhao Li, Yue
+                                                                          Unifying prefix cache eviction for heterogeneous LLM
+     Yu, Ninghao Liu, Lichao Sun, Haotao Mi, and Leowei
+                                                                          serving workloads. Proceedings of the ACM on Mea-
+     Liang. Long-Horizon-Terminal-Bench: Testing the lim-
+                                                                          surement and Analysis of Computing Systems, 10(2),
+     its of agents on long-horizon terminal tasks with dense
+                                                                          2026. Article 54.
+     reward-based grading, 2026.
+[37] Opher Lieber, Barak Lenz, Hofit Bata, Gal Cohen,                [47] Rui Pan, Zhuang Wang, Zhen Jia, Can Karakus, Luca
+     Jhonathan Osin, Itay Dalmedigos, et al. Jamba: A hybrid              Zancato, Tri Dao, Yida Wang, and Ravi Netravali. Mar-
+     Transformer-Mamba language model, 2024.                              coni: Prefix caching for the era of hybrid LLMs. In
+                                                                          Proceedings of Machine Learning and Systems (MLSys),
+[38] Banruo Liu, Haoran Qiu, Íñigo Goiri, Rodrigo Fonseca,                2025.
+     Ricardo Bianchini, and Esha Choukse. Agentic coding
+     in the wild: Characterizing GitHub Copilot at production        [48] Zaifeng Pan, Ajjkumar Patel, Zhengding Hu, Yipeng
+     scale, 2026.                                                         Shen, Yue Guan, Wan-Lu Li, Lianhui Qin, Yida Wang,
+                                                                          and Yufei Ding. KVFlow: Efficient prefix caching for
+[39] Nelson F Liu, Kevin Lin, John Hewitt, Ashwin Paran-                  accelerating LLM-based multi-agent workflows, 2025.
+     jape, Michele Bevilacqua, Fabio Petroni, and Percy
+     Liang. Lost in the middle: How language models use              [49] Joon Sung Park, Joseph O’Brien, Carrie Jun Cai, Mered-
+     long contexts. Transactions of the association for com-              ith Ringel Morris, Percy Liang, and Michael S Bernstein.
+     putational linguistics, 12:157–173, 2024.                            Generative agents: Interactive simulacra of human be-
+                                                                          havior. In Proceedings of the 36th annual acm sympo-
+[40] Yuhan Liu, Jiayi Yao, Yihua Cheng, Yuwei An, Xiaokun                 sium on user interface software and technology, pages
+     Chen, Shaoting Feng, Yuyang Huang, Samuel Shen, Rui                  1–22, 2023.
+     Zhang, Kuntai Du, and Junchen Jiang. LMCache: An
+     efficient KV cache layer for enterprise-scale LLM infer-        [50] Purav. Why Manus agents don’t break the cache and
+     ence, 2025.                                                          yours probably do, 2025.
+
+
+                                                                15
+[51] Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng               [62] Giuseppe Vietri, Liana V. Rodriguez, Wendy A. Mar-
+     Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng,                        tinez, Steven Lyons, Jason Liu, Raju Rangaswami, Ming
+     and Xinran Xu. Mooncake: Trading more storage for                     Zhao, and Giri Narasimhan. Driving cache replacement
+     less computation—a KVCache-centric architecture for                   with ML-based LeCaR. In 10th USENIX Workshop on
+     serving LLM chatbot. In 23rd USENIX conference on                     Hot Topics in Storage and File Systems (HotStorage 18).
+     file and storage technologies (FAST 25), pages 155–170,               USENIX Association, 2018.
+     2025.
+                                                                      [63] Carl A. Waldspurger, Nohhyun Park, Alexander Garth-
+[52] Bianca Schroeder, Raghav Lagisetty, and Arif Merchant.                waite, and Irfan Ahmad. Efficient MRC construction
+     Flash reliability in production: The expected and the                 with SHARDS. In 13th USENIX Conference on File
+     unexpected. In 14th USENIX Conference on File and                     and Storage Technologies (FAST), pages 95–110, 2015.
+     Storage Technologies (FAST 16), 2016.
+                                                                      [64] Jiahao Wang, Jinbo Han, Xingda Wei, Sijie Shen,
+[53] SemiAnalysis. AgentX methodology and datasets                         Dingyan Zhang, Chenguang Fang, Rong Chen, Wenyuan
+     (v1.0).      https://inferencex.semianalysis.                         Yu, and Haibo Chen. Kvcache cache in the wild: Char-
+     com/agentx, 2026.      Trace corpus at https:                         acterizing and optimizing kvcache cache at a large cloud
+     //huggingface.co/datasets/semianalysisai/                             provider. In 2025 USENIX Annual Technical Conference
+     cc-traces-weka-062126. Accessed September 2026.                       (USENIX ATC 25). USENIX Association, July 2025.
+[54] Noam Shazeer. Fast Transformer decoding: One write-
+                                                                      [65] Jiahao Wang, Kaizhan Lin, Kaixi Zhang, Jinbo Han,
+     head is all you need, 2019.
+                                                                           Xingda Wei, Sijie Shen, Chenguang Fang, Wenyuan Yu,
+[55] Sheng Shen, Le Hou, Yanqi Zhou, Nan Du, Shayne                        Rong Chen, and Haibo Chen. SMetric: Rethink LLM
+     Longpre, Jason Wei, Hyung Won Chung, Barret Zoph,                     scheduling for serving agents with balanced session-
+     William Fedus, Xinyun Chen, et al.      Mixture-of-                   centric scheduling, 2026.
+     experts meets instruction tuning: A winning combi-
+     nation for large language models. arXiv preprint                 [66] Haocheng Xia, William Nixon, Bintang Dwi Marthen,
+     arXiv:2305.14705, 2023.                                               Pranav Bhandari, and Juncheng Yang.           Learning-
+                                                                           augmented heuristics: Simple yet smart, robust and inter-
+[56] Chunan Shi, Yilei Chen, Yilin Chen, Xupeng Miao, and                  pretable cache eviction. In 20th USENIX Symposium on
+     Bin Cui. Multi-segment attention: Enabling efficient                  Operating Systems Design and Implementation (OSDI
+     KV-Cache management for faster large language model                   26), pages 2241–2259, 2026.
+     serving, 2026.
+                                                                      [67] Guangxuan Xiao, Yuandong Tian, Beidi Chen, Song
+[57] Zhenyu Song, Daniel S. Berger, Kai Li, and Wyatt Lloyd.               Han, and Mike Lewis. Efficient streaming language
+     Learning relaxed belady for content distribution network              models with attention sinks. In The Twelfth Interna-
+     caching. In 17th USENIX Symposium on Networked Sys-                   tional Conference on Learning Representations (ICLR),
+     tems Design and Implementation (NSDI 20). USENIX                      2024.
+     Association, 2020.
+                                                                      [68] Zhiqiang Xie, Ziyi Xu, Mark Zhao, Yuwei An,
+[58] Jiaming Tang, Yilong Zhao, Kan Zhu, Guangxuan Xiao,                   Vikram Sharma Mailthody, Scott Mahlke, Michael Gar-
+     Baris Kasikci, and Song Han. QUEST: Query-aware                       land, and Christos Kozyrakis. Strata: Hierarchical con-
+     sparsity for efficient long-context LLM inference. In                 text caching for long context language model serving.
+     Proceedings of the 41st International Conference on                   arXiv preprint arXiv:2508.18572, 2025.
+     Machine Learning (ICML), pages 47901–47911, 2024.
+                                                                      [69] Zhangchen Xu, Junda Chen, Yue Huang, Dongfu Jiang,
+[59] Qwen Team. Qwen3 technical report, 2025.
+                                                                           Jiefeng Chen, Hang Hua, Zijian Wu, Zheyuan Liu,
+[60] Shubham Tiwari, Tapan Chugh, Nash Rickert, Simon                      Zexue He, Lichi Li, Shizhe Diao, Jiaxin Pei, Jinsung
+     Peter, Ratul Mahajan, and Haiying Shen. CacheWise:                    Yoon, Hao Zhang, Mengdi Wang, Radha Poovendran,
+     Understanding workloads and optimizing KVCache                        Misha Sra, Alex Pentland, and Zichen Chen. AutoLab:
+     management for efficiently serving LLM coding agents,                 Can frontier models solve long-horizon auto research
+     2026.                                                                 and engineering tasks?, 2026.
+
+[61] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob                 [70] Dongsheng Yang, Austin Li, Kai Li, and Wyatt Lloyd.
+     Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser,                 Learned prefix caching for efficient LLM inference. In
+     and Illia Polosukhin. Attention is all you need. Advances             Advances in Neural Information Processing Systems
+     in neural information processing systems, 30, 2017.                   (NeurIPS), 2025.
+
+
+                                                                 16
+[71] Juncheng Yang. libCacheSim: A high-performance li-              Table 6: Sizes of the four Qwen Bailian traces and the two production
+     brary for building cache simulators. https://github.            traces.
+     com/1a1a11a/libCacheSim, 2024. Accessed Septem-
+     ber 2026.                                                               Trace                   Requests     Block accesses
+                                                                             Qwen To-C                 43.1 K              6.3 M
+[72] Juncheng Yang, Yao Yue, and Rashmi Vinayak. A large                     Qwen To-B                172.8 K             10.0 M
+     scale analysis of hundreds of in-memory cache clusters                  Qwen Coder                43.0 K             15.5 M
+     at Twitter. In 14th USENIX Symposium on Operating                       Qwen Thinking             10.8 K              3.2 M
+     Systems Design and Implementation (OSDI 20), pages                      FreeInference Trace      327.5 K            656.2 M
+     191–208, 2020.                                                          Chutes Trace             515.8 K            603.6 M
+
+[73] Juncheng Yang, Yazhuo Zhang, Ziyue Qiu, Yao Yue,                [80] Kan Zhu, Mathew Jacob, Chenxi Ma, Yi Pan, Stephanie
+     and Rashmi Vinayak. Fifo queues are all you need for                 Wang, Arvind Krishnamurthy, and Baris Kasikci. Trace-
+     cache eviction. In Proceedings of the 29th Symposium                 Lab: Characterizing coding agent workloads for LLM
+     on Operating Systems Principles, pages 130–149, 2023.                serving, 2026.
+
+[74] Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak
+     Shafran, Karthik R Narasimhan, and Yuan Cao. React:             A    Capacity Sweeps
+     Synergizing reasoning and acting in language models.
+                                                                     Sections 4.6 and 3.2 compare policies at four cache capacities
+     In The Eleventh International Conference on Learning
+                                                                     on six traces. Figures 15 and 16 extend this comparison to
+     Representations, 2023.
+                                                                     65 capacities across both cache-size regimes. Both sweeps in-
+                                                                     clude every policy in Figure 2 except LRB. We omit LRB be-
+[75] Yazhuo Zhang, Juncheng Yang, Yao Yue, Ymir Vig-
+                                                                     cause it is prohibitively slow to sweep and never outperforms
+     fusson, and K. V. Rashmi. SIEVE is simpler than LRU:
+                                                                     LeCaR at the four sampled capacities on either production
+     An efficient turn-key eviction algorithm for web caches.
+                                                                     trace.
+     In 21st USENIX Symposium on Networked Systems De-
+                                                                        The denser sweeps expose two behaviors hidden by the
+     sign and Implementation (NSDI 24), 2024.
+                                                                     four sampled capacities. First, the gains from quick demotion
+                                                                     can reverse as capacity grows. On Qwen To-C, for example,
+[76] Zhenyu Zhang, Ying Sheng, Tianyi Zhou, Tianlong
+                                                                     LIRS moves from 4.2 points above LRU to 10.1 points below
+     Chen, Lianmin Zheng, Ruisi Cai, Zhao Song, Yuandong
+                                                                     it at 724 GB before converging again. Second, W-TinyLFU
+     Tian, Christopher Ré, Clark Barrett, Zhangyang Wang,
+                                                                     is nonmonotonic in cache size. On FreeInference Trace, its
+     and Beidi Chen. H2O: Heavy-hitter oracle for efficient
+                                                                     hit ratio rises to 0.866 at 97 GB, falls to 0.759 at 906 GB,
+     generative inference of large language models. In Ad-
+                                                                     and recovers to 0.933 at 12 TB. Thus, comparisons at a few
+     vances in Neural Information Processing Systems 36
+                                                                     capacities can hide both policy crossovers and nonmonotonic
+     (NeurIPS), pages 34661–34710, 2023.
+                                                                     behavior.
+[77] Lianmin Zheng, Liangsheng Yin, Zhiqiang Xie, Chuyue
+     Sun, Jeff Huang, Cody H Yu, Shiyi Cao, Christos                 B    Sensitivity Analysis of Concurrency
+     Kozyrakis, Ion Stoica, Joseph E Gonzalez, et al.
+     SGLang: Efficient execution of structured language              FreeInference Trace has relatively low session concurrency,
+     model programs. Advances in neural information pro-             averaging about 12 concurrent sessions, and every policy ex-
+     cessing systems, 37:62557–62583, 2024.                          cept W-TinyLFU remains within roughly one point of LRU
+                                                                     across the capacity sweep (Figure 16a). To isolate the effect
+[78] Wenbin Zhou, Zhixiong Niu, Yongqiang Xiong, Juan                of concurrency, we fix the cache at 48 GiB in HBM and 1 TiB
+     Fang, and Qian Wang. 3L-Cache: Low overhead and pre-            in the pool, then synthetically vary session concurrency (Fig-
+     cise learning-based eviction policy for caches. In 23rd         ure 18). We extract the multi-turn sessions from FreeInference
+     USENIX Conference on File and Storage Technologies              Trace, truncate them where concurrency begins to collapse in
+     (FAST 25). USENIX Association, 2025.                            the 1024-concurrency replay, and rescale their arrival times
+                                                                     at each target concurrency. Every point therefore replays the
+[79] Yanqi Zhou, Tao Lei, Hanxiao Liu, Nan Du, Yanping               same 73,637 requests, with concurrency as the only varied
+     Huang, Vincent Zhao, Andrew M Dai, Quoc V Le, James             factor. Because truncation retains the earlier portion of each
+     Laudon, et al. Mixture-of-experts with expert choice            session, the absolute hit ratios should not be compared with
+     routing. Advances in Neural Information Processing              §3.1; the trend across concurrency is the relevant result.
+     Systems, 35:7103–7114, 2022.                                       Hit ratio declines for every policy as concurrency increases,
+
+
+                                                                17
+                                             Cache size (blocks)                                                                                           Cache size (blocks)
+                                      100k                          1M                                                                             100k                            1M
+                  HBM per-replica (24–120 GiB)          DRAM–SSD pool (0.25–12 TiB)                                            HBM per-replica (24–120 GiB)         DRAM–SSD pool (0.25–12 TiB)
+            0.6                                                                                                        0.54
+
+                                                                                                                       0.52
+            0.5
+                                                                                                                       0.50
+
+
+
+
+Hit ratio                                                                                                  Hit ratio
+                                                                                                                       0.48
+            0.4
+                                                                                                                       0.46
+
+            0.3                                                                                                        0.44
+                                                         LRU             LIRS        3LCache                                                                          LRU           LIRS        3LCache
+                                                         Sieve           LHD         Workload-aware                    0.42                                           Sieve         LHD         Workload-aware
+            0.2                                          S3-FIFO         LFU         AsymCache                                                                        S3-FIFO       LFU         AsymCache
+                                                         S4-FIFO         W-TinyLFU   Belady (OPT)                      0.40                                           S4-FIFO       W-TinyLFU   Belady (OPT)
+                                                         ARC             LeCaR                                                                                        ARC           LeCaR
+
+                                100 GiB                     1 TiB                           10 TiB                                          100 GiB                        1 TiB                       10 TiB
+                                             Cache size (GiB, log)                                                                                        Cache size (GiB, log)
+
+                                             (a) Qwen To-C.                                                                                               (b) Qwen To-B.
+
+                                             Cache size (blocks)                                                                                           Cache size (blocks)
+                                      100k                          1M                                                                              100k                           1M
+            0.7   HBM per-replica (24–120 GiB)          DRAM–SSD pool (0.25–12 TiB)                                    0.475    HBM per-replica (24–120 GiB)         DRAM–SSD pool (0.25–12 TiB)
+
+                                                                                                                       0.450
+            0.6
+                                                                                                                       0.425
+
+                                                                                                                       0.400
+
+
+Hit ratio                                                                                                  Hit ratio
+            0.5
+                                                                                                                       0.375
+
+                                                                                                                       0.350
+            0.4
+                                                         LRU             LIRS        3LCache                           0.325                                          LRU           LIRS        3LCache
+                                                         Sieve           LHD         Workload-aware                                                                   Sieve         LHD         Workload-aware
+                                                         S3-FIFO         LFU         AsymCache                         0.300                                          S3-FIFO       LFU         AsymCache
+                                                         S4-FIFO         W-TinyLFU   Belady (OPT)                                                                     S4-FIFO       W-TinyLFU   Belady (OPT)
+            0.3
+                                                         ARC             LeCaR                                                                                        ARC           LeCaR
+                                                                                                                       0.275
+                                100 GiB                     1 TiB                           10 TiB                                           100 GiB                       1 TiB                       10 TiB
+                                             Cache size (GiB, log)                                                                                        Cache size (GiB, log)
+
+                                             (c) Qwen Coder.                                                                                          (d) Qwen Thinking.
+
+Figure 15: Block hit ratio against cache size on the four Qwen Bailian traces, over the two cache-size regimes of §3.1. Figure 11 reports the
+corresponding comparison at four capacities.
+
+
+including the offline optimum. At 48 GiB, Belady falls from                                                 C                 Compute Savings under the Linear Cost
+0.926 at concurrency 8 to 0.713 at concurrency 32, while LRU                                                                  Model
+falls from 0.898 to 0.517.
+                                                                                                           §5.2 reports compute savings under the measured Qwen3-
+                                                                                                           Coder-30B cost model. Figure 19 repeats that measurement
+                                                                                                           under a linear cost, the extreme case in which the attention
+                                                                                                           matrix multiplication dominates and a block’s recompute cost
+                                                                                                           is proportional to its depth in the prompt. The two models
+   Policy differences also widen because concurrency in-                                                   rank the policies identically, and every claim in §5.2 holds
+creases the stack distance between reuses. In the HBM regime,                                              here with a slightly wider margin.
+the fraction of reuses reachable within 48 GiB falls from                                                     Compute-awareness pays more under the linear model,
+92.5% at concurrency 8 to 50.1% at concurrency 32. Blocks                                                  as expected: it is the model with the larger spread in per-
+that will be reused later in a multi-turn session thus behave                                              block cost, because the measured profile adds a large position-
+as one-hit blocks within the cache horizon, making quick de-                                               independent term that shallow and deep blocks both pay. At
+motion more effective (§5.1). At concurrency 32, S3-FIFO                                                   24 GiB, RandomCompute saves 0.646 against LRU’s 0.524, a
+reaches 0.573, compared with LRU’s 0.517. The pool regime                                                  margin of 12.2 points where the measured model gives 10.4,
+shows the same effect: at concurrency 1024, only 54.1% of                                                  and it clears the hit-optimal Belady oracle by 4.7 points rather
+reuses are reachable within 1 TiB, and S3-FIFO, ARC, and                                                   than 2.9. The gap between the two oracles widens the same
+LIRS overtake the other online policies. W-TinyLFU’s flat-                                                 way: BeladyCompute reaches 0.745 against Belady’s 0.599,
+ter curve in this regime is a floor effect. Its frequency filter                                           or 14.6 points, against 12.6 under the measured model.
+already discards useful blocks when capacity is abundant,                                                     BeladyCompute remains a close approximation of the of-
+leaving less performance to lose as concurrency rises.                                                     fline optimum: it is 0.95 points below the ILP solution at
+
+
+                                                                                                      18
+                                             Cache size (blocks)                                                                                            Cache size (blocks)
+                                      100k                           1M                                                                            100k                            1M
+                  HBM per-replica (24–120 GiB)          DRAM–SSD pool (0.25–12 TiB)                                      0.8   HBM per-replica (24–120 GiB)            DRAM–SSD pool (0.25–12 TiB)
+
+
+            0.9
+                                                                                                                         0.7
+
+            0.8
+
+
+Hit ratio                                                                                                   Hit ratio
+                                                                                                                         0.6
+
+            0.7
+
+                                                                                                                         0.5
+                                                          LRU             LIRS        3LCache                                                                           LRU             LIRS        3LCache
+            0.6                                           Sieve           LHD         Workload-aware                                                                    Sieve           LHD         Workload-aware
+                                                          S3-FIFO         LFU         AsymCache                                                                         S3-FIFO         LFU         AsymCache
+                                                          S4-FIFO         W-TinyLFU   Belady (OPT)                       0.4                                            S4-FIFO         W-TinyLFU   Belady (OPT)
+                                                          ARC             LeCaR                                                                                         ARC             LeCaR
+            0.5
+                                100 GiB                      1 TiB                            10 TiB                                         100 GiB                       1 TiB                           10 TiB
+                                             Cache size (GiB, log)                                                                                        Cache size (GiB, log)
+
+                                       (a) FreeInference Trace.                                                                                           (b) Chutes Trace.
+
+Figure 16: Block hit ratio against cache size on the two production traces of §3.2. Figure 2 reports the corresponding comparison at four
+capacities.
+
+
+                                             Cache size (blocks)                                                                          LRU          S3-FIFO     W-TinyLFU             LIRS
+                                      100k                           1M                                                                   FIFO         Sieve       ARC                   Belady (OPT)
+            1.0   HBM per-replica (24–120 GiB)          DRAM–SSD pool (0.25–12 TiB)
+
+
+
+            0.9                                                                                                                         (a) HBM, 48 GiB                             (b) pool, 1 TiB
+
+                                                                                                                         0.9
+
+
+Hit ratio
+            0.8
+
+
+            0.7
+
+
+
+                                                                                                             Hit ratio
+                                                         LRU              LIRS        3LCache
+                                                                                                                         0.7
+            0.6                                          Sieve            LHD         Workload-aware
+                                                         S3-FIFO          LFU         AsymCache
+                                                         S4-FIFO          W-TinyLFU   Belady (OPT)
+                                                         ARC              LeCaR
+            0.5
+                                100 GiB                      1 TiB                           10 TiB
+                                             Cache size (GiB, log)                                                       0.5
+
+
+                                                                                                                               8          16           24         32   128                512                1024
+Figure 17: Block hit ratio against cache size on AgentX. Sampled at                                                                 Concurrency (48 GiB)                          Concurrency (1 TiB)
+26 capacities over the same range as Figures 15 and 16; Figure 11
+reports the corresponding comparison at four capacities.                                                     Figure 18: Hit ratio against session concurrency at a fixed cache size,
+                                                                                                             on the synthetic multi-turn trace, in the per-replica HBM regime (a)
+24 GiB, 0.40 at 48 GiB and 0.08 at 96 GiB, matching the mea-                                                 and the DRAM/SSD pool regime (b); the two panels share a y axis.
+sured model to within 0.1 points at every cache size. Partial-                                               Every point replays the same set of requests.
+node eviction stays close to free under both: at 24 GiB it gives
+                                                                                                             into longer runs: mean hole length rises from 85.5 to 742.6
+up 0.17 points of compute savings under the measured model
+                                                                                                             blocks, while the fraction of holes no longer than two blocks
+and 0.03 under the linear one, so the fragmentation fix does
+                                                                                                             falls from 56.6% to 0.8%.
+not become more expensive when deep blocks are weighted
+more heavily. Past the per-replica regime the choice of cost
+model stops mattering: at 1 TiB every policy in the figure,
+both oracles included, lies within 0.2 points of the others.
+
+
+D                 Recompute Fragmentation
+Figure 20 gives the distributions behind the averages reported
+in §5.2. Both policies have a median of one hole per re-
+quest, but RandomCompute’s tail reaches 143 holes at the
+99th percentile and 281 at the maximum, compared with 2
+and 16 under partial-node eviction. The total recompute vol-
+ume is nearly unchanged, at 258.0 M and 257.9 M blocks,
+respectively. Partial-node eviction instead packs this work
+
+
+                                                                                                       19
+                        LRU         S3-FIFO               PartialNode RandomCompute                         BeladyCompute
+                        ARC         RandomCompute         Belady                                            Offline optimum
+                        1.0                             HBM                                                    pool
+
+
+
+
+Compute-savings ratio
+                        0.9
+
+
+                        0.8
+
+
+                        0.7
+
+
+                        0.6
+
+
+                        0.5
+                                    24 GiB             48 GiB                           96 GiB                 1 TiB
+                                                                Cache size
+
+
+
+Figure 19: Compute-savings ratio on the prefix-cache trace under an
+idealized linear cost, where a block’s recompute cost is proportional
+to its position in the prompt. Same policies, colors and capacities as
+Figure 12, which uses the measured cost model.
+
+
+
+
+                                               RandomCompute                        PartialNode
+
+                        1.0                                                       1.0
+
+
+
+
+CDF of requests                                                    CDF of holes
+                        0.5                                                       0.5
+
+
+
+
+                        0.0                                                       0.0
+                              100        101        102                                 100     101   102      103     104
+                                    Holes per request                                          Hole length (blocks)
+
+                              (a) Holes per request.                                          (b) Hole length.
+
+Figure 20: Effect of partial-node eviction on recompute fragmen-
+tation at 24 GiB over the 327,548 requests of FreeInference Trace.
+Partial-node eviction leaves fewer holes per request (a), and those
+holes are longer (b).
+
+
+
+
+                                                                                                                              20
+

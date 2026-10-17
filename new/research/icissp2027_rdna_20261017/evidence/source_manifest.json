@@ -1,0 +1,51 @@
+[
+  {
+    "file": "/home/rock/projects/porto/.venv/lib/python3.13/site-packages/vllm/v1/core/kv_cache_utils.py",
+    "sha256": "539fc3ba734f01044f06f5b1e9c0bb3632eff49a65eed521640cc2bf0b3af6bb",
+    "upstream_url": "https://raw.githubusercontent.com/vllm-project/vllm/v0.17.1/vllm/v1/core/kv_cache_utils.py",
+    "upstream_sha256": "539fc3ba734f01044f06f5b1e9c0bb3632eff49a65eed521640cc2bf0b3af6bb",
+    "matches_v0171": true
+  },
+  {
+    "file": "/home/rock/projects/porto/.venv/lib/python3.13/site-packages/vllm/v1/core/kv_cache_manager.py",
+    "sha256": "fee4f3f63a1ed0478e7c1636a0bb7ce1d5db206e3e547994577984a408959249",
+    "upstream_url": "https://raw.githubusercontent.com/vllm-project/vllm/v0.17.1/vllm/v1/core/kv_cache_manager.py",
+    "upstream_sha256": "fee4f3f63a1ed0478e7c1636a0bb7ce1d5db206e3e547994577984a408959249",
+    "matches_v0171": true
+  },
+  {
+    "file": "/home/rock/projects/porto/.venv/lib/python3.13/site-packages/vllm/v1/core/block_pool.py",
+    "sha256": "2ea932628ac6a06607dd48ded7a908f705b55c3eb6801232264ee2db142c6cd9",
+    "upstream_url": "https://raw.githubusercontent.com/vllm-project/vllm/v0.17.1/vllm/v1/core/block_pool.py",
+    "upstream_sha256": "2ea932628ac6a06607dd48ded7a908f705b55c3eb6801232264ee2db142c6cd9",
+    "matches_v0171": true
+  },
+  {
+    "file": "/home/rock/projects/porto/.venv/lib/python3.13/site-packages/vllm/v1/core/sched/scheduler.py",
+    "sha256": "8231254faa2d2aaeccff2cff309ff60ea90ce7194a81edaddcf6aa806b9f98f1",
+    "upstream_url": "https://raw.githubusercontent.com/vllm-project/vllm/v0.17.1/vllm/v1/core/sched/scheduler.py",
+    "upstream_sha256": "8231254faa2d2aaeccff2cff309ff60ea90ce7194a81edaddcf6aa806b9f98f1",
+    "matches_v0171": true
+  },
+  {
+    "file": "/home/rock/projects/porto/.venv/lib/python3.13/site-packages/vllm/v1/utils.py",
+    "sha256": "625b5649bda0f769ec993f831c4c58318de1d320346d79a3def729de6f554ac7",
+    "upstream_url": "https://raw.githubusercontent.com/vllm-project/vllm/v0.17.1/vllm/v1/utils.py",
+    "upstream_sha256": "625b5649bda0f769ec993f831c4c58318de1d320346d79a3def729de6f554ac7",
+    "matches_v0171": true
+  },
+  {
+    "file": "/home/rock/projects/porto/.venv/lib/python3.13/site-packages/vllm/v1/core/sched/output.py",
+    "sha256": "8eb141c4ec681bb72cf7f66a37ad4d42c6ff321581ef3e003a242ecd4e565439",
+    "upstream_url": "https://raw.githubusercontent.com/vllm-project/vllm/v0.17.1/vllm/v1/core/sched/output.py",
+    "upstream_sha256": "8eb141c4ec681bb72cf7f66a37ad4d42c6ff321581ef3e003a242ecd4e565439",
+    "matches_v0171": true
+  },
+  {
+    "file": "/home/rock/projects/porto/.venv/lib/python3.13/site-packages/vllm/v1/engine/core.py",
+    "sha256": "4c2a0e8fc7c63c1610dbf3c958d78ecc5e2a182f64209c3f65b6f8b9d52f789a",
+    "upstream_url": "https://raw.githubusercontent.com/vllm-project/vllm/v0.17.1/vllm/v1/engine/core.py",
+    "upstream_sha256": "4c2a0e8fc7c63c1610dbf3c958d78ecc5e2a182f64209c3f65b6f8b9d52f789a",
+    "matches_v0171": true
+  }
+]

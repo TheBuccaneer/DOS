@@ -1,0 +1,13 @@
+[
+  {
+    "episode_file": "REPLACE_WITH_EXISTING_EPISODE_PATH.json",
+    "replicate_id": null,
+    "capacity_label": null,
+    "cache_policy": null,
+    "budget_label": null,
+    "condition": null,
+    "nuisance_config_sha256": null,
+    "effective_kv_capacity_tokens": null,
+    "effective_max_num_batched_tokens": null
+  }
+]

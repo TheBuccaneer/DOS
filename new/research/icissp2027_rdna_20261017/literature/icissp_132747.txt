@@ -1,0 +1,552 @@
+    Navigating the Security Challenges of LLMs: Positioning Target-Side
+                  Defenses and Identifying Research Gaps
+
+                                               a                                        b                                 c                     d
+                     Malte Josten                  , Matthias Schaffeld                     , René Lehmann                   and Torben Weis
+                           Department of Distributed Systems, University of Duisburg-Essen, Duisburg, Germany
+
+
+
+
+Keywords:             Large Language Models (LLMs), LLM Misuse, Countermeasure Criteria, Research Gaps.
+
+Abstract:             Large Language Models (LLMs) have revolutionized various domains with their ability to generate human-
+                      like text, yet their misuse has introduced significant cybersecurity risks. Malicious actors exploit LLMs to
+                      create personalized phishing attacks, spread misinformation, and develop sophisticated malware, reducing the
+                      expertise and resources needed to execute such threats. The unrestricted accessibility of some LLMs further
+                      amplifies these risks, as they can circumvent existing safeguards and enhance a range of attack vectors. Current
+                      countermeasures primarily focus on restricting harmful content generation, but challenges persist, especially
+                      with unregulated or open-source LLMs. To address these limitations, a shift toward target-side detection
+                      and mitigation strategies is critical. We examine prevalent LLM-based attack methods and their implications
+                      for cybersecurity, emphasizing the need for robust defenses. We propose five core criteria—adaptability,
+                      compatibility, efficiency, effectiveness, and usability—for designing and evaluating countermeasures. An
+                      assessment of state-of-the-art solutions reveals significant gaps in adaptability and usability, highlighting areas
+                      for improvement. By addressing these challenges, we aim to guide the development of comprehensive security
+                      measures that safeguard the benefits of LLMs while mitigating their potential for misuse, ensuring digital trust
+                      and resilience in the face of evolving threats.
+
+
+
+1        INTRODUCTION                                                                          personation, and even unintentional plagiarism. In
+                                                                                               this regard, malicious actors exploit LLMs to gener-
+Large Language Models (LLMs) have become in-                                                   ate realistic and personalized phishing emails (Heid-
+creasingly ubiquitous, powerful, and accessible.                                               ing et al., 2024; Roy et al., 2024) and to spread mis-
+However, as LLMs are tailored to specific applica-                                             information through the use of credible-sounding but
+tions, their growing capabilities also amplify cyber-                                          false narratives (Kreps et al., 2022; Meier, 2024; Wu
+security risks. While LLMs offer a range of ben-                                               et al., 2024). Consequently, eroding public trust and
+eficial applications, even in the field of cybersecu-                                          destabilizing essential societal services (Guess et al.,
+rity (Falade, 2023; Otieno et al., 2023), malicious                                            2019). LLMs are also capable of memorizing and an-
+actors leverage those capabilities to conduct malev-                                           alyzing vast amounts of data, creating new avenues
+olent operations targeting text-based applications and                                         for cybersecurity threats. As such, even if unintended,
+security mechanisms, and automating the generation                                             personally identifiable information from their train-
+and refinement of malicious content. For instance,                                             ing data can be leaked (Li et al., 2024). Further-
+LLMs’ ability to mimic human writing introduces                                                more, they can be utilized to identify software vulner-
+additional security concerns, as accurately detect-                                            abilities (Boi et al., 2024; Çetin et al., 2024), which
+ing LLM-generated text remains challenging (Oren-                                              in turn facilitates the development or refinement of
+strakh et al., 2024; Khalil and Er, 2023). This ca-                                            malware and other malicious code (Chatzoglou et al.,
+pacity in turn provides the foundation for a multi-                                            2023). These capabilities position LLM as an effec-
+tude of practices, including social engineering, im-                                           tive means through which malicious actors can create
+                                                                                               novel threats while also being able to amplify, aug-
+     a                                                                                         ment or evolve existing attack vectors. They are both
+           https://orcid.org/0000-0003-2102-1575
+     b                                                                                         readily accessible and cost-effective to misuse, reduc-
+           https://orcid.org/0000-0002-5308-7010
+     c                                                                                         ing the barrier to entry and the resources and expertise
+           https://orcid.org/0009-0009-5389-9543
+     d                                                                                         required to circumvent detection mechanisms. Conse-
+           https://orcid.org/0000-0001-6594-326X
+
+
+240
+Josten, M., Schaffeld, M., Lehmann, R. and Weis, T.
+Navigating the Security Challenges of LLMs: Positioning Target-Side Defenses and Identifying Research Gaps.
+DOI: 10.5220/0013274700003899
+In Proceedings of the 11th International Conference on Information Systems Security and Privacy (ICISSP 2025) - Volume 2, pages 240-247
+ISBN: 978-989-758-735-1; ISSN: 2184-4356
+Copyright © 2025 by Paper published under CC license (CC BY-NC-ND 4.0)
+                         Navigating the Security Challenges of LLMs: Positioning Target-Side Defenses and Identifying Research Gaps
+
+
+
+
+quently, LLMs are not merely another type of attack                enforcing security and ethical guidelines that detect
+tool but a force multiplier for threat actors, capable             and block misuse attempts, such as jailbreaking, per-
+of enhancing and diversifying a range of existing at-              sona attacks, and ”do-anything-now” attacks, or more
+tack vectors simultaneously, potentially overwhelm-                broadly, prompt engineering (Yu et al., 2024).
+ing conventional defense mechanisms and increasing                   • Jailbreaking allows users to manipulate the
+the likelihood of successful breaches.                                  model into disregarding its built-in restrictions,
+     While some of the existing countermeasures aim                     prompting it to generate responses it was pro-
+to prevent LLM systems from generating harmful                          grammed to avoid. This technique often involves
+content, significant challenges remain to fully address                 using sophisticated prompts or indirect requests
+the scope of potential abuse. Even if some LLM                          that steer the model into unintended behaviors, ul-
+systems are successfully regulated, others, such as                     timately bypassing its safeguards (Yu et al., 2024).
+the open-source LLMs from Meta1 and their modi-                      • Persona Attacks involve manipulating an LLM
+fied versions, remain essentially unmoderated. They                     into adopting a specific persona that aligns with
+therefore provide uninhibited tools for those with ma-                  harmful behaviors or viewpoints. By shaping
+licious intent. Given the shortcomings of relying on                    the AI’s ”personality” to mimic certain individ-
+tool-level mitigation strategies to regulate the use of                 uals or archetypes, malicious users can exploit the
+LLMs, it is crucial to reinforce target-side security                   model’s ability to assume character roles or per-
+measures. This entails the implementation of tar-                       spectives, leading it to produce biased, manipula-
+geted countermeasures, such as LLM-enhanced se-                         tive, or ethically questionable responses. For in-
+curity audits and improved techniques for detecting                     stance, assigning the LLM the persona of a cyber-
+LLM-generated content. These measures are essen-                        criminal can prompt it to generate unregulated or
+tial, given the significant financial consequences that                 potentially dangerous content (Yu et al., 2024).
+organisations and governments are facing (Farahbod                   • Do-Anything-Now (DAN) Attacks instruct the
+et al., 2020; Wilner et al., 2019), as well as the sub-                 LLM to disregard its trained guidelines and ignore
+stantial risks to reputation (Confente et al., 2019).                   any imposed limitations, effectively bypassing its
+     This paper examines the most prevalent methods                     usual safeguards. As a result, the model may pro-
+by which LLMs are exploited to circumvent security                      duce uncensored, potentially unethical, or harm-
+restrictions and highlights prevalent attack vectors tar-               ful responses that it would typically be restricted
+geting both machines and humans. We emphasize                           from generating (Singh et al., 2025).
+the importance of strengthening target-side defences,              However, relying solely on tool-level safeguards and
+examine the unique challenges introduced by LLM-                   controls is insufficient. On the one hand, unregulated
+based, -generated or -enhanced cyber threats and pro-              or ”unhinged” LLMs can easily bypass these restric-
+pose core criteria defining the solution space for effec-          tions by not implementing them at all. Certain mod-
+tive countermeasures to mitigate LLM-based threats.                els, such as FraudGPT (Dutta, 2023a) and WormGPT
+Furthermore, we evaluate existing countermeasure re-               (Dutta, 2023b), are intentionally designed without
+search in light of these criteria to identify pertinent re-        ethical guidelines and marketed for adversarial use.
+search gaps. Through these insights, we aim to guide               These models, often accessible via paid access on
+the development of comprehensive security solutions                the dark web, enable the efficient generation of mali-
+that preserve the benefits of LLMs while mitigating                cious content, such as realistic phishing emails or cus-
+their misuse.                                                      tom malware, facilitating large scale criminal activi-
+                                                                   ties (Falade, 2023; Mihai, 2023). On the other hand,
+                                                                   models available on the clearnet2 are often not devel-
+2    LLM ABUSE AND MISUSE                                          oped with malicious intent, but are rather driven by
+                                                                   principles of free speech and opposition against regu-
+                                                                   latory controls. One example is Gab.AI3 , an LLM ac-
+The preceding section highlighted the potential for
+                                                                   cessible to users after only registering with an email
+LLMs to be exploited in malicious and criminal ac-
+                                                                   address. It allows users to adopt various personas,
+tivities. A common mitigation strategy to counter
+                                                                   including historical figures like Plato, Isaac Newton,
+these risks involves regulating inputs and outputs di-
+                                                                   but also malicious figures such as Adolf Hitler. As
+rectly, implementing safeguard techniques and guide-
+                                                                   the model embodies the selected character, its outputs
+lines designed to limit the misuse of these mod-
+                                                                   can be offensive or ethically questionable, reflecting
+els (OpenAI, 2024; Google, 2024). This approach
+aims to restrict the model’s response capabilities by                  2 Clearnet refers to the publicly accessible part of the
+                                                                   internet. It can be seen as the opposite of the Darknet.
+    1 https://www.llama.com/                                           3 https://gab.ai/
+
+
+
+
+                                                                                                                              241
+ICISSP 2025 - 11th International Conference on Information Systems Security and Privacy
+
+
+
+
+the persona’s traits and viewpoints.                                      ploit current events, biases, or emotions, amplify-
+    It can be reasonably deduced that a threat actor                      ing their effectiveness in manipulating individuals
+who has undergone sufficient preparation can utilize                      and public opinion on specific topics (Kreps et al.,
+the full potential of the latest open-source LLM at                       2022; Meier, 2024; Wu et al., 2024).
+their discretion. Therefore, it is not enough to focus                Both the machine and human aspects are deeply inter-
+solely on tool control; attention must also be directed               twined, as nearly every adversarial attack supported
+toward the refinement of existing or the development                  by LLMs affects both technological infrastructure and
+of novel target-side defense mechanisms.                              human psychology. For instance, a phishing email
+                                                                      crafted by an LLM might initially evade automatic de-
+2.1     Target-Side Security Mechanisms                               tection (machine aspect) but still relies on human vig-
+                                                                      ilance (human aspect) to prevent compromise. This
+Unregulated or intentionally malicious LLMs allow                     interconnectedness underscores the need for a multi-
+adversaries to bypass all previously discussed model                  layered defense strategy that addresses vulnerabilities
+restrictions and security protocols, effectively ren-                 targeted at both machines and humans.
+dering tool-based controls and safeguards ineffective.
+These models equip attackers with powerful tools
+to penetrate initial defenses, placing greater impor-                 3     COUNTERMEASURES
+tance on target-side security mechanisms as the pri-
+mary layer of protection. Consequently, emphasis                      The inappropriate utilization of LLM technology as
+must shift toward detecting and responding to LLM-                    a means of generating or amplifying cyber threats
+supported attack vectors on the target side.                          necessitates a reassessment of the available solution
+    Here, we have to distinguish between two aspects:                 space for the development of effective countermea-
+machine-targeted and human-targeted threats.                          sures. The factors that are driving this necessity in-
+  • Machine-targeted threats refer to attack vectors,                 clude the high accessibility and powerful capabili-
+    such as malware or malicious scripts, designed                    ties of LLMs, their dual effectiveness in targeting
+    to disrupt, compromise, or infiltrate hardware and                both machines and humans, and the cost-effectiveness
+    software systems. Traditional detection methods,                  of their misuse. While LLM represent a powerful
+    which rely heavily on automated systems, often                    new tool for threat actors, their true impact lies in
+    fail to identify these threats due to the adapt-                  their ability to amplify, augment and evolve existing
+    ability of AI-/LLM-enhanced attacks, which can                    malicious techniques, thereby increasing the defen-
+    continuously alter their structure and approach to                sive burden. Effectively, they become a force mul-
+    evade antivirus and detection mechanisms (Chat-                   tiplier for threat actors. As a result, defenders are
+    zoglou et al., 2023). These attacks demonstrate                   faced with the constant challenge of adapting their
+    heightened resilience, as LLMs enable the dy-                     systems with each new LLM-powered attack. It is
+    namic modification and refinement of malicious                    thus essential to consider the various criteria that de-
+    code, allowing it to circumvent detection mecha-                  fine the solution space of effective countermeasures,
+    nisms by exploiting known vulnerabilities within                  including strategies of cost-efficiency to match the
+    IT infrastructure or leveraging sophisticated ob-                 low barrier to entry of those attacks. It is evident
+    fuscation techniques. Furthermore, LLMs can                       that there are promising approaches to countermea-
+    assist in (re)writing spam or phishing emails by                  sures that include the utilization of LLMs themselves
+    avoiding tell-tale words and phrases, effectively                 as part of a defensive toolkit (Guven, 2024), the re-
+    deceiving target filters while preserving the mes-                finement of existing defenses to recognize and mit-
+    sage’s underlying intent (Josten and Weis, 2024).                 igate LLM-augmented threats and the development
+  • Human-targeted threats are designed to deceive                    of reliable methods to differentiate between human-
+    and manipulate individuals using social engineer-                 and LLM-generated content (Shimada and Kimura,
+    ing and persuasive language to exploit human psy-                 2024). However, in order to establish a resilient
+    chology and trust. LLMs enable (highly personal-                  framework capable of countering the evolving land-
+    ized) phishing attacks by crafting realistic, con-                scape of LLM-driven cyber threats, it is necessary
+    textually accurate messages that closely resem-                   to address the new challenges and criteria associated
+    ble legitimate communications, making them dif-                   with the solution space. Furthermore, in order to ef-
+    ficult for human targets to distinguish from gen-                 fectively reassess the solution space, the existing re-
+    uine content (Falade, 2023; Heiding et al., 2024;                 search gaps that may hinder our response to this novel
+    Roy et al., 2024). Additionally, LLMs can gen-                    threat landscape must be identified and addressed.
+    erate fake news or misleading narratives that ex-                 Filling these gaps will ensure that the countermea-
+
+
+242
+                         Navigating the Security Challenges of LLMs: Positioning Target-Side Defenses and Identifying Research Gaps
+
+
+
+
+sure framework is both comprehensive and adaptive                      should be compatible with various security frame-
+to evolving LLM-driven cyber threats.                                  works and able to integrate with different tools
+                                                                       and platforms, allowing for cohesive and efficient
+3.1    Core Countermeasure Criteria                                    defenses across systems. When aiming to retrofit
+                                                                       existing mechanisms, new approaches should in-
+When developing and deploying a new solution, a                        tegrate seamlessly without disrupting other estab-
+wide range of factors must be considered to ensure                     lished measures and, ideally, be easily adaptable.
+both quality and functionality. These include estab-                   Such retrofitting should ensure minimal modifi-
+lished standards and frameworks, such as ISO/IEC                       cation to existing infrastructure, making it feasi-
+25010, which outlines various software quality char-                   ble to deploy updates or enhancements without
+acteristics for both the product and its user interac-                 requiring extensive downtime or reconfiguration,
+tions (ISO/IEC, 2011). In order to re-examine the fun-                 which could otherwise hinder system resilience.
+damental criteria of countermeasures against LLM-                      Given the flexibility and continually evolving na-
+based security threats, we focus exclusively on the                    ture of LLMs, this criterion becomes even more
+pertinent security-related criteria of solutions. These                important as newly developed measures should be
+criteria must be universally applicable, transcend spe-                equally able to be integrated into existing systems.
+cific use cases, and form an integral part of any devel-             • Effectiveness is crucial in countering LLM-
+opment process for robust security solutions. Below,                   supported attack vectors, as it directly measures
+we discuss the key security criteria that should be pri-               how accurately and reliably a countermeasure can
+oritized in solution development.                                      detect and, where possible, mitigate these threats.
+  • Adaptability in this context refers to the capac-                  Choosing the right metrics to focus on depends
+     ity to dynamically evolve and respond to the spe-                 heavily on the specific use case and should there-
+     cific challenges posed by the rapidly changing                    fore be thoughtfully considered when designing
+     threat landscape shaped by LLM-driven attacks.                    and deploying security measures. For exam-
+     Static defenses are no longer sufficient, as these                ple, in defending against LLM-aided spam or
+     threats can exploit novel vulnerabilities and by-                 phishing attacks, prioritizing high precision is es-
+     pass traditional security measures. Adaptive sys-                 sential - even at the expense of other metrics
+     tems must leverage real-time threat intelligence                  like recall - because blocking legitimate emails
+     and advanced analytics to refine detection and re-                can seriously impact user experience and lead
+     sponse processes, enabling them to counter evolv-                 to unintended consequences. As language mod-
+     ing LLM-driven attack vectors effectively.                        els continue to advance, this challenge grows as
+     This adaptability is particularly crucial in mitigat-             their increasingly sophisticated, human-like out-
+     ing the rapidly-evolving nature of LLM-enabled                    puts make it harder to differentiate malicious
+     attacks. Adversaries can leverage LLMs to con-                    content from genuine communications. Conse-
+     tinuously test, refine, and optimize their methods,               quently, the rate of misclassifications is likely to
+     systematically identifying weaknesses in security                 be negatively affected (Orenstrakh et al., 2024).
+     systems and bypassing established controls. In or-                Including humans ”in-the-loop” could, depending
+     der to address the continually evolving attack vec-               on the use case, help to mitigate these negative
+     tors, cybersecurity countermeasures must be ca-                   effects and elevate the classification accuracy by
+     pable of dynamically adapting to new threat en-                   (semi-)manually posing as an additional security
+     vironments with minimal latency. By continu-                      layer (Nguyen and Choo, 2021).
+     ously updating defensive algorithms and tailoring               • Efficiency in defense should be optimized to be,
+     response strategies, stakeholders can proactively                 ideally, equal to or at least close to that of at-
+     close security gaps and enhance their resilience                  tackers. Attackers often employ relatively low-
+     against the increasingly sophisticated attacks en-                cost methods to leverage LLMs in support of their
+     abled by LLMs. This ensures that defenders keep                   strategies and can adapt flexibly to different sit-
+     up with the pace of attackers, mitigating the risk                uations. In response, defenders must work to
+     of successful breaches and minimizing the impact                  counter these efforts. Given the attackers’ adapt-
+     of LLM-driven cyber threats.                                      ability and lower investment, defensive measures
+  • Compatibility plays an important role in build-                    should not require substantial resources (such as
+     ing upon existing security solutions, as new ap-                  labor, money, or time) to remain viable. This way,
+     proaches should be designed to extend these so-                   countermeasures stay competitive and provide de-
+     lutions and demonstrate a degree of interoper-                    fenders with a reasonable chance to mitigate rele-
+     ability. This means that novel countermeasures                    vant attack vectors. Such efficiency is especially
+
+
+
+                                                                                                                              243
+ICISSP 2025 - 11th International Conference on Information Systems Security and Privacy
+
+
+
+
+   important for stakeholders with limited resources,                     tacks in both scope and speed. Additionally, us-
+   like small businesses, which may lack the capac-                       ability is closely tied to transparency and explain-
+   ity to address the problem independently.                              ability. Transparent systems provide clear indica-
+   To illustrate the cost disparity between attacking                     tors and explanations for detected threats, mak-
+   and defending, we want to look at the example of                       ing it easier for users to make informed decisions
+   spam email creation and detection. Attackers can                       and increasing their trust in these systems (Bhatt
+   generate spam emails at a cost of approximately                        et al., 2020). This is especially important for sys-
+   0.17 cents per email (Josten and Weis, 2024).                          tems leveraging AI and machine learning, where
+   In contrast, detecting potential spam emails —                         the logic behind threat detection might otherwise
+   even with an LLM — costs defenders between 0.6                         be opaque (Ferrario and Loi, 2022). When dealing
+   and 13 cents per email, depending on the specific                      with texts generated by LLMs, the line between
+   model employed (Koide et al., 2024). This results                      benign and malicious content can be exceedingly
+   in detection costs that are 3 to 75 times higher than                  difficult to distinguish, making it essential for
+   the creation costs attackers face, and the disparity                   users to understand both the detection process
+   is even greater when factoring in that defenders                       and its outcomes. For example, if an incoming
+   must also examine legitimate emails. While at-                         email is flagged as spam, users benefit from know-
+   tackers only bear the cost of creating spam, de-                       ing the specific reasons - such as the presence of
+   fenders are responsible for processing every in-                       suspicious language patterns likely generated by
+   coming message to separate spam from legitimate                        an LLM or the detection of obfuscated links or
+   content. Given that spam accounts for roughly                          code. By providing transparency into these de-
+   50% of global email traffic — a percentage that                        fensive actions, security measures empower users
+   can fluctuate based on factors like time of year or                    to make informed decisions, strengthening their
+   targeted industry — defenders must handle a far                        confidence in the system. Additionally, the com-
+   greater volume than attackers (Datta et al., 2023),                    plexity and sophistication of LLM-based attacks
+   which further drives up detection expenses. This                       make it even more important for users to see ”be-
+   also may introduce additional latency as higher                        hind the curtain”. Transparency and explainabil-
+   workloads, in combination with the complex iden-                       ity not only enhance usability but also build trust
+   tification of potentially LLM-generated texts, in-                     in the defense mechanisms by helping users un-
+   crease the overall processing time. Optimizing for                     derstand why certain content is flagged as poten-
+   low latency ensures that security measures sup-                        tially harmful. Since LLM-assisted attacks often
+   port rather than impede productivity.                                  target individuals directly (human-targeted attack
+ • Usability is another key criterion as it directly af-                  vectors), this level of clarity enables users to better
+   fects the effectiveness and adoption of security                       recognize and respond to emerging threats, mak-
+   tools and practices. When systems are not user-                        ing transparency a fundamental component of us-
+   friendly, users are often reluctant to engage with                     able and effective security measures.
+   them, or bypass them entirely, which significantly                 Although each criterion contributes uniquely to the
+   undermines security efforts (Interaction Design                    effectiveness and sustainability of security measures,
+   Foundation - IxDF, 2016). Systems designed with                    enhancing one often comes at the cost of another.
+   intuitive interfaces and reduced complexity can                    Balancing these criteria in the fight against LLM-
+   empower users to participate actively in maintain-                 enhanced attack vectors is key to developing robust,
+   ing security without additional strain on time and                 user-friendly, and cost-effective cybersecurity solu-
+   resources (Grobler et al., 2021). In the context                   tions and countermeasures.
+   of LLM-supported attack vectors, the accessibil-
+   ity of security measures should mirror the ease of                 3.2 State-of-the-Art Countermeasures
+   access that malicious actors have to LLMs them-
+   selves. Ensuring that defenses are as accessible                   We conducted a review on the literature, focusing
+   and user-friendly as those used by attackers en-                   on recently published works addressing target-side
+   hances both usability and effectiveness of coun-                   countermeasures against spam, phishing, and LLM-
+   termeasures. This approach enables end-users to                    generated text. While the rapid development in this
+   rapidly comprehend and implement those coun-                       area has led to numerous preprints, this review fo-
+   termeasures, staying ahead in a rapidly evolving                   cuses on peer-reviewed publications to ensure relia-
+   threat landscape shaped by sophisticated LLM-                      bility and rigor. The review reveals a range of ap-
+   driven attacks. This parity in accessibility is es-                proaches aimed at detecting and mitigating LLM-
+   sential to ensure that defenses keep pace with at-                 based threats. Researchers have proposed a vari-
+
+
+244
+                          Navigating the Security Challenges of LLMs: Positioning Target-Side Defenses and Identifying Research Gaps
+
+
+
+
+Table 1: The (optimization) focus of a selection of countermeasures on the presented criteria, where # indicates a non-existent
+to small focus, G
+                # indicates a moderate focus, and indicates a high focus on that criterion.
+
+ Publication                           Adaptability        Compatibility         Effectiveness       Efficiency       Usability
+ (Datta et al., 2023)                         #                    #                                       #               #
+ (Gehrmann et al., 2019)                      #
+                                              G                                         #
+                                                                                        G
+ (Jamal et al., 2024)                         #
+                                              G                    #
+                                                                   G                                                       #
+ (Josten and Weis, 2024)                      #                    #                    G
+                                                                                        #                                  #
+                                                                                                                           G
+ (Kirchenbauer et al., 2023)                  #                                         G
+                                                                                        #                  #
+                                                                                                           G               #
+                                                                                                                           G
+ (Koide et al., 2024)                         #
+                                              G                                                            #
+                                                                                                           G               #
+ (Krishna et al., 2023)                       #                    #
+                                                                   G                                       #
+                                                                                                           G               #
+ (Mitchell et al., 2023)                                           #
+                                                                   G                                       #
+                                                                                                           G               #
+                                                                                                                           G
+ (Shimada and Kimura, 2024)                                        #
+                                                                   G                                       #               #
+ (Sun et al., 2024)                           #                    #
+                                                                   G                                       #               #
+ (Wu et al., 2024)                            #
+                                              G                                                                            #
+ (Zellers et al., 2019)                       #
+                                              G                    #                                                       #
+                                                                                                                           G
+
+ety of methods, but there remains a lack of re-                          While the majority of selected papers cover essen-
+finement in many countermeasures regarding robust-                  tial criteria and validate their proposed methods effec-
+ness against attacks that are themselves supported by               tively, areas, such as adaptability and usability, remain
+LLMs. While several techniques have proven effec-                   underrepresented (see Figure 1). As these criteria are
+tive in identifying malicious or LLM-generated con-                 critical to real-world implementation as well as its
+tent, these methods are often designed for specific                 longevity regarding future adaptations to novel threats
+platforms or models, limiting their adaptability across             and user acceptance, future research would benefit
+broader scenarios. Moreover, the robustness of these                from prioritizing them, aiming for countermeasures
+methods, as demonstrated in the literature, is typi-                that are not only effective but also adaptable and user-
+cally assessed against the LLMs available at the time               friendly. Addressing these gaps could enhance the
+of their development. However, the question remains                 utility of countermeasures across broader user demo-
+as to whether their robustness is compromised by the                graphics and operational environments, strengthening
+introduction of new LLMs. Additionally, it has to                   the defenses against increasingly sophisticated, LLM-
+be explored how the resilience of methodologies can                 enabled attack vectors.
+be continually assessed in order to facilitate an effi-
+cient and timely response to emerging advancements
+in LLMs.
+     A notable finding from reviewing these counter-
+measures (see Table 1) is that most papers have fo-
+cused heavily on traditional performance metrics like
+precision and F1 scores to validate their effectiveness,
+providing a quantitative basis to evaluate these ap-
+proaches. Many publications also included discus-
+sions on associated costs, underlining the resource
+considerations involved in such solutions - especially
+if their solution included the use of LLMs. However,
+the adaptability of these tools across diverse environ-
+ments and their compatibility with different platforms
+received less attention, as most countermeasures were               Figure 1: The mean focus level of the proposed criteria
+limited to a specific application or platform. Although             based on the selected countermeasures and scores (#: 0,
+a few papers highlighted the potential for broader ap-              G
+                                                                    #: 1, : 2) in Table 1.
+plicability, discussions on interoperability and usabil-
+ity, including factors like explainability and latency,
+were notably brief. These criteria are particularly crit-
+ical as they affect the accessibility and trustworthiness
+of the tools for non-technical users, potentially limit-
+ing the practical uptake and trust in these solutions.
+
+
+                                                                                                                               245
+ICISSP 2025 - 11th International Conference on Information Systems Security and Privacy
+
+
+
+
+4     CONCLUSION                                                      REFERENCES
+The rise of LLMs has brought new cybersecurity con-                   Bhatt, U., Xiang, A., Sharma, S., Weller, A., Taly, A., Jia,
+cerns, as their misuse can threaten digital security                       Y., Ghosh, J., Puri, R., Moura, J. M. F., and Ecker-
+                                                                           sley, P. (2020). Explainable machine learning in de-
+and information integrity. These models can gener-
+                                                                           ployment. In Proceedings of the 2020 Conference
+ate highly convincing content, making them poten-                          on Fairness, Accountability, and Transparency, FAT*
+tial tools for spreading misinformation, manipulat-                        ’20, page 648–657, New York, NY, USA.
+ing users, and multiplying the force of cyberattacks.                 Boi, B., Esposito, C., and Lee, S. (2024). Smart Contract
+As such, it is critical to preserve social trust by en-                    Vulnerability Detection: The Role of Large Language
+suring the credibility of content and communication,                       Model. SIGAPP Appl. Comput. Rev., 24(2):19–29.
+especially when faced with the challenge of decep-                    Chatzoglou, E., Karopoulos, G., Kambourakis, G., and Tsi-
+tive, synthetic outputs created by LLMs. To mitigate                       atsikas, Z. (2023). Bypassing antivirus detection: Old-
+these risks, both preventative and responsive mea-                         school malware, new tricks. In Proceedings of the
+sures are necessary. We explored how adversaries                           18th International Conference on Availability, Relia-
+                                                                           bility and Security, ARES ’23, pages 1–10.
+can exploit LLMs by bypassing existing safeguards
+                                                                      Confente, I., Siciliano, G. G., Gaudenzi, B., and Eick-
+through prompt engineering techniques or by lever-                         hoff, M. (2019). Effects of data breaches from user-
+aging unrestricted models. Given the difficulty of                         generated content: A corporate reputation analysis.
+fully securing interactions with LLMs or limiting ac-                      European Management Journal, 37(4):492–504.
+cess to unregulated models, the focus must shift to-                  Datta, S., Bandyopadhyay, S., and Mondal, B. (2023).
+ward enhancing target-side detection and mitigation                        Classification of spam and ham emails with machine
+strategies. To guide the development and improve-                          learning techniques for cyber security. In 2023 In-
+ment of countermeasures against LLM-supported at-                          ternational Conference on Integrated Intelligence and
+tack vectors, we proposed five key criteria: adapt-                        Communication Systems (ICIICS), page 1–6.
+ability, compatibility, efficiency, effectiveness, and                Dutta, T. S. (2023a). Fraudgpt: New black hat ai tool
+                                                                           launched by cybercriminals. Cyber Security News.
+usability. Our evaluation of state-of-the-art counter-
+                                                                      Dutta, T. S. (2023b). Hackers use wormgpt to launch so-
+measures against these criteria revealed noteworthy
+                                                                           phisticated cyberattacks. Cyber Security News.
+gaps, particularly in adaptability and usability. Future
+                                                                      Falade, P. V. (2023). Decoding the Threat Landscape : Chat-
+research should concentrate on addressing the gaps                         GPT, FraudGPT, and WormGPT in Social Engineer-
+identified in the core criteria, with particular emphasis                  ing Attacks. International Journal of Scientific Re-
+on adaptability and usability. There is an urgent need                     search in Computer Science, Engineering and Infor-
+to develop cost-effective countermeasures that can be                      mation Technology, pages 185–198.
+widely deployed while ensuring their continued effec-                 Farahbod, K., Shayo, C., and Varzandeh, J. (2020). Cyber-
+tiveness. In addition, existing countermeasures must                       security indices and cybercrime annual loss and eco-
+be adapted to mitigate LLM-generated attacks and re-                       nomic impacts. Journal of Business and Behavioral
+main relevant as technology advances. Concurrently,                        Sciences, 32(1):63–71.
+new countermeasures should be developed, tailored                     Ferrario, A. and Loi, M. (2022). How explainability con-
+                                                                           tributes to trust in ai. In Proceedings of the 2022 ACM
+to emerging threats specific to LLMs. Consequently,                        Conference on Fairness, Accountability, and Trans-
+there is a need to examine system design, so that ex-                      parency, FAccT ’22, page 1457–1466, New York, NY,
+isting infrastructures can be enhanced while facilitat-                    USA. Association for Computing Machinery.
+ing the seamless integration of new security measures.                Gehrmann, S., Strobelt, H., and Rush, A. (2019). GLTR:
+Finally, continuous monitoring of the solution space                       Statistical detection and visualization of generated
+and the identification of gaps is crucial as new threats                   text. In Proceedings of the 57th Annual Meeting of
+and solutions evolve. As the need for sustained ef-                        the Association for Computational Linguistics: Sys-
+fort is evident, achieving a balance between maximiz-                      tem Demonstrations, pages 111–116. Association for
+                                                                           Computational Linguistics.
+ing the benefits of LLMs and ensuring robust security
+                                                                      Google (2024). Safety Settings | Gemini API | Google
+measures necessitates persistent vigilance and adap-
+                                                                           AI for Developers. https://ai.google.dev/gemini-api/
+tive technology. The rapid evolution of LLMs neces-                        docs/safety-settings, Accessed: 2024-11-07.
+sitates ongoing research, innovation, and the adapta-                 Grobler, M., Gaire, R., and Nepal, S. (2021). User, usage
+tion of security protocols to address emerging threats,                    and usability: Redefining human centric cyber secu-
+ensuring that the risks associated with these powerful                     rity. Frontiers in Big Data, 4.
+tools are effectively managed.                                        Guess, A., Nagler, J., and Tucker, J. (2019). Less than you
+                                                                           think: Prevalence and predictors of fake news dissem-
+                                                                           ination on facebook. Science Advances, 5:eaau4586.
+                                                                      Guven, M. (2024). A comprehensive review of large lan-
+                                                                           guage models in cyber security. International Journal
+
+
+246
+                           Navigating the Security Challenges of LLMs: Positioning Target-Side Defenses and Identifying Research Gaps
+
+
+
+
+      of Computational and Experimental Science and En-                    In Proceedings of the 40th International Conference
+      gineering, 10(3).                                                    on Machine Learning, volume 202.
+Heiding, F., Schneier, B., Vishwanath, A., Bernstein, J., and        Nguyen, T. N. and Choo, R. (2021). Human-in-the-
+      Park, P. S. (2024). Devising and detecting phishing                  loop xai-enabled vulnerability detection, investiga-
+      emails using large language models. IEEE Access,                     tion, and mitigation. In 2021 36th IEEE/ACM Interna-
+      12:42131–42146.                                                      tional Conference on Automated Software Engineer-
+Interaction Design Foundation - IxDF (2016). Three com-                    ing (ASE), pages 1210–1212.
+      mon problems in enterprise system user experience.             OpenAI (2024).         Hello GPT-4o | OpenAI.       https://
+      https://www.interaction-design.org/literature/article/               openai.com/index/hello-gpt-4o/, 2024.11.07.
+      three-common-problems-in-enterprise-system-user-               Orenstrakh, M. S., Karnalim, O., Suárez, C. A., and Liut,
+      experience.                                                          M. (2024). Detecting LLM-Generated Text in Com-
+ISO/IEC (2011). Systems and software engineering —-                        puting Education: Comparative Study for ChatGPT
+      Systems and software Quality Requirements and                        Cases. In 2024 IEEE 48th Annual Computers, Soft-
+      Evaluation (SQuaRE) -— System and software qual-                     ware, and Applications Conference, pages 121–126.
+      ity models. Standard, ISO/IEC.                                 Otieno, D. O., Siami Namin, A., and Jones, K. S. (2023).
+Jamal, S., Wimmer, H., and Sarker, I. H. (2024). An im-                    The application of the bert transformer model for
+      proved transformer-based model for detecting phish-                  phishing email classification. In 2023 IEEE 47th An-
+      ing, spam and ham emails: A large language model                     nual Computers, Software, and Applications Confer-
+      approach. SECURITY AND PRIVACY, 7(5):e402.                           ence (COMPSAC), pages 1303–1310.
+Josten, M. and Weis, T. (2024). Investigating the Effec-             Roy, S. S., Thota, P., Naragam, K. V., and Nilizadeh, S.
+      tiveness of Bayesian Spam Filters in Detecting LLM-                  (2024). From Chatbots to Phishbots?: Phishing Scam
+      modified Spam Mails. 10.48550/arXiv.2408.14293.                      Generation in Commercial Large Language Models.
+Khalil, M. and Er, E. (2023).             Will ChatGPT Get                 In 2024 IEEE Symposium on Security and Privacy
+      You Caught? Rethinking of Plagiarism Detection.                      (SP), pages 36–54. IEEE Computer Society.
+      In Learning and Collaboration Technologies, pages              Shimada, H. and Kimura, M. (2024). A method for dis-
+      475–487. Springer Nature Switzerland.                                tinguishing model generated text and human written
+Kirchenbauer, J., Geiping, J., Wen, Y., Katz, J., Miers, I.,               text. Journal of Advances in Information Technology,
+      and Goldstein, T. (2023). A watermark for large lan-                 15:714–722.
+      guage models. In Proceedings of the 40th Interna-              Singh, S., Cornell, K., and Vaishnav, L. (2025). The hid-
+      tional Conference on Machine Learning, volume 202,                   den dangers of publicly accessible llms: A case study
+      pages 17061–17084.                                                   on gab ai. In Digital Forensics and Cyber Crime.
+Koide, T., Fukushi, N., Nakano, H., and Chiba, D.                          Springer Nature Switzerland. To be published.
+      (2024). ChatSpamDetector: Leveraging Large Lan-                Sun, Y., He, J., Cui, L., Lei, S., and Lu, C.-T. (2024).
+      guage Models for Effective Phishing Email Detection.                 Exploring the deceptive power of llm-generated fake
+      10.48550/arXiv.2402.18093.                                           news: A study of real-world detection challenges.
+Kreps, S., McCain, R. M., and Brundage, M. (2022). All                     10.48550/arXiv.2403.18249.
+      the news that’s fit to fabricate: Ai-generated text as a       Wilner, A., Jeffery, A., Lalor, J., Matthews, K., Robinson,
+      tool of media misinformation. Journal of Experimen-                  K., Rosolska, A., and Yorgoro, C. (2019). On the so-
+      tal Political Science, 9(1):104–117.                                 cial science of ransomware: Technology, security, and
+Krishna, K., Song, Y., Karpinska, M., Wieting, J., and                     society. Comparative Strategy, 38(4):347–370.
+      Iyyer, M. (2023). Paraphrasing evades detectors of ai-         Wu, J., Guo, J., and Hooi, B. (2024). Fake News in Sheep’s
+      generated text, but retrieval is an effective defense. In            Clothing: Robust Fake News Detection Against LLM-
+      Advances in Neural Information Processing Systems,                   Empowered Style Attacks. In Proceedings of the 30th
+      volume 36, pages 27469–27500.                                        ACM SIGKDD Conference on Knowledge Discovery
+Li, T., Das, S., Lee, H.-P. H., Wang, D., Yao, B., and Zhang,              and Data Mining, KDD ’24, pages 3367–3378.
+      Z. (2024). Human-centered privacy research in the age          Yu, Z., Liu, X., Liang, S., Cameron, Z., Xiao, C., and
+      of large language models. In Extended Abstracts of                   Zhang, N. (2024). Don’t listen to me: Understand-
+      the CHI Conference on Human Factors in Computing                     ing and exploring jailbreak prompts of large lan-
+      Systems, CHI EA ’24.                                                 guage models. In 33rd USENIX Security Symposium
+Meier, R. (2024). LLM-Aided Social Media Influence Op-                     (USENIX Security 24), pages 4675–4692.
+      erations. In Large Language Models in Cybersecu-               Zellers, R., Holtzman, A., Rashkin, H., Bisk, Y., Farhadi,
+      rity: Threats, Exposure and Mitigation, pages 105–                   A., Roesner, F., and Choi, Y. (2019). Defending
+      112. Springer Nature Switzerland.                                    against neural fake news. In Advances in Neural In-
+Mihai, I.-C. (2023). Editorial: The transformative im-                     formation Processing Systems, volume 32.
+      pact of artificial intelligence on cybersecurity. Inter-       Çetin, O., Ekmekcioglu, E., Arief, B., and Hernandez-
+      national Journal of Information Security and Cyber-                  Castro, J. (2024). An Empirical Evaluation of Large
+      crime, 12(1):9–10.                                                   Language Models in Static Code Analysis for PHP
+Mitchell, E., Lee, Y., Khazatsky, A., Manning, C. D., and                  Vulnerability Detection. JUCS - Journal of Univer-
+      Finn, C. (2023). DetectGPT: Zero-shot machine-                       sal Computer Science, 30(9):1163–1183.
+      generated text detection using probability curvature.
+
+
+                                                                                                                                247
+

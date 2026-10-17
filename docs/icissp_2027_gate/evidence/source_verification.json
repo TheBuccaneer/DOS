@@ -1,0 +1,17 @@
+{
+  "components": [
+    {
+      "path": "new/scripts/chunk_budget_screen/run_server.sh",
+      "expected_sha256": "9a1190dfe1e12f595df72913a1c7e83b2ed04243e4be5f72d58271cd8a8e65c2",
+      "actual_sha256": "9a1190dfe1e12f595df72913a1c7e83b2ed04243e4be5f72d58271cd8a8e65c2",
+      "matches": true
+    },
+    {
+      "path": "new/scripts/prefill_confirmation/run_prefill_confirmation.py",
+      "expected_sha256": "981aba99aff820ea8fea3bef6df0e1e8bfb127df059695d4736d7702ef300b75",
+      "actual_sha256": "981aba99aff820ea8fea3bef6df0e1e8bfb127df059695d4736d7702ef300b75",
+      "matches": true
+    }
+  ],
+  "runtime_gate_passed": false
+}

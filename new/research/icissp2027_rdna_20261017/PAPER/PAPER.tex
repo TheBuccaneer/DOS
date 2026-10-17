@@ -1,0 +1,227 @@
+\documentclass[a4paper,twoside]{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[T1]{fontenc}
+\usepackage{pslatex}
+\usepackage{algorithm2e}
+\usepackage{apalike}
+\usepackage[hyphens]{url}
+\usepackage{booktabs}
+\usepackage{SCITEPRESS}
+\newcommand{\aicite}{\footnote{AI-assisted text: OpenAI Codex \cite{codex}; see disclosure.}}
+\begin{document}
+\special{papersize=210mm,297mm}
+\title{Availability Claims Need an Evidence Contract: Auditing Prefix-Cache Isolation}
+\author{\authorname{Anonymous Submission}}
+\keywords{LLM Serving, Availability, Prefix Caching, Isolation, Experimental Methodology.}
+\abstract{Prefix-cache namespace isolation restricts reuse across principals, while the requests can still share a finite KV block pool and scheduling budget. Existing research already establishes both cache-induced unfairness and resource-exhaustion attacks. The remaining evaluation question is what an experiment can identify when the isolation policy itself changes executed work and memory occupancy. We argue for a claim-specific evidence contract that separates total deployment-policy cost, a prefix-specific control contrast, and attribution to a resource mechanism. Complete outcome measurements must remain visible when mechanism checks abstain. We instantiate this position through a source audit of vLLM 0.17.1 and an independent reconstruction of 14 existing exploratory episodes containing 25 requests and 1,202 streaming events. Two episodes retain complete victim measurements but fail the original mechanism-attribution checks after preemption. A source-calibrated counterexample also shows why logged generation tokens cannot be equated with newly emitted tokens. These observations motivate the contract; they do not establish a new attack or causal interaction. We specify controls, counterexamples, falsification criteria, and a bounded validation study.}
+\onecolumn\maketitle\normalsize\setcounter{footnote}{0}\vfill
+
+\section{\uppercase{Introduction}}
+
+A serving system may correctly prevent cross-principal prefix reuse and still permit one principal's requests to affect another's latency. Namespace isolation changes which cached computation a request may reuse; resource scheduling decides how requests compete for finite execution and memory. Their composition must be evaluated at the level of an explicit service claim.\aicite
+
+This distinction is established background, not our discovery. PrefixShield already studies namespace-scoped lookup over a shared physical replacement domain \cite{prefixshield}. PrefixWall, originally named CacheSolidarity, examines the performance of selective protection against prefix-cache side channels \cite{prefixwall}. Fill and Squeeze targets global KV saturation and preemption \cite{fillsqueeze}. A new paper cannot reasonably claim novelty merely by observing shared-resource contention after changing a cache salt.
+
+A subtler problem remains when interpreting an experiment. Identical submitted token sequences need not cause identical prefill work, block allocation or concurrent execution after the isolation policy changes. Moreover, a test can successfully measure a victim's token-receipt interval while failing to attribute the underlying scheduler event. Collapsing these outcomes into one Boolean ``valid run'' can either promote an unproven explanation or discard measurements from precisely the regime being investigated.
+
+Our position is that evaluations of cache-isolation availability claims should publish an \emph{evidence contract}: the estimand, comparison unit, required observations and abstention rule associated with each claim. The contract is a reporting and analysis discipline, not a new defense or a universal certification standard. We make three concrete proposals. First, separate the total effect of deploying an isolation policy from a prefix-specific control contrast. Second, report outcome completeness, manipulation evidence and mechanism attribution separately. Third, retain complete outcomes when attribution becomes unresolved, and report how that unresolved fraction varies across conditions.
+
+We ground this proposal in a small existing dataset and a pinned source audit. The dataset is exploratory and has no independent repeated episode within a condition/configuration cell. It supports a case study about evidence interpretation, not an estimate of attack effectiveness. Our proposed scientific increment is an operational connection between estimands, evidence requirements and abstention in a cache-policy experiment. We do not claim that the general ideas of controls, trace replay or separating anomalies from confirmed bugs are new.
+
+\section{\uppercase{Scope and Prior Work}}
+
+\subsection{Security Properties and Principals}
+
+We consider two authenticated principals using an operator-controlled serving instance. They can submit valid requests, potentially with similar prompt prefixes. The operator controls the mapping from an authenticated principal to its cache namespace and can inspect server telemetry. An external adversary need not have this telemetry; it is available to the evaluator. If clients can impersonate another principal's salt, the assumed namespace boundary is not established. We do not evaluate that authentication problem here.\aicite
+
+We distinguish three properties. \emph{Reuse separation} restricts whether one principal can resolve another's cache entries. \emph{State retention protection} concerns which reusable blocks survive pressure. \emph{Service protection} concerns progress, latency or an explicit service-level objective. A successful lookup-separation test proves neither an absence of timing leakage through other resources nor a latency guarantee. Conversely, observed latency interference alone does not demonstrate retrieval of another principal's data.
+
+Our scope is finite-window, cross-request availability evaluation under a shared block pool and bounded scheduler budget. We do not claim prompt reconstruction, cache-content leakage, malicious intent from a workload trace, an SLO violation without an SLO, or a resource-isolation theorem.
+
+\subsection{Immediate Competition}
+
+Virtual Token Counter formalizes client service accounting and fairness and discusses tension with cache-aware scheduling \cite{vtc}. FairCache addresses cache-related resource attribution; its publisher description already includes compute, memory and I/O \cite{faircache}. GRIEF uses timed concurrent traces and staged confirmation of serving-layer failures \cite{grief}. Sarathi-Serve establishes the importance of chunk-size and decode-latency trade-offs \cite{sarathi}. These works remove generic service accounting, concurrent testing and budget tuning from our novelty claim. HCache already evaluates recovery-related decoding overhead \cite{hcache}; FairInference accounts for restoration delay in KV reservations \cite{fairinference}; Cascade jointly budgets scheduling and state retrieval \cite{cascade}. We claim neither the first joint cache/scheduler analysis nor a new restoration bound.
+
+The proposed contract is narrower: it states what an isolation-policy experiment estimates and how to preserve outcome evidence when a mechanism check cannot decide. It is complementary to those systems and must not be read as evidence that their evaluations are invalid. Our comparison with FairCache is limited to the publisher abstract and implementation description because its full text was inaccessible during this audit. This is an unresolved priority check, and precludes an unconditional novelty claim for this draft.
+
+Additional work bounds the interpretation of our proposal. KVGov explicitly separates measured channel behavior from a simulated defense \cite{kvgov}. A recent prefix-eviction study shows why equal uncached-token counts do not, by themselves, equalize latency cost \cite{eviction}. Thus our suggested work controls require more than matching a scalar token count.
+
+\section{\uppercase{Two Contrasts and a Mechanism Claim}}
+
+\subsection{Total Deployment-Policy Cost}
+
+Let $S\in\{0,1\}$ denote common versus separated namespaces, $P\in\{0,1\}$ disjoint versus common prompt prefixes, $C$ usable KV capacity and $Q$ the effective scheduler token budget. Let $Y$ be a declared outcome of a fixed offered victim identity. For our case study it is the interval between receipt of victim tokens 8 and 28. A comparison must also fix or randomize the offered request trace $X$, including prompt token IDs, output limits and arrival rules.\aicite
+
+For fixed $P,C,Q$, define the policy contrast
+\begin{equation}
+ T(P,C,Q)=\mathbb{E}[Y\mid\operatorname{do}(S=1)]
+             -\mathbb{E}[Y\mid\operatorname{do}(S=0)].
+\end{equation}
+The expectation is over predeclared experimental units under the same offered workload distribution. This is the \emph{total deployment-policy effect}. Lost reuse and the resulting execution or memory changes are part of this effect. They are relevant to an operator deciding whether to deploy isolation, and must not be dismissed as an artifact merely because they follow an established resource mechanism.
+
+Equation (1) is a definition, not an identification result. Our saved one-run-per-cell observations do not identify its expectation: order, startup state and uncontrolled runtime variation remain possible explanations. Randomization and independent repeated blocks would be required for an estimate with meaningful uncertainty.
+
+\subsection{Prefix-Specific Control Contrast}
+
+A second question asks whether a difference depends on sharing the input prefix, rather than on the namespace label alone. Define
+\begin{equation}
+ K(C,Q)=T(1,C,Q)-T(0,C,Q).
+\end{equation}
+The disjoint-prefix pair is a negative control for namespace changes when no reuse opportunity should exist. A capacity contrast $K(C_{\rm low},Q)-K(C_{\rm high},Q)$ describes effect modification only if all constituent comparisons are identified.
+
+This contrast is not automatically a direct effect of salt processing. Changing prefix structure can alter computational cost or batching independently of reuse, and the control requires assumptions about comparability of those changes. The experiment must document prompt construction and resource trajectories. A nonzero estimate also does not establish eviction or preemption as its cause. It can remain fully consistent with ordinary extra prefill and decode contention.
+
+A victim-only arm supplies a third useful baseline: the incremental cost of having a competitor at all. Comparing only shared versus isolated arms omits that baseline, while comparing isolated with victim only conflates policy changes with adding a second request. These are different questions and should have different labels.
+
+\subsection{Mechanism Attribution Is Additional Evidence}
+
+Actual uncached computation and block occupancy are post-policy quantities. Regressing on their observed values and naming the remainder a direct causal effect can select different executions or remove part of the intended total policy effect. A work-controlled challenge should instead be designed prospectively: arrange the relevant work, context depths, live block trajectories and arrival opportunities to be comparable, and state which aspects remain unmatched. Such a challenge tests an implementation explanation; it is not obtained by relabeling Equation (1).
+
+The essential causal structure is
+\[
+ S\longrightarrow\{\text{reuse},\text{live KV state},\text{work}\}
+ \longrightarrow\{\text{schedule},Y\}.
+\]
+Capacity, effective budget and runtime state also influence scheduling and $Y$. Even an exact count of initial uncached tokens does not measure all attention cost, later decode cost, reuse after resumption or client delivery delay. A convincing resource-mechanism claim needs observations at the relevant transition, aligned to the declared victim outcome window.
+
+\section{\uppercase{A Claim-Specific Evidence Contract}}
+
+\subsection{Units, Observations and Abstention}
+
+The primary comparison unit should be declared before outcomes are inspected. For a two-request pilot it can be one fixed victim identity in a paired experimental block. Request IDs, generation parameters, input token hashes, treatment assignment and the analysis window must persist in the artifact. A dynamically selected ``active'' subset is a separate estimand: if membership changes with the intervention, its mean cannot silently replace the fixed offered population's outcome.\aicite
+
+Each episode should have at least three separately reported fields: $M$, completeness of the outcome measurement; $A$, whether the intended manipulation is observed; and $R$, whether evidence supports the stated resource attribution. Each field takes values \emph{supported}, \emph{contradicted}, or \emph{unknown}. These are claim-specific judgments, not calibrated probabilities. For example, a missing terminal marker makes stream completion unknown; a warm victim contradicts an intended cold-start manipulation; a whole-episode preemption count can leave window-specific attribution unknown.
+
+An episode with $M$ supported and $R$ unknown remains in the outcome inventory. Its mechanism explanation is withheld. It must not become a zero effect, proof of safety, or an omitted row. If $M$ is unknown because the request timed out, the timeout itself remains an availability outcome; it is not silently removed to calculate latency among survivors.
+
+\begin{table}[t]
+\caption{Evidence requirements depend on the claim. Each row adds obligations; none is implied by successful execution alone.}
+\label{tab:contract}
+\centering\small
+\begin{tabular}{p{0.23\linewidth}p{0.65\linewidth}}
+\toprule
+Claim & Required observation \\
+\midrule
+Reuse separation & Cold/warm controls and per-request cached tokens under authenticated namespace assignment. \\
+Total policy cost & Fixed offered unit; complete outcomes or explicit censoring; paired randomized policy intervention. \\
+Prefix contrast & Both prefix structures under both policies; comparable nuisance conditions and uncertainty. \\
+Capacity interaction & Complete contrasts at each capacity; verified usable block counts and effective budget. \\
+Specific transition & Request/window attribution of allocation, reclamation or preemption, beyond aggregate counter deltas. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The contract should retain raw streaming events, final usage, monotonic receive timestamps, full metric bodies, server identity and the relevant log byte range. A configuration value in an unrelated startup log is not proof of the live server's state. Process start time, process identity and episode-local log offsets strengthen that binding, while an independent trace is needed to authenticate facts outside the artifact itself.
+
+\subsection{Why a Single Validity Bit Is Insufficient}
+
+Consider two executions with the same complete victim stream and the same aggregate preemption increment. In one, the competitor is preempted after the victim window ends. In the other, the victim is preempted inside the window but immediately reuses most released state. The stream and counter alone do not identify which transition occurred or how much recomputation it caused. They support a measurement claim but not the proposed explanation.
+
+Now let $V$ be a validator that accepts only episodes with an unambiguous no-preemption scheduling reconstruction. If pressure changes the probability of $V=1$, reporting only accepted runs estimates a selected operating regime. In symbols, $\mathbb{E}[Y\mid S,V=1]$ need not equal $\mathbb{E}[Y\mid\operatorname{do}(S)]$. This is a general selection issue, not a new statistical theorem. The operational requirement is to publish rejection counts and reasons by condition and retain measured outcomes from $V=0$ whenever available.
+
+Failing closed on a strong mechanism claim is appropriate. Using that same decision to erase weaker but complete measurements is unnecessary. An explicit evidence profile supports both conservative attribution and honest outcome accounting.
+
+\section{\uppercase{Pinned Source Audit}}
+
+We inspected the installed vLLM source and compared seven files byte-for-byte with upstream tag v0.17.1 \cite{vllm}. All seven SHA-256 hashes matched. The claims below are restricted to those paths and this version.\aicite
+
+In \path{v1/core/kv_cache_utils.py}, \path{generate_block_hash_extra_keys} (lines 494--529) includes the request salt in the first block's extra keys. \path{hash_block_tokens} (532--558) includes the parent hash, propagating separation to descendants. This changes lookup identity. It does not allocate a separate physical pool.
+
+In \path{v1/core/block_pool.py}, the constructor (150--176) creates the common block list and free queue and reserves a null block. \path{get_new_blocks} (320--350) draws from that queue; \path{_maybe_evict_cached_block} (352--390) can remove a reclaimed block's cached hash. \path{get_usage} (487--498) excludes the null block from the denominator. Configurations of 24 and 64 blocks therefore have 23 and 63 usable blocks in this pool.
+
+In \path{v1/core/kv_cache_manager.py}, \path{get_computed_blocks} (164--204) limits hits to full blocks and leaves the final prompt token to be computed. For a 128-token prompt at block size 16, 112 reusable tokens are consistent with that rule.
+
+In \texttt{v1/core/sched/scheduler.py}, \texttt{schedule} initializes its budget from \path{max_num_scheduled_tokens} (336), clips scheduled work to the remaining budget (380 and 669), and may preempt after failed allocation (429--486). \path{_preempt_request} (914--934) releases state, resets the computed-token count and returns the request to waiting. Subsequent reuse can still matter; a preemption count alone is not a measurement of full recomputation.
+
+These source observations explain plausible coupling and the necessary controls. They do not establish a novel vulnerability, an observed capacity interaction or a confidentiality breach.
+
+\section{\uppercase{Exploratory Artifact Reconstruction}}
+
+\subsection{Data and Independent Checks}
+
+We reanalyzed 14 saved overlap episodes collected on 17 October 2026 with vLLM 0.17.1 and Llama-3.1-8B-Instruct. Collection was not observed live in this audit. The raw artifacts store concurrent request dispatch, complete server-sent events (SSE), usage, metrics and server logs. We used a new offline parser that imports no original runner and makes no server requests.\aicite
+
+Each episode has one declared victim D with a 192-token prompt and 32 output tokens. Concurrent conditions add B with 128 input and 64 output tokens, dispatched after receipt of D token 8. The endpoint is $Y=t_{28}^{D}-t_{8}^{D}$ using client monotonic receive times. It contains 20 token-receipt intervals and is not GPU kernel time or request completion latency. Shared and isolated conditions either use the same or different namespace salts. Disjoint-prefix controls remove the common-prefix reuse opportunity.
+
+The reconstruction covers 25 requests, 1,152 output token IDs and 1,202 wire events. It checks event-copy consistency, usage versus token counts, terminal markers, prompts versus saved plans, exact trigger receipt and the endpoint calculation. No discrepancies were found. All victim token-bearing events contain one token, so the two endpoint receipts are individually available. Eleven adversarial offline tests verify detection of selected malformed or inconsistent artifacts and preservation of complete measurements under unresolved preemption.
+
+This is internal consistency checking, not independent attestation that every possible concurrent request was recorded. Per-request usage supports the manipulation check; aggregate counter deltas do not authenticate principal identities. The absence of a cached-token detail in successful usage is interpreted as zero in this retained schema, consistent with the stored original assessments.
+
+\subsection{Observations and Missing Cells}
+
+Table~\ref{tab:pilot} reports raw observed endpoints, rounded to milliseconds. Every cell contains one episode. There is no confidence interval, causal-effect estimate or equivalence test.
+
+\begin{table}[t]
+\caption{Exploratory D8--D28 receive intervals (ms). $N$ is configured blocks and $Q$ effective tokens per iteration. An asterisk marks one whole-episode preemption increment; it does not locate that event inside the endpoint window.}
+\label{tab:pilot}
+\centering\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrr}
+\toprule
+Condition & $N64,Q512$ & $N64,Q64$ & $N24,Q64$ \\
+\midrule
+Victim only & 419.262 & 402.789 & 406.431 \\
+Shared prefix & 423.739 & 422.004 & 425.382 \\
+Isolated prefix & 454.940 & 428.328 & 431.388* \\
+Disjoint, shared & 455.015 & 430.730 & 432.515* \\
+Disjoint, isolated & 453.758 & 430.725 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+D has zero reported cache hits in every episode. B has 112 in all three common-prefix shared episodes and zero in the other concurrent episodes. Thus B's initial uncached work is 16 versus 128 tokens. Under the 64-token budget, the stored no-preemption iteration reconstruction gives B chunks of $[16]$ in the shared condition and $[63,63,2]$ when cold: 63 prefill tokens together with one D decode token exhaust an iteration's budget. Under the 512-token budget, the corresponding 16- or 128-token B prefills fit without binding the budget. A configured small budget and observed binding are consequently separate facts.
+
+Two 24-block episodes, isolated/common-prefix and shared/disjoint-prefix, each have one preemption counter increment. Their SSE measurements remain complete, but the original validator rejects the stronger cache/scheduler attribution. All 12 episodes without preemption pass that validator. A valid-episodes-only table would therefore remove both pressure observations in these files. We demonstrate that selection fact, not the direction or magnitude of an induced causal bias.
+
+The sum of logged context tokens equals initial uncached prompt tokens in every episode, including the two with preemption. We observe no excess context-token work in those sums and do not infer a recomputation penalty from the counters. A disjoint-prefix condition also exhibits preemption, so ordinary shared-capacity pressure remains an immediate alternative to an isolation-specific explanation. The missing disjoint/isolated 24-block cell prevents a complete estimate of Equation (2) at that capacity even if other identification problems were solved.
+
+\subsection{Calibrating the Meaning of Work Counters}
+
+The existing traces also support a narrower direction: auditing how scheduler-work labels map to emitted tokens. In each preemption episode, a log entry reports one generation request and 17 generation tokens. Across that episode, logged generation tokens sum to 110. The complete streams contain 96 new output tokens; after excluding each request's first token, produced during initial prefill, the ordinary generation baseline is 94. Each episode therefore has a 16-token accounting residual under the generation label, while its context-token sum has no excess.
+
+The implementation explains why this comparison needs care. In \texttt{v1/utils.py}, \path{compute_iteration_details} (432--476) sums \emph{scheduled} tokens. It classifies new requests and cached requests with no output as context; other scheduled work is labeled generation. In \texttt{v1/core/sched/output.py}, \path{is_context_phase} (161--163) tests the saved output-token count, not whether the present work is recomputation. The log in \texttt{v1/engine/core.py} (350--377) exposes those labels.
+
+We extracted only the pure counter function and its result dataclass from the pinned source and executed four synthetic scheduler-output cases without importing vLLM or using a GPU. Scheduling 17 tokens for a positive-output request gives zero context tokens and 17 generation tokens; the same count for a new or zero-output request is classified as context. These are source-semantic tests, not simulated serving measurements or a validation of actual GPU execution.
+
+Consequently, no extra logged context tokens cannot establish no extra scheduled work. Likewise, 17 logged generation tokens do not establish 17 new output tokens. The actual residual is compatible with recovery work after preemption, but does not prove which request paid it, its timing relative to the victim window or its GPU-time cost. The logger follows its implementation; we assert no defect from the label alone. This concrete calibration strengthens the contract's requirement to define the semantic unit of each counter before using it as a mechanism oracle.
+
+\subsection{What This Case Can and Cannot Support}
+
+The artifacts demonstrate a feasible workload manipulation, complete client-side measurement, and an attribution boundary of the existing validator. They do not demonstrate that namespace separation caused the observed latency differences. Fixed run order, shared server lifetime, initialization effects and timing overhead are uncontrolled. The episodes are short synthetic cases, not a production workload or a sustained adversarial campaign. The 50-ms metric scrape cadence and full iteration logging can themselves affect execution.
+
+Our contract would report these cases as measured outcomes with unresolved mechanism attribution. It would not reinterpret the small observed endpoint differences as evidence against capacity effects: the relevant transition might lie outside this receive window, and no replication supports equivalence. Similarly, a cold/warm sequential cache test can establish reuse behavior without establishing concurrent decode damage. Measurements from older offload campaigns are not used as confirmation of the cache-isolation hypothesis.
+
+\section{\uppercase{Falsifiable Consequences}}
+
+The position has three consequences that can be tested independently of discovering a new attack.\aicite
+
+\textbf{C1: Claim escalation requires evidence escalation.} An evaluator given only complete SSE and an episode-wide preemption delta should abstain on a request-specific, window-specific preemption claim. Constructing paired traces with the event inside versus outside the window tests whether a validator overstates its evidence. Request-level scheduler timestamps should distinguish the cases; a counter alone cannot.
+
+\textbf{C2: Measurement and attribution must survive different faults.} Removing a terminal marker, coalescing token-bearing events or corrupting a token count should change the measurement field. Adding a preemption with no request/window mapping should change attribution without erasing an otherwise complete outcome. The artifact tests exercise several instances, but do not yet establish robustness across engines or arbitrary corruptions.
+
+\textbf{C3: Unresolved fractions are part of the result.} For any capacity comparison, publish the number of complete, censored and unattributable episodes by condition. If the attribution gate rejects a larger share under pressure, a clean-regime result must be labeled accordingly. This prediction is about reporting behavior and selection, not a prediction that pressure always increases latency.
+
+A bounded validation study should reuse the five conditions in Table~\ref{tab:pilot}, at the two existing capacities and budget 64, with randomized paired ordering and request-level transition timestamps. Three complete paired blocks would be a feasibility check, not a power justification or a final effectiveness study. Before collecting them, clear the closest-literature gap and specify an escalation rule. Keep timeouts, preemptions and unknown attribution in the record. A larger campaign is justified only if the remaining uncertainty is scientifically decisive.
+
+The mechanism candidate is killed if the apparent transition occurs outside the victim window, is equally explained by the disjoint control's resource trajectory, or cannot be attributed. The methodological contribution is killed if the contract changes no operational decision beyond the nearest existing work, or its evidence fields cannot be applied consistently by independent auditors. More parameter sweeps cannot resolve either kind of failure by themselves.
+
+\section{\uppercase{Limitations and Practical Implications}}
+
+Our proposal is deliberately modest. The case study covers one model, one serving version and a small artificial block pool. Complete artifact consistency does not prove accurate live collection. No independent replication, treatment randomization, overhead ablation, external auditor agreement study or power analysis has been completed. The proposed controlled-work challenge is a design obligation; this paper supplies no fully matched live-resource counterfactual.\aicite
+
+The literature comparison is bounded, with a material unresolved full-text check for FairCache. We cannot assert that the contract is the first formulation of these requirements. Its plausibility rests on explicit non-implications and its usefulness on whether it prevents identifiable overclaims. A wider literature audit and independent application could reject that incremental contribution.
+
+For operators, two reports should coexist: the total cost of a privacy policy under a declared workload and the evidence for the mechanism producing that cost. A privacy defense can remain correct at its intended lookup boundary while its deployment cost motivates resource scheduling changes. Separating these reports makes a performance regression actionable without labeling it a data leak or claiming a new attack. It also prevents an instrumentation limitation from turning a measured pressure episode into apparent safety evidence.
+
+\section{\uppercase{Conclusion}}
+
+Availability evaluation of prefix-cache isolation needs an explicit connection between the intervention, the outcome population and the evidence supporting its explanation. We propose separate policy and prefix-control contrasts and a three-valued evidence profile that preserves measurements when attribution is unknown. An offline reconstruction shows this distinction in existing pilot artifacts, while leaving the new-mechanism hypothesis unconfirmed. The next scientific step is to validate the reporting contract and clear its nearest competition, rather than expand an unidentifiable attack campaign.\aicite
+
+\section*{AI Assistance and Accountability}
+
+OpenAI Codex \cite{codex} assisted with literature discovery, source inspection, reanalysis code and drafting throughout this manuscript. Numerical observations were recomputed from retained artifacts; no serving measurements were generated by an AI model. Responsibility for scientific verification and the decision to submit remains with the human authors. This anonymous disclosure identifies the tool and its use without author details; the camera-ready version should place it in acknowledgments as required by the venue.
+
+\bibliographystyle{apalike}
+\bibliography{references}
+\end{document}

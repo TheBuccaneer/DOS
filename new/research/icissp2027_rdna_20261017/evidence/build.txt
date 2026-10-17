@@ -1,0 +1,179 @@
+note: Running TeX ...
+warning: algorithm2e.sty:284: 
+Invalid UTF-8 byte or sequence at line 284 replaced by U+FFFD.
+warning: algorithm2e.sty:299: Invalid UTF-8 byte or sequence at line 299 replaced by U+FFFD.
+warning: algorithm2e.sty:550: Invalid UTF-8 byte or sequence at line 550 replaced by U+FFFD.
+warning: PAPER.tex:18: Underfull \hbox (badness 10000) in paragraph at lines 18--18
+warning: PAPER.tex:23: Underfull \hbox (badness 2922) in paragraph at lines 22--23
+warning: PAPER.tex:45: Underfull \hbox (badness 1038) in paragraph at lines 44--45
+warning: PAPER.tex:49: Underfull \hbox (badness 1442) in paragraph at lines 48--49
+warning: PAPER.tex:55: Underfull \hbox (badness 1515) in paragraph at lines 54--55
+warning: PAPER.tex:55: Underfull \hbox (badness 1946) in paragraph at lines 54--55
+warning: PAPER.tex:62: Underfull \hbox (badness 1077) in paragraph at lines 60--62
+warning: PAPER.tex:72: Underfull \hbox (badness 1158) in paragraph at lines 70--72
+warning: PAPER.tex:72: Underfull \hbox (badness 3884) in paragraph at lines 70--72
+warning: PAPER.tex:72: Underfull \hbox (badness 1558) in paragraph at lines 70--72
+warning: PAPER.tex:106: Underfull \hbox (badness 8113) in paragraph at lines 106--106
+warning: PAPER.tex:107: Underfull \hbox (badness 1194) in paragraph at lines 106--107
+warning: PAPER.tex:107: Underfull \hbox (badness 5161) in paragraph at lines 106--107
+warning: PAPER.tex:107: Underfull \hbox (badness 10000) in paragraph at lines 107--107
+warning: PAPER.tex:108: Underfull \hbox (badness 10000) in paragraph at lines 108--108
+warning: PAPER.tex:109: Underfull \hbox (badness 4608) in paragraph at lines 109--109
+warning: PAPER.tex:130: Underfull \hbox (badness 2564) in paragraph at lines 129--130
+warning: PAPER.tex:132: Underfull \hbox (badness 3907) in paragraph at lines 131--132
+warning: PAPER.tex:134: Underfull \hbox (badness 10000) in paragraph at lines 133--134
+warning: PAPER.tex:134: Underfull \hbox (badness 3601) in paragraph at lines 133--134
+warning: PAPER.tex:136: Underfull \hbox (badness 2564) in paragraph at lines 135--136
+warning: PAPER.tex:136: Underfull \hbox (badness 2197) in paragraph at lines 135--136
+warning: PAPER.tex:176: Underfull \hbox (badness 1259) in paragraph at lines 175--176
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 5637) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 1735) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 1297) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 1454) in paragraph at lines 183--184
+note: Running BibTeX on PAPER.aux ...
+note: Rerunning TeX because bibtex was run ...
+warning: algorithm2e.sty:284: 
+Invalid UTF-8 byte or sequence at line 284 replaced by U+FFFD.
+warning: algorithm2e.sty:299: Invalid UTF-8 byte or sequence at line 299 replaced by U+FFFD.
+warning: algorithm2e.sty:550: Invalid UTF-8 byte or sequence at line 550 replaced by U+FFFD.
+warning: PAPER.tex:18: Underfull \hbox (badness 10000) in paragraph at lines 18--18
+warning: PAPER.tex:23: Underfull \hbox (badness 2922) in paragraph at lines 22--23
+warning: PAPER.tex:45: Underfull \hbox (badness 1038) in paragraph at lines 44--45
+warning: PAPER.tex:49: Underfull \hbox (badness 1442) in paragraph at lines 48--49
+warning: PAPER.tex:55: Underfull \hbox (badness 1515) in paragraph at lines 54--55
+warning: PAPER.tex:55: Underfull \hbox (badness 1946) in paragraph at lines 54--55
+warning: PAPER.tex:62: Underfull \hbox (badness 1077) in paragraph at lines 60--62
+warning: PAPER.tex:72: Underfull \hbox (badness 1158) in paragraph at lines 70--72
+warning: PAPER.tex:72: Underfull \hbox (badness 3884) in paragraph at lines 70--72
+warning: PAPER.tex:72: Underfull \hbox (badness 1558) in paragraph at lines 70--72
+warning: PAPER.tex:106: Underfull \hbox (badness 8113) in paragraph at lines 106--106
+warning: PAPER.tex:107: Underfull \hbox (badness 1194) in paragraph at lines 106--107
+warning: PAPER.tex:107: Underfull \hbox (badness 5161) in paragraph at lines 106--107
+warning: PAPER.tex:107: Underfull \hbox (badness 10000) in paragraph at lines 107--107
+warning: PAPER.tex:108: Underfull \hbox (badness 10000) in paragraph at lines 108--108
+warning: PAPER.tex:109: Underfull \hbox (badness 4608) in paragraph at lines 109--109
+warning: PAPER.tex:130: Underfull \hbox (badness 2564) in paragraph at lines 129--130
+warning: PAPER.tex:132: Underfull \hbox (badness 3907) in paragraph at lines 131--132
+warning: PAPER.tex:134: Underfull \hbox (badness 10000) in paragraph at lines 133--134
+warning: PAPER.tex:134: Underfull \hbox (badness 3601) in paragraph at lines 133--134
+warning: PAPER.tex:136: Underfull \hbox (badness 2564) in paragraph at lines 135--136
+warning: PAPER.tex:136: Underfull \hbox (badness 2197) in paragraph at lines 135--136
+warning: PAPER.tex:176: Underfull \hbox (badness 1259) in paragraph at lines 175--176
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 5637) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 1735) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 1297) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 1454) in paragraph at lines 183--184
+warning: PAPER.bbl:9: Underfull \hbox (badness 2903) in paragraph at lines 4--9
+warning: PAPER.bbl:42: Underfull \hbox (badness 1028) in paragraph at lines 36--42
+warning: PAPER.bbl:42: Underfull \hbox (badness 1147) in paragraph at lines 36--42
+warning: PAPER.bbl:42: Underfull \hbox (badness 2012) in paragraph at lines 36--42
+warning: PAPER.bbl:56: Underfull \hbox (badness 1303) in paragraph at lines 51--56
+warning: PAPER.bbl:83: Underfull \hbox (badness 1067) in paragraph at lines 79--83
+warning: PAPER.bbl:90: Underfull \hbox (badness 1163) in paragraph at lines 85--90
+warning: PAPER.bbl:97: Underfull \hbox (badness 1072) in paragraph at lines 92--97
+warning: PAPER.bbl:104: Underfull \hbox (badness 1107) in paragraph at lines 99--104
+note: Rerunning TeX because "PAPER.aux" changed ...
+warning: algorithm2e.sty:284: 
+Invalid UTF-8 byte or sequence at line 284 replaced by U+FFFD.
+warning: algorithm2e.sty:299: Invalid UTF-8 byte or sequence at line 299 replaced by U+FFFD.
+warning: algorithm2e.sty:550: Invalid UTF-8 byte or sequence at line 550 replaced by U+FFFD.
+warning: PAPER.tex:18: Underfull \hbox (badness 10000) in paragraph at lines 18--18
+warning: PAPER.tex:23: Underfull \hbox (badness 2922) in paragraph at lines 22--23
+warning: PAPER.tex:45: Underfull \hbox (badness 1038) in paragraph at lines 44--45
+warning: PAPER.tex:49: Underfull \hbox (badness 1442) in paragraph at lines 48--49
+warning: PAPER.tex:55: Underfull \hbox (badness 1515) in paragraph at lines 54--55
+warning: PAPER.tex:55: Underfull \hbox (badness 1946) in paragraph at lines 54--55
+warning: PAPER.tex:62: Underfull \hbox (badness 1077) in paragraph at lines 60--62
+warning: PAPER.tex:72: Underfull \hbox (badness 1158) in paragraph at lines 70--72
+warning: PAPER.tex:72: Underfull \hbox (badness 3884) in paragraph at lines 70--72
+warning: PAPER.tex:72: Underfull \hbox (badness 1558) in paragraph at lines 70--72
+warning: PAPER.tex:106: Underfull \hbox (badness 8113) in paragraph at lines 106--106
+warning: PAPER.tex:107: Underfull \hbox (badness 1194) in paragraph at lines 106--107
+warning: PAPER.tex:107: Underfull \hbox (badness 5161) in paragraph at lines 106--107
+warning: PAPER.tex:107: Underfull \hbox (badness 10000) in paragraph at lines 107--107
+warning: PAPER.tex:108: Underfull \hbox (badness 10000) in paragraph at lines 108--108
+warning: PAPER.tex:109: Underfull \hbox (badness 4608) in paragraph at lines 109--109
+warning: PAPER.tex:130: Underfull \hbox (badness 2564) in paragraph at lines 129--130
+warning: PAPER.tex:132: Underfull \hbox (badness 3907) in paragraph at lines 131--132
+warning: PAPER.tex:134: Underfull \hbox (badness 10000) in paragraph at lines 133--134
+warning: PAPER.tex:134: Underfull \hbox (badness 3601) in paragraph at lines 133--134
+warning: PAPER.tex:136: Underfull \hbox (badness 2564) in paragraph at lines 135--136
+warning: PAPER.tex:136: Underfull \hbox (badness 2197) in paragraph at lines 135--136
+warning: PAPER.tex:176: Underfull \hbox (badness 1259) in paragraph at lines 175--176
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 5637) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 1735) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 1297) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 1454) in paragraph at lines 183--184
+warning: PAPER.bbl:9: Underfull \hbox (badness 2903) in paragraph at lines 4--9
+warning: PAPER.bbl:42: Underfull \hbox (badness 1028) in paragraph at lines 36--42
+warning: PAPER.bbl:42: Underfull \hbox (badness 1147) in paragraph at lines 36--42
+warning: PAPER.bbl:42: Underfull \hbox (badness 2012) in paragraph at lines 36--42
+warning: PAPER.bbl:56: Underfull \hbox (badness 1303) in paragraph at lines 51--56
+warning: PAPER.bbl:83: Underfull \hbox (badness 1067) in paragraph at lines 79--83
+warning: PAPER.bbl:90: Underfull \hbox (badness 1163) in paragraph at lines 85--90
+warning: PAPER.bbl:97: Underfull \hbox (badness 1072) in paragraph at lines 92--97
+warning: PAPER.bbl:104: Underfull \hbox (badness 1107) in paragraph at lines 99--104
+note: Rerunning TeX because "PAPER.aux" changed ...
+warning: algorithm2e.sty:284: 
+Invalid UTF-8 byte or sequence at line 284 replaced by U+FFFD.
+warning: algorithm2e.sty:299: Invalid UTF-8 byte or sequence at line 299 replaced by U+FFFD.
+warning: algorithm2e.sty:550: Invalid UTF-8 byte or sequence at line 550 replaced by U+FFFD.
+warning: PAPER.tex:18: Underfull \hbox (badness 10000) in paragraph at lines 18--18
+warning: PAPER.tex:23: Underfull \hbox (badness 2922) in paragraph at lines 22--23
+warning: PAPER.tex:45: Underfull \hbox (badness 1038) in paragraph at lines 44--45
+warning: PAPER.tex:49: Underfull \hbox (badness 1442) in paragraph at lines 48--49
+warning: PAPER.tex:55: Underfull \hbox (badness 1515) in paragraph at lines 54--55
+warning: PAPER.tex:55: Underfull \hbox (badness 1946) in paragraph at lines 54--55
+warning: PAPER.tex:62: Underfull \hbox (badness 1077) in paragraph at lines 60--62
+warning: PAPER.tex:72: Underfull \hbox (badness 1158) in paragraph at lines 70--72
+warning: PAPER.tex:72: Underfull \hbox (badness 3884) in paragraph at lines 70--72
+warning: PAPER.tex:72: Underfull \hbox (badness 1558) in paragraph at lines 70--72
+warning: PAPER.tex:106: Underfull \hbox (badness 8113) in paragraph at lines 106--106
+warning: PAPER.tex:107: Underfull \hbox (badness 1194) in paragraph at lines 106--107
+warning: PAPER.tex:107: Underfull \hbox (badness 5161) in paragraph at lines 106--107
+warning: PAPER.tex:107: Underfull \hbox (badness 10000) in paragraph at lines 107--107
+warning: PAPER.tex:108: Underfull \hbox (badness 10000) in paragraph at lines 108--108
+warning: PAPER.tex:109: Underfull \hbox (badness 4608) in paragraph at lines 109--109
+warning: PAPER.tex:130: Underfull \hbox (badness 2564) in paragraph at lines 129--130
+warning: PAPER.tex:132: Underfull \hbox (badness 3907) in paragraph at lines 131--132
+warning: PAPER.tex:134: Underfull \hbox (badness 10000) in paragraph at lines 133--134
+warning: PAPER.tex:134: Underfull \hbox (badness 3601) in paragraph at lines 133--134
+warning: PAPER.tex:136: Underfull \hbox (badness 2564) in paragraph at lines 135--136
+warning: PAPER.tex:136: Underfull \hbox (badness 2197) in paragraph at lines 135--136
+warning: PAPER.tex:176: Underfull \hbox (badness 1259) in paragraph at lines 175--176
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 5637) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 1735) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 1297) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 10000) in paragraph at lines 183--184
+warning: PAPER.tex:184: Underfull \hbox (badness 1454) in paragraph at lines 183--184
+warning: PAPER.bbl:9: Underfull \hbox (badness 2903) in paragraph at lines 4--9
+warning: PAPER.bbl:42: Underfull \hbox (badness 1028) in paragraph at lines 36--42
+warning: PAPER.bbl:42: Underfull \hbox (badness 1147) in paragraph at lines 36--42
+warning: PAPER.bbl:42: Underfull \hbox (badness 2012) in paragraph at lines 36--42
+warning: PAPER.bbl:56: Underfull \hbox (badness 1303) in paragraph at lines 51--56
+warning: PAPER.bbl:83: Underfull \hbox (badness 1067) in paragraph at lines 79--83
+warning: PAPER.bbl:90: Underfull \hbox (badness 1163) in paragraph at lines 85--90
+warning: PAPER.bbl:97: Underfull \hbox (badness 1072) in paragraph at lines 92--97
+warning: PAPER.bbl:104: Underfull \hbox (badness 1107) in paragraph at lines 99--104
+warning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.
+note: Running xdvipdfmx ...
+note: Writing `../output/pdf/PAPER.aux` (1.3173828125 KiB)
+note: Writing `../output/pdf/PAPER.log` (16.7509765625 KiB)
+note: Writing `../output/pdf/PAPER.pdf` (62.01953125 KiB)
+note: Writing `../output/pdf/PAPER.bbl` (4.283203125 KiB)
+note: Writing `../output/pdf/PAPER.blg` (194 B)

@@ -1,0 +1,1207 @@
+                                                                  Auditing Prompt Caching in Language Model APIs
+
+
+                                                       Chenchen Gu 1 Xiang Lisa Li 1 Rohith Kuditipudi 1 Percy Liang 1 Tatsunori Hashimoto 1
+
+
+                                                                    Abstract                                    (1) Prompt becomes    (2) Cache miss ⟹               (3) Cache hit ⟹
+                                                                                                                       cached         slow response time            fast response time
+                                                 Prompt caching in large language models (LLMs)                         Victim                Attacker                     Attacker
+                                                 results in data-dependent timing variations:
+                                                                                                                The quick               Lorem                      The quick
+                                                                                                                                                    t = 0.5 s
+                                                 cached prompts are processed faster than non-                  brown fox            ipsum dolor                   brown fox
+                                                                                                                                                                                  t = 0.1 s
+
+
+
+
+arXiv:2502.07776v2 [cs.CL] 13 Jul 2025
+                                                                                                                  jumps                sit amet                       runs
+                                                 cached prompts. These timing differences intro-
+                                                 duce the risk of side-channel timing attacks. For                          API                  API                           API
+                                                 example, if the cache is shared across users, an
+                                                                                                                    Prompt Cache          Prompt Cache                 Prompt Cache
+                                                 attacker could identify cached prompts from fast                                      The quick brown fox jumps    The quick brown fox jumps
+                                                 API response times to learn information about                                                                        Lorem ipsum dolor sit
+                                                 other users’ prompts. Because prompt caching
+                                                 may cause privacy leakage, transparency around
+                                                 the caching policies of API providers is important.          Figure 1. An example illustrating prompt caching. (1) A victim
+                                                 To this end, we develop and conduct statistical au-          sends a prompt to the API, which then becomes cached. (2) An
+                                                 dits to detect prompt caching in real-world LLM              attacker sends a new prompt, resulting in a cache miss and slow
+                                                 API providers. We detect global cache sharing                response time. (3) An attacker sends a prompt that shares a prefix
+                                                 across users in seven API providers, including               with the victim’s prompt, resulting in a cache hit. From the fast
+                                                 OpenAI, resulting in potential privacy leakage               response time, the attacker can infer that a cache hit occurred,
+                                                                                                              which potentially reveals information about other users’ prompts.
+                                                 about users’ prompts. Timing variations due to
+                                                 prompt caching can also result in leakage of in-
+                                                 formation about model architecture. Namely, we               variations—cached prompts will be processed faster than
+                                                 find evidence that OpenAI’s embedding model                  non-cached prompts, introducing the risk of side-channel
+                                                 is a decoder-only Transformer, which was previ-              timing attacks and information leakage. In particular, an
+                                                 ously not publicly known.1                                   attacker could identify prompts that yield fast API response
+                                                                                                              times; such prompts are likely cached. If the cache is shared
+                                                                                                              across users, then a prompt being cached implies that an-
+                                                                                                              other user recently sent that prompt. Figure 1 illustrates an
+                                         1. Introduction                                                      example of prompt caching and potential privacy leakage.
+                                         Transformer large language models (LLMs) are computa-                In general, timing differences between cache hits and cache
+                                         tionally expensive and slow to run. To address this challenge,       misses have been widely exploited in computer security,
+                                         recent work has developed optimizations to make LLM in-              such as in the infamous Meltdown (Lipp et al., 2018) and
+                                         ference and serving more efficient, such as prompt caching           Spectre attacks (Kocher et al., 2019).
+                                         (Zheng et al., 2024a; Gim et al., 2024). In prompt caching,          Because prompt caching may result in privacy leakage, it
+                                         reuse of the attention key-value (KV) cache across requests          is important for users to know about the prompt caching
+                                         results in cache hits and faster response times for prompts          policies of API providers. Some API providers have
+                                         that share a prefix with a cached prompt.                            announced that they perform prompt caching, such as
+                                         However, prompt caching results in data-dependent timing             Anthropic (2024b) and OpenAI (2024b), but other API
+                                                                                                              providers may be performing prompt caching without an-
+                                             1
+                                             Stanford University.  Correspondence to: Chenchen                nouncing it. Also, even if a provider announces prompt
+                                         Gu    <cygu@cs.stanford.edu>,     Tatsunori  Hashimoto
+                                                                                                              caching, they may not state the level of cache sharing, i.e.,
+                                         <thashim@stanford.edu>.
+                                                                                                              per-user, per-organization, or global.
+                                         Proceedings of the 42 nd International Conference on Machine
+                                                                                                              Therefore, we develop and conduct an audit to determine if
+                                         Learning, Vancouver, Canada. PMLR 267, 2025. Copyright 2025
+                                         by the author(s).                                                    an API provider is caching prompts and the precise level of
+                                             1
+                                               We release code and data at https://github.com/                cache sharing. Our audit uses statistical hypothesis testing
+                                         chenchenygu/auditing-prompt-caching.                                 and outputs valid p-values with respect to the null hypothesis
+
+                                                                                                          1
+                                      Auditing Prompt Caching in Language Model APIs
+
+of no caching, enabling guarantees on the false positive rate.       2.1. Prompt Caching
+In our audit, we construct and sample response times from            Recent works have proposed prompt caching in Transformer
+two procedures: one that attempts to produce cache hits,             (Vaswani et al., 2017) LLM serving by reusing the atten-
+and one that produces cache misses. At a high level, to              tion key-value (KV) cache across requests (Zheng et al.,
+attempt to produce a cache hit, we send a prompt to the              2024a; Gim et al., 2024). In these methods, a prompt is
+API to try to cache the prompt, then we send the prompt              cached by storing the prompt’s attention KV cache. Then,
+again to try to hit the cache. To produce a cache miss, we           if a subsequent prompt has a matching prefix with a cached
+simply send a random prompt. Under the null hypothesis of            prompt, the KV cache for the matching prefix can be re-
+no prompt caching, where only cache misses are possible,             trieved from the cache. As a result, cache hits will tend to
+these procedures produce identical distributions of times.           have a faster time to first token (TTFT), which is the time
+Accordingly, we detect caching if we find a statistically            taken to process the prompt and generate the first response
+significant difference between these distributions.                  token.2 In decoder-only Transformers, where each token
+                                                                     attends only to previous tokens, reusing the KV cache for
+We conducted audits on real-world LLM API providers in
+                                                                     matching prefixes exactly preserves model behavior, even
+September and October 2024. We detected prompt caching
+                                                                     when the prompt suffixes differ. Figure 1 illustrates an ex-
+in 8 out of 17 API providers. In 7 of these providers, we
+                                                                     ample of prompt caching.
+detected global cache sharing. On these APIs, an attacker
+could, in principle, detect cache hits from timing differences       Several API providers have recently announced prompt
+to infer that another user sent a prompt that shares a prefix        caching features, including Anthropic (2024b), DeepSeek
+with a given prompt.                                                 (2024), Fireworks (2024), and OpenAI (2024b). These
+                                                                     providers do not state technical details of prompt caching,
+Timing variations due to prompt caching can also result in
+                                                                     but these providers state that cache hits occur for (and only
+leakage of information about a model’s architecture. Cache
+                                                                     for) exact prefix matches between prompts. For our pur-
+hits between prompts that share a prefix but have different
+                                                                     poses, the precise implementation of prompt caching is
+suffixes are possible only in autoregressive decoder-only
+                                                                     largely unimportant. The properties of prompt caching that
+Transformers, where each token attends only to previous
+                                                                     we exploit are:
+tokens. Therefore, detecting such prompt prefix caching
+indicates that the model has a decoder-only architecture.
+Virtually all chat models are decoder-only, but embedding              1. Cache hits occur on prefix matches between prompts.
+models can have either encoder or decoder architectures. As            2. Cache hits tend to have a faster TTFT than cache
+such, for proprietary embedding models, leakage of archi-                 misses (after accounting for prompt length).
+tecture information may represent a leakage of intellectual
+property. By detecting prompt prefix caching, we find evi-
+                                                                     To describe these properties more formally, assume that a
+dence that OpenAI’s text-embedding-3-small model has a
+                                                                     model API takes in a prompt x and has a TTFT T (x). Note
+decoder-only architecture, which was previously not pub-
+                                                                     that T (x) is a random variable due to variance from network
+licly known.
+                                                                     latency, server load, etc. Assume that the API has a cache
+                                                                     C, which is a set of cached prompts. If x has a sufficiently
+                                                                     long matching prefix with some cached prompt c ∈ C, then
+                                                                     a cache hit occurs.
+                                                                     For example, let c = “The quick brown fox jumps” and
+Responsible disclosure. In October 2024, we disclosed                C = {c}. If x1 = “The quick brown fox runs”, then x1 and
+our audit results with each API provider in which we de-             c have a matching prefix of “The quick brown fox ”, so x1
+tected prompt caching. We gave providers 60 days to ad-              could result in a cache hit. On the other hand, if x2 = “A
+dress the vulnerabilities before publicly releasing our find-        quick brown fox jumps”, then x2 and c do not share a prefix,
+ings, and the actual time elapsed ended up being longer.             so x2 results in a cache miss. Since x1 and x2 are similar
+To our knowledge, at least five providers made changes to            lengths but x1 is a cache hit and x2 is a cache miss, we
+mitigate vulnerabilities, e.g., disabling global cache sharing       would expect that E[T (x1 )] < E[T (x2 )].
+across organizations and updating documentation.
+                                                                     When a prompt x is sent to the API, we assume that x is
+                                                                     added to the cache C and that x will remain in C for some fi-
+2. Preliminaries and Assumptions                                     nite period of time. The API may use multiple servers, each
+                                                                     with their own separate caches. We do not make assump-
+First, we briefly describe prompt caching, our assumptions
+on how users and attackers can interact with an API, and                 2
+                                                                           In embedding models, we can view the embedding output as
+the levels of cache sharing and privacy leakage.                     the first and only response “token”.
+
+                                                                 2
+                                       Auditing Prompt Caching in Language Model APIs
+
+                            Global                  👤                    2. Per-organization caching. Each organization has its
+             Organization            Organization                           own cache, i.e., when user u, who belongs to organi-
+             👤        👤                        👤                            zation o, sends a prompt, a cache hit can occur only
+                                      👤             👤
+                  👤         👤              👤                                with a cached prompt previously sent by any user in
+             👤
+                      👤               👤        👤                            organization o. There is a slight risk of privacy leakage
+         👤                  👤 Users                                         if certain users in the organization have access to privi-
+                                                                            leged information that other users should not, e.g., the
+Figure 2. Organizations contain users, and the global level con-
+                                                                            CEO knowing sensitive business data. However, this
+tains all users and organizations of an API.
+                                                                            risk can be mitigated, as the organization owner has
+                                                                            full control over which users are members.
+tions about how prompts are routed to servers. A prompt
+may be randomly routed, or it may be intentionally routed
+to a server where the prompt is already cached.                          3. Global caching. The cache is shared across all users
+                                                                            of the API, e.g., when a user sends a prompt, a cache
+2.2. API Assumptions                                                        hit can occur with any cached prompt, regardless of
+                                                                            who sent it. This leads to the highest risk of privacy
+We assume that it is possible to send arbitrary prompts to the              leakage, as an attacker could potentially learn informa-
+API (possibly subject to some maximum length) and mea-                      tion about any other user’s prompts, including users in
+sure the TTFT. The TTFT can be measured by setting the                      other organizations.
+maximum tokens parameter to 1, which restricts the LLM
+output to only contain 1 token. Then, the overall response
+time is equal to the TTFT. The max tokens parameter is                 3. An Audit to Detect Prompt Caching
+supported by most, if not all, real-world LLM APIs.                    Next, we propose an audit to detect whether an API provider
+Either client-side or server-side timing suffices for our pur-         is caching prompts and determine the level of cache sharing.
+poses. The client-side timing is obtained simply by measur-            Our audit uses statistical hypothesis testing and outputs valid
+ing the time elapsed between sending the API request and               p-values with respect to the null hypothesis of no caching,
+receiving the API response. The server-side timing can be              allowing for guarantees on the false positive rate.
+measured if it is contained somewhere in the API response.3
+                                                                       3.1. Audit Formulation: Statistical Hypothesis Testing
+2.3. Levels of Cache Sharing and Privacy Leakage
+                                                                       To test for a given level of cache sharing, let uvictim and
+To facilitate our discussion of prompt cache sharing and               uattacker be two users that are the farthest away within that
+privacy leakage in APIs, we define our terminology of users            level. For example, to test for per-organization caching,
+and organizations. A user is one person that uses the API.             uvictim and uattacker should be different users in the same
+Each user has a unique email/username and login pass-                  organization.
+word. An organization contains many users, but shares                  We formulate our audit as a statistical hypothesis test using
+a billing system, centralized membership management, etc.              the following null and alternative hypotheses:
+Organizations can be used by companies, research groups,
+etc. Many, but not all, API providers support organizations,
+although sometimes under different terminology, such as                H0 : API does not cache prompts (at this level of sharing),
+teams or accounts. For consistency and simplicity, we refer            H1 : API caches prompts (at this level of sharing).
+to them all as organizations. Figure 2 shows the hierarchical
+structure of users and organizations.                                  The caching in H0 does not refer only to prompt caching via
+We consider three levels of cache sharing and their corre-             the KV cache reuse described earlier. More verbosely, H0
+sponding potential privacy leakages.                                   can be written as “when uvictim sends a prompt x to the API,
+                                                                       the API does not store any information about x that affects
+                                                                       the TTFT T (x̃) for any future prompt x̃ sent by uattacker ”.
+  1. Per-user caching. Each user has their own cache, i.e.,
+     when user u sends a prompt, a cache hit can occur                 To test these hypotheses, we construct procedures that at-
+     only with a cached prompt previously sent by user u.              tempt to produce and measure the TTFT of cache hits and
+     Therefore, there is no potential privacy leakage arising          cache misses. Let P be a distribution of prompts. To pro-
+     from per-user prompt caching.                                     duce a cache miss, uattacker simply sends a random prompt
+                                                                       x′ ∼ P to the API and measures the TTFT T (x′ ).
+   3
+     We can measure server-side timing in more than half of the
+APIs we test, often from undocumented fields in the HTTP headers       To attempt to produce a cache hit, first, we sample a prompt
+of the API response.                                                   x ∼ P, and uvictim sends x to the API one or multiple times
+
+                                                                   3
+                                        Auditing Prompt Caching in Language Model APIs
+
+to try to cache x.4 Next, we sample x̃ ∼ P such that x̃                  Cache hit. First, we sample a random prompt x ∼ P.
+and x share a prefix of a certain length. To try to produce a            Then, uvictim sends x to the API N UM V ICTIM R EQUESTS
+cache hit, uattacker sends x̃ and measures the TTFT T (x̃).              times consecutively to try to cache x. Then, we sample
+                                                                         x̃ ∼ P such that x̃ and x have a shared prefix of exactly
+Let Dhit and Dmiss be the distributions of TTFTs from these
+                                                                         P REFIX F RACTION × P ROMPT L ENGTH tokens. To attempt
+cache hit and cache miss procedures, respectively. Under
+                                                                         to produce a cache hit, uattacker sends x̃ to the API and mea-
+the null hypothesis H0 of no caching, Dhit = Dmiss , as
+                                                                         sures the TTFT T (x̃). When P REFIX F RACTION = 1, we
+both procedures will produce only cache misses. In contrast,
+                                                                         test for prompt caching when x̃ = x, i.e., exact prompt
+under the alternative hypothesis H1 of caching, we would
+                                                                         matches. When P REFIX F RACTION < 1, we test for prompt
+expect the cache hit times to tend to be faster than the cache
+                                                                         caching when x̃ and x have the same prefix but different
+miss times, so Dhit ̸= Dmiss . Now, we can reformulate our
+                                                                         suffixes, e.g., “a b c d” and “a b c x”.
+hypotheses as
+
+                     H0 : Dhit = Dmiss ,                                 Statistical testing. Putting these pieces together, to per-
+                     H1 : Dhit ̸= Dmiss .                                form the audit, we collect N UM S AMPLES timings each from
+                                                                         the cache hit and cache miss procedures. We randomize the
+Given this reformulation, to perform our audit, we first                 order in which we collect the timing samples. Then, we test
+sample TTFTs from the cache hit and cache miss proce-                    for a statistically significant difference between the distribu-
+dures. Then, we run a statistical test for whether our sam-              tions of times from the two procedures. We use the SciPy
+ples came from the same distribution, e.g., the two-sample               implementation (Virtanen et al., 2020) of the two-sample
+Kolmogorov-Smirnov test, producing a p-value with respect                Kolmogorov-Smirnov (KS) test (Hodges Jr, 1958), which
+to the null hypothesis of no caching.                                    is a nonparametric test for equality of distributions. The
+                                                                         test statistic is the maximum difference between the empir-
+3.2. Audit Implementation Details                                        ical cumulative distribution functions at any point. More
+                                                                         specifically, since we expect cache hits to be faster under the
+Next, we describe the concrete implementation details of our             alternative, we perform a one-sided test, so the test statistic
+audit. The procedure uses the following configuration pa-                is the maximum difference in the direction of cache hits
+rameters: P ROMPT L ENGTH, P REFIX F RACTION, N UM V IC -                being faster. The KS test outputs a p-value, which we can
+TIM R EQUESTS, and N UM S AMPLES. The meanings of these                  use to reject or not reject the null hypothesis of no prompt
+parameters will become clear in the descriptions below.                  caching at a given significance level α.
+
+Prompt distribution. Our distribution P of prompts
+                                                                         4. Auditing Real-World APIs
+is a uniform distribution over all prompts consisting of
+P ROMPT L ENGTH English letters, lowercase and uppercase,                Next, we audit real-world LLM APIs to identify APIs that
+each separated by space characters, e.g., “m x N j R”.                   cache prompts and determine the level of cache sharing,
+Because all commonly used byte-pair encoding (BPE) tok-                  i.e., per-user, per-organization, or global. Cache sharing
+enizers (Gage, 1994; Sennrich et al., 2016) split on whites-             results in potential privacy leakage, as an attacker could,
+pace during pre-tokenization, all prompts in P will be ex-               in principle, identify cached prompts using timing data to
+actly P ROMPT L ENGTH tokens long.5                                      learn information about other users’ prompts.
+
+Cache miss. uvictim sends a random prompt x ∼ P to the                   4.1. Audit Setup and Configuration
+API and measures the TTFT T (x). Since the prompt con-
+                                                                         API providers and models. We audit 17 API providers:
+sists of random letters, there is a negligible probability that
+                                                                         Anthropic, Amazon Bedrock, Microsoft Azure OpenAI, Co-
+a noticeable prefix has already been cached: the probability
+                                                                         here, Deep Infra, DeepSeek, Fireworks AI, Google, Groq,
+that two prompts sampled from P share a prefix of 15 to-
+                                                                         Hyperbolic, Lepton AI, Mistral, OctoAI, OpenAI, Perplex-
+kens or longer is less than 10−25 . Therefore, this procedure
+                                                                         ity, Replicate, and Together AI. The model APIs that we
+accurately measures a distribution of cache miss times.
+                                                                         audit for each provider are included in Tables 1 and 2. For
+    4                                                                    API providers that primarily serve open-weight models, we
+      Multiple requests may be necessary in some scenarios, e.g.,
+if API requests are randomly routed to one of several servers, and       audit their Llama 3 or 3.1 8B Instruct API (Dubey et al.,
+each server has a separate cache.                                        2024). For providers that serve proprietary models, we au-
+    5
+      Many APIs add a small number of tokens to the user prompt          dit the cheapest chat model in their most recent family of
+due to the default system prompt, special tokens for prompt and
+role formatting, etc. However, these additional tokens are unim-         models. In addition, we audit APIs for proprietary embed-
+portant for our procedure, as the number of additional tokens is         ding models, where available. We do not audit APIs for
+small and remains constant across prompts to a given model API.          open-weight embedding models because we did not find any
+
+                                                                     4
+                                         Auditing Prompt Caching in Language Model APIs
+
+Table 1. Audit results for APIs where we detected prompt caching. ✓ denotes caching was detected, ✗ denotes caching was not detected,
+and “—” denotes that cache sharing within an organization was not tested, either because the API did not support organizations or because
+we did not have access to the organizations feature. We report the average precision for classifying times from the cache hit procedure,
+using the highest level of cache sharing detected in each API. We report the average precision for client-side timing and server-side timing
+separately, with “—” denoting that the given timing method is unavailable for that API.
+
+                                               Same prompt               Same prefix, different suffixes            Avg. precision
+ Provider        Model                            Per-user           Per-user       Per-org.        Global        Client       Server
+ Azure           text-embedding-3-small               ✓                  ✓             —               ✓           0.80           —
+ Deep Infra      Llama 3.1 8B Instruct                ✓                  ✓             —               ✓           0.84           —
+ Fireworks       Llama 3.1 8B Instruct                ✓                  ✓             ✓               ✓           0.77          0.79
+ Lepton          Llama 3.1 8B Instruct                ✓                  ✓             —               ✓           0.71          0.70
+ OpenAI          text-embedding-3-small               ✓                  ✓             ✓               ✓           0.78          0.79
+ Perplexity      Llama 3.1 8B Instruct                ✓                  ✓             —               ✓           0.90           —
+ Replicate       Llama 3 8B Instruct                  ✓                  ✓             —               ✓            —            1.00
+ Anthropic       Claude 3 Haiku                       ✓                  ✓              ✓              ✗           0.84           —
+ OpenAI          GPT-4o mini                          ✓                  ✓              ✓              ✗           0.79          0.86
+
+Table 2. Audit results for APIs where we did not detect prompt                by setting P REFIX F RACTION = 1. We set uvictim
+caching. ✗ denotes that caching was not detected.                             and uattacker to be the same user, and we set
+                                                                              N UM V ICTIM R EQUESTS = 25.
+                                                  Same prompt
+ Provider         Model                             Per-user
+                                                                         In the remaining three levels, we test for prompt caching
+ Amazon           Claude 3 Haiku                          ✗              when x̃ and x have the same prefix but different suffixes by
+ Azure            GPT-4o mini                             ✗              setting P REFIX F RACTION = 0.95. We test for increasing
+ Cohere           Command R                               ✗              levels of cache sharing by appropriately setting the victim
+ Cohere           embed-english-v3.0                      ✗              and attacker users:
+ DeepSeek         DeepSeek Chat                           ✗
+ Google           Gemini 1.5 Flash                        ✗                2. Per-user caching. uvictim and uattacker are the same user,
+ Google           text-embedding-004                      ✗                   as in the first level.
+ Groq             Llama 3 8B Instruct                     ✗
+ Hyperbolic       Llama 3.1 8B Instruct                   ✗                3. Per-organization caching. uvictim and uattacker are dif-
+ Mistral          Mistral Nemo                            ✗                   ferent users within the same organization. For APIs
+ Mistral          Mistral Embed                           ✗                   without organizations, we skip this level.
+ OctoAI           Llama 3.1 8B Instruct                   ✗
+ Together         Llama 3.1 8B Instruct                   ✗                4. Global caching. uvictim and uattacker are different users
+                                                                              in different organizations. For APIs without organiza-
+APIs that served open-weight decoder-only Transformer em-                     tions, uvictim and uattacker are simply different users.
+bedding models. Prefix caching is possible in decoder-only
+Transformers but not encoder-only Transformers, where                    In levels 2–4, to determine how many victim re-
+each token attends to all other tokens in the prompt.                    quests are needed to detect caching, we run tests using
+                                                                         N UM V ICTIM R EQUESTS ∈ {1, 5, 25} in increasing order,
+Configuration and procedure. For our audits, we use                      stopping after the first significant p-value. To account for
+P ROMPT L ENGTH = 5000 and N UM S AMPLES = 250. We                       multiple testing, we perform a Bonferroni correction by
+run four levels of audits of increasing cache sharing and                dividing the significance threshold for each test by three.
+privacy leakage. At each level, we only continue to audit
+                                                                         In all levels, if only one timing method is available in an
+APIs if we detect caching during the previous level. We use
+                                                                         API (client-side or server-side timing), then we use that
+a significance level of α = 10−8 .
+                                                                         timing method. If both are available, we run tests using both
+To narrow down our list of providers, the first level tests for          timing methods and perform another Bonferroni correction,
+the simplest level of prompt caching:                                    dividing by two this time.
+
+  1. Same prompt, per-user caching. We test for                          Cost per test. When N UM V ICTIM R EQUESTS = 25, one
+     prompt caching on exact prompt matches (x̃ = x)                     test uses roughly 34 million prompt tokens. The number of
+
+                                                                     5
+                                                                                                            Auditing Prompt Caching in Language Model APIs
+
+                          Anthropic Claude-3 Haiku                                                                Azure embedding-3-small                                            Deep Infra Llama 3.1 8B                                                              Fireworks Llama 3.1 8B
+                          per-org., client time, v = 1                                               50
+                                                                                                                  global, client time, v = 25                                        global, client time, v = 5                                                          global, client time, v = 1
+              40                              Cache hit                                              40
+                                                                                                                                                                       80                                                                                  80
+
+                                              Cache miss                                                                                                               60                                                                                  60
+
+  Frequency                                                                              Frequency                                                         Frequency                                                                           Frequency
+              30                                                                                     30
+              20                                                                                     20                                                                40                                                                                  40
+              10                                                                                     10                                                                20                                                                                  20
+              0                                                                                      0                                                                 0                                                                                   0
+                             0.6            0.8         1.0            1.2      1.4                       0.34 0.36 0.38 0.40 0.42 0.44 0.46 0.48 0.50                               0.20          0.25        0.30          0.35     0.40                        0.3        0.4        0.5     0.6      0.7
+                                                  Time (s)                                                                    Time (s)                                                                    Time (s)                                                                   Time (s)
+                             Fireworks Llama 3.1 8B                                                                 Lepton Llama 3.1 8B                                                OpenAI GPT-4o mini                                                                   OpenAI GPT-4o mini
+                            global, server time, v = 1                                             100
+                                                                                                                  global, client time, v = 5                           50
+                                                                                                                                                                                    per-org., client time, v = 1                                                        per-org., server time, v = 1
+            125                                                                                                                                                                                                                                            40
+            100                                                                                      80                                                                40
+                                                                                                                                                                                                                                                           30
+
+Frequency                                                                              Frequency                                                           Frequency                                                                           Frequency
+              75                                                                                     60                                                                30
+                                                                                                                                                                                                                                                           20
+              50                                                                                     40                                                                20
+              25                                                                                     20                                                                10                                                                                  10
+              0                                                                                      0                                                                 0                                                                                   0
+                   0.03     0.04     0.05     0.06     0.07     0.08     0.09   0.10                        0.2        0.4       0.6     0.8       1.0                      0.2     0.3      0.4     0.5       0.6     0.7      0.8   0.9                       0.10 0.15 0.20 0.25 0.30 0.35 0.40 0.45 0.50
+                                                  Time (s)                                                                    Time (s)                                                                    Time (s)                                                                   Time (s)
+                          OpenAI embedding-3-small                                                            OpenAI embedding-3-small                                               Perplexity Llama 3.1 8B                                                              Replicate Llama 3 8B
+                          global, client time, v = 25                                                         global, server time, v = 25                            100
+                                                                                                                                                                                     global, client time, v = 1                                                         global, server time, v = 1
+              50                                                                                                                                                                                                                                         125
+              40                                                                                     60                                                                80
+                                                                                                                                                                                                                                                         100
+
+  Frequency                                                                              Frequency                                                       Frequency                                                                           Frequency
+              30                                                                                                                                                       60
+                                                                                                     40                                                                                                                                                   75
+              20                                                                                                                                                       40                                                                                 50
+                                                                                                     20                                                                20
+              10                                                                                                                                                                                                                                          25
+               0                                                                                     0                                                                 0                                                                                   0
+                     0.15          0.20       0.25       0.30          0.35     0.40                         0.05      0.10       0.15   0.20     0.25                            0.20      0.25    0.30      0.35    0.40     0.45   0.50                          0.1        0.2       0.3    0.4      0.5
+                                                  Time (s)                                                                    Time (s)                                                                    Time (s)                                                                   Time (s)
+
+Figure 3. Histograms of response times from the cache hit and cache miss procedures in APIs where we detected caching. The distributions
+of times are clearly distinguishable, with cache hits tending to be faster. Each histogram title states the API provider, model, level of cache
+sharing (per-org. or global), timing source (client-side or server-side timing), and the N UM V ICTIM R EQUESTS used, denoted V.
+
+response tokens used is much smaller because we set the                                                                                                              Figure 3 displays histograms of times from the cache hit
+maximum response tokens parameter to 1. For the chat APIs                                                                                                            and cache miss procedures. The distributions of times are
+we audit, the prices per million prompt tokens are 0.05–0.25                                                                                                         clearly distinguishable, with cache hits tending to be faster.
+USD, resulting in a cost per test of 1.69–8.44 USD. The                                                                                                              Each histogram title states the minimum N UM V ICTIM R E -
+tests are cheaper when N UM V ICTIM R EQUESTS is smaller.                                                                                                            QUESTS (denoted V in the titles) that resulted in a significant
+                                                                                                                                                                     p-value. In most of the APIs where we detected caching,
+4.2. Audit Results                                                                                                                                                   only N UM V ICTIM R EQUESTS = 1 was needed to detect
+                                                                                                                                                                     caching. Only the OpenAI and Azure text-embedding-
+We conducted our audits in September and early October                                                                                                               3-small APIs required N UM V ICTIM R EQUESTS = 25 to
+2024 using clients located in California. Table 1 shows audit                                                                                                        achieve a significant p-value. This may suggest that these
+results for APIs in which we detected prompt caching, and                                                                                                            APIs have multiple servers with separate caches and that
+Table 2 shows APIs in which we did not detect prompt                                                                                                                 requests are randomly routed to a server, so multiple victim
+caching. We detected prompt caching in 8 out of 17                                                                                                                   requests are needed to cache the prompt in enough servers
+API providers, and we detected global cache sharing in                                                                                                               for the attacker’s prompt to have a sufficient probability of
+7 providers. This means that an attacker can potentially                                                                                                             producing a cache hit. In Appendix B, we report all the
+learn information about other users’ prompts by identifying                                                                                                          p-values from our audits. In many APIs, the p-values are
+cached prompts from timing data. To assess an attacker’s                                                                                                             many orders of magnitude smaller than our significance
+ability to distinguish between cache hits and cache misses,                                                                                                          level of α = 10−8 . In all APIs where we detected caching,
+Figure 4 contains selected precision-recall curves for clas-                                                                                                         all available timing methods resulted in significant p-values.
+sifying times from the cache hit procedure.6 The curves
+show that cache hits can be detected with near perfect preci-                                                                                                        In the Anthropic Claude 3 Haiku and OpenAI GPT-4o mini
+sion up to moderate recall scores. Figure 6 in the appendix                                                                                                          APIs, we detected per-organization cache sharing, but not
+shows precision-recall curves for the highest level of cache                                                                                                         global cache sharing. This exact level of cache sharing is
+sharing we detected in each API. To numerically summarize                                                                                                            stated in their prompt caching documentations, confirm-
+these curves, we compute the average precision (Zhu, 2004),                                                                                                          ing the efficacy of our audit procedure. Since OpenAI
+which is equal to the area under the precision-recall curve                                                                                                          (2024a) and Anthropic (2024a) document per-organization
+(the precision is averaged over the interval of recall scores                                                                                                        cache sharing, we do not consider it a security vulnerability.
+from 0 to 1). Table 1 shows that the average precisions                                                                                                              Global cache sharing in the OpenAI text-embedding-3-small
+mostly lie around a moderately high value of 0.8.                                                                                                                    API was a potential vulnerability, but has been patched after
+                                                                                                                                                                     our responsible disclosure prior to the release of this paper.
+               6
+    The cache hit procedure attempts to produce cache hits but
+cannot guarantee cache hits (e.g., due to server routing), so some                                                                                                   Although DeepSeek (2024) has a prompt caching feature
+times in the cache hit distribution may actually be cache misses.                                                                                                    and returns the number of cache hit tokens in API responses,
+
+                                                                                                                                                         6
+                                                                                  Auditing Prompt Caching in Language Model APIs
+
+                    OpenAI GPT-4o mini                                    Perplexity Llama 3.1 8B                        Relationship to p-values. Figure 7 in Appendix C shows
+            1.0
+                per-org., server time, v = 1                          1.0
+                                                                          global, client time, v = 1
+                                                                                                                         the effects of the ablations on the audit p-values. We ob-
+                                                                                                                         serve similar patterns as above, with decreases in average
+            0.8                                                       0.8
+                                                                                                                         precision corresponding to increases in p-values.
+            0.6                                                       0.6
+Precision   0.4                                           Precision   0.4                                                4.4. Difficulty of Prompt Extraction Attacks
+
+            0.2                                                       0.2                                                Our results show that given a specific prompt x, an attacker
+                         Average precision = 0.86                                   Average precision = 0.90             could potentially detect cache hits to learn whether another
+            0.0                                                       0.0
+                  0.0   0.2    0.4    0.6    0.8    1.0                     0.0    0.2    0.4    0.6    0.8    1.0       user sent a prompt that shares a prefix with x. A natural
+                                Recall                                                     Recall                        question is whether an attacker could extract other users’
+Figure 4. Selected precision-recall curves for distinguishing be-                                                        prompts token-by-token. One idea is to use breadth-first
+tween times from the cache hit and cache miss procedures. Cache                                                          search: given a partial candidate prompt, such an attack
+hits are the positive class. The curves show that cache hits can be                                                      would try possible continuation tokens and determine which
+detected with near perfect precision up to moderate recall scores.                                                       continuation token is cached. The cached token is appended
+Figure 6 in the appendix contains curves for other APIs.                                                                 to the candidate prompt and the process repeats.
+which we used to confirm that we produced cache hits, we                                                                 However, we were unable to execute practical prompt extrac-
+were unable to detect caching from response times. There                                                                 tion attacks. A successful attack requires extremely accurate
+was no statistically significant difference between the distri-                                                          detection of cached tokens, as there are many possible con-
+butions of cache hit and cache miss times, even in two-sided                                                             tinuation tokens at each step. Just one incorrect token causes
+tests. DeepSeek states that the cache is isolated per-user,                                                              complete failure due to the exact prefix match required for
+and we empirically verified that this is the case based on the                                                           a cache hit. In preliminary experiments, we were unable to
+number of cache hit tokens returned in the API responses.                                                                reliably detect the presence of one additional cached token.
+                                                                                                                         It is also difficult to make repeated measurements to boost
+4.3. Ablations                                                                                                           accuracy. To detect whether a prompt is cached, the attacker
+                                                                                                                         must send the prompt to the API. Then, future measure-
+We run ablations to determine the effects of
+                                                                                                                         ments may produce a cache hit not because another user
+P ROMPT L ENGTH, P REFIX F RACTION, and model
+                                                                                                                         sent the prompt, but because the attacker sent it.
+size on the average precision, shown in Figure 5. We
+use the APIs in which we detected global caching with                                                                    We do not claim that prompt extraction attacks are necessar-
+N UM V ICTIM R EQUESTS = 1, i.e., the Llama 3 or 3.1 8B                                                                  ily impossible. Such attacks face difficulties, but future work
+Instruct APIs of Fireworks, Perplexity, and Replicate.                                                                   may yet develop successful, practical attacks. In addition, in
+                                                                                                                         more restricted sets of target prompts, e.g., known prompt
+Smaller P ROMPT L ENGTH decreases average precision.                                                                     templates with places for users to enter private personal
+In Figures 5a and 5b, we vary the P ROMPT L ENGTH in the                                                                 information, it may be easier to overcome these difficulties.
+same prompt (P REFIX F RACTION = 1) and same prefix
+but different suffixes (P REFIX F RACTION = 0.95) settings,                                                              5. Leakage of Architecture Information
+respectively. When the P ROMPT L ENGTH is moderately
+high (≳ 1000), the average precision is relatively high and                                                              In addition to privacy implications, the detection of prompt
+stable. However, as the P ROMPT L ENGTH approaches zero,                                                                 caching can also reveal information about a model’s archi-
+the average precision decreases to random chance.                                                                        tecture. This is because the conditions for cache hits to
+                                                                                                                         occur depend on model architecture.
+Decreasing P REFIX F RACTION decreases average preci-                                                                    In decoder-only Transformer models, reuse of the attention
+sion. In Figure 5c, we vary the P REFIX F RACTION while                                                                  KV cache enables cache hits between prompts with match-
+setting P ROMPT L ENGTH = 1000. As the length of the                                                                     ing prefixes, even if the suffixes differ, since each token
+matching prefix decreases, the average precision decreases                                                               attends only to previous tokens. This prefix caching is not
+to random chance.                                                                                                        possible in encoder-only or encoder-decoder Transformer
+                                                                                                                         models, where each token in the prompt attends to all other
+No clear relationship between model size and average                                                                     tokens in the prompt. Therefore, detecting such prompt
+precision. In Figure 5d, we vary the model size on the                                                                   prefix caching indicates that a model cannot have a bidirec-
+Fireworks API, which supports all models in the Llama 3.1                                                                tional encoder architecture. Virtually all chat models are
+and 3.2 families. We detected caching in all model sizes,                                                                decoder-only, but embedding models can have either en-
+with no clear relationship between model size and average                                                                coder or decoder architectures, as seen in the Massive Text
+precision.                                                                                                               Embedding Benchmark (MTEB) leaderboard (Muennighoff
+
+                                                                                                                     7
+                                                                                             Auditing Prompt Caching in Language Model APIs
+
+                          (a) Vary prompt length (same prompt)                   (b) Vary prompt length (same prefix, diff. suffix)                               (c) Vary prefix match length                                              (d) Vary model size
+                    1.0                                                                1.0                                                              1.0                                                                 1.0
+                    0.9                                                                0.9                                                              0.9                                                                 0.9
+
+
+
+
+Average precision                                                  Average precision                                                Average precision                                                   Average precision
+                    0.8                                                                0.8                                                              0.8                                                                 0.8
+                    0.7                                                                0.7                                                              0.7                                                                 0.7
+                    0.6                                                                0.6                                                              0.6                                                                 0.6
+                    0.5                                                                0.5                                                              0.5                                                                 0.5
+                    0.4                                                                0.4                                                              0.4                                                                 0.4
+                          0    1000   2000   3000   4000    5000                             0   1000   2000   3000   4000   5000                             0    200    400    600    800      1000                             1B   3B     8B   11B 70B 90B 405B
+                                 Prompt length (tokens)                                            Prompt length (tokens)                      Prefix match length (tokens)                                                               Llama model size
+                                              Fireworks (client time)                            Fireworks (server time)        Perplexity (client time)         Replicate (server time)                                                Random
+
+Figure 5. Ablations on the effects of P ROMPT L ENGTH, P REFIX F RACTION, and model size on the average precision. In (a)–(c), as the
+prompt length or prefix match length decreases, the average precision decreases to random chance. In (d), we detect caching across all
+model sizes, with no clear relationship between model size and average precision.
+ et al., 2023). As such, for proprietary embedding models,                                                                                              caching, an attacker will not be able to produce cache hits
+ leakage of architecture information may represent a leakage                                                                                            on prompts sent by other users. Since it is unlikely that dif-
+ of intellectual property.                                                                                                                              ferent users will send prompts with long matching prefixes,
+                                                                                                                                                        per-user caching should retain many of the performance
+In our audits (Table 1), we detected prompt caching in
+                                                                                                                                                        benefits from global cache sharing.
+OpenAI’s text-embedding-3-small API when prompts had
+the same prefix but different suffixes. We confirm that
+when the prompt suffix is changed, the returned embed-                                                                                                  Disclosure of cache sharing. We believe that providers
+ding also changes, indicating that the caching mechanism                                                                                                should disclose their caching policies, particularly the level
+does not simply return cached embedding outputs from                                                                                                    of cache sharing. It is important that users know how their
+similar prompts. Assuming that text-embedding-3-small                                                                                                   data is handled and who could potentially learn information
+is Transformer-based, this indicates that text-embedding-3-                                                                                             about their data. This way, users can make informed deci-
+small is a decoder-only Transformer. This is new informa-                                                                                               sions about how they use an LLM API. For example, if a
+tion, as OpenAI has not released any information about the                                                                                              company knows that an API uses per-organization cache
+architecture of their embedding models.                                                                                                                 sharing, the company can decide to create separate organi-
+                                                                                                                                                        zations for different groups of employees to prevent unau-
+                                                                                                                                                        thorized information access.
+ Floating-point precision of the cache. When we send the
+ exact same prompt multiple times, when the response time is                                                                                        Disabling caching prevents any information leakage.
+ noticeably faster, indicating a cache hit, the returned embed-                                                                                     For information leakage that only requires per-user caching,
+ ding differs slightly from the “normal” embedding in most                                                                                          such as leakage of architecture information, the strongest
+ of the responses with normal response times, which indicate                                                                                        mitigation is to disable prompt caching. Since per-user
+ cache misses. This behavior is consistent across different                                                                                         caching does not result in privacy leakage, but may result
+ random prompts. These differences are small, on the order                                                                                          in leakage of the API provider’s intellectual property, it is
+ of 10−4 to 10−5 in each coordinate. We hypothesize that                                                                                            up to the provider to determine their level of risk tolerance.
+ these differences may arise if the reused KV cache is stored                                                                                       Another potential mitigation is to intentionally delay the re-
+ in a lower floating-point precision, resulting in slight dis-                                                                                      sponse time for cache hits so that they look like cache misses.
+ crepancies when the attention KV is computed from scratch                                                                                          This eliminates the benefits of prompt caching for users, but
+ in cache misses versus when it is retrieved from the cache                                                                                         API providers could still benefit, as cached prompts require
+ in cache hits. Interestingly, in some responses, especially                                                                                        less GPU processing time.
+ those that are noticeably slower, the embedding differs from
+ both the “normal” and “cache hit” embeddings. This may be                                                                                              7. Related Work
+ caused by some responses being processed by different GPU
+ models, as floating point computations can differ slightly                                                                                             Prompt caching. Many recent works have developed opti-
+ across different GPUs. Appendix D contains examples of                                                                                                 mizations for inference and serving of Transformer language
+ response times and embeddings showing this phenomenon.                                                                                                 models. Various methods involve reuse of the attention KV
+                                                                                                                                                        cache, improving latency and throughput for shared prompt
+ 6. Mitigations                                                                                                                                         prefixes (Kwon et al., 2023; Zheng et al., 2024a; Gim et al.,
+                                                                                                                                                        2024; Ye et al., 2024a;b; Qin et al., 2024; Juravsky et al.,
+ Per-user caching prevents privacy leakage. To com-                                                                                                     2024). Recall that we do not assume any particular imple-
+ pletely prevent any privacy leakage from prompt caching,                                                                                               mentation of prompt caching in our attacks. Indeed, we do
+ only per-user caching should be allowed. In per-user                                                                                                   not know technical details about the caching mechanisms
+
+                                                                                                                                8
+                                      Auditing Prompt Caching in Language Model APIs
+
+used by the APIs we audited. Other caching methods do not             8. Conclusion
+preserve exact model behavior, such as retrieving cached
+responses for semantically similar prompts (Bang, 2023) or            As LLMs and other machine learning systems become more
+reusing the KV cache even when the prefixes do not exactly            widely deployed and used in the real world, it is increasingly
+match (Gim et al., 2024; Yao et al., 2025; Hu et al., 2024).          important to consider security and privacy aspects of these
+We do not study such methods, but they are also likely sus-           systems. To this end, in this paper, we find that prompt
+ceptible to similar cache timing attacks, and our audit can           caching in LLM APIs can leak private and proprietary infor-
+easily be adapted to detect other types of caching.                   mation through timing differences. We develop and conduct
+                                                                      rigorous statistical audits on real-world APIs, finding that
+                                                                      multiple APIs were performing global cache sharing. We
+                                                                      hope that future work will continue to evaluate and audit the
+Cache timing attacks. In computer security, many side-                security and privacy of machine learning systems, ensuring
+channel timing attacks have extracted information by using            their robustness and trustworthiness.
+timing differences to distinguish between cache hits and
+cache misses, e.g., in the CPU cache or web cache. For                Impact Statement
+example, cache timing attacks have been used to extract
+AES keys (Bernstein, 2005; Osvik et al., 2006; Bonneau &              Responsible disclosure. As discussed earlier, to mitigate
+Mironov, 2006; Tromer et al., 2010; Gullasch et al., 2011;            real-world harms arising from our research, we performed
+Yarom et al., 2017), a user’s private web information (Felten         responsible disclosure. In October 2024, we disclosed our
+& Schneider, 2000; Bortz & Boneh, 2007; Van Goethem                   audit results with each API provider in which we detected
+et al., 2015), and sensitive data from other processes on a           prompt caching. We gave providers 60 days to address
+machine (Percival, 2005; Yarom & Falkner, 2014; Liu et al.,           the vulnerabilities before publicly releasing our findings,
+2015), as in the well-known Meltdown (Lipp et al., 2018)              and the actual time elapsed ended up being longer. To our
+and Spectre attacks (Kocher et al., 2019).                            knowledge, at least five providers made changes to mitigate
+                                                                      vulnerabilities, e.g., disabling global cache sharing across
+                                                                      organizations and updating documentation.
+
+Attacks on language model APIs. Several recent works
+                                                                      Broader impact. We believe that our audits for detecting
+have attacked language model APIs. Carlini et al. (2024) and
+                                                                      prompt caching and the level of cache sharing in LLM
+Finlayson et al. (2024) show that logits and logprobs leak in-
+                                                                      APIs can improve transparency and trust. By increasing
+formation from an LLM API, including the model’s hidden
+                                                                      transparency around caching policies and how user data is
+dimension size and final layer weights. Weiss et al. (2024)
+                                                                      handled, users can make better informed decisions about
+partially extract encrypted and streamed LLM responses
+                                                                      how they use an LLM API and have the appropriate level of
+by inferring and analyzing token lengths from packet sizes.
+                                                                      trust that their data will be secure and private. More broadly,
+Carlini & Nasr (2024) and Wei et al. (2024) exploit specu-
+                                                                      we believe that audits are a promising method to ensure that
+lative decoding (Leviathan et al., 2023; Chen et al., 2023)
+                                                                      machine learning systems are safe, secure, and trustworthy,
+and similar methods to extract LLM responses with higher
+                                                                      especially as these systems become more widely deployed
+success by measuring delays between packets.
+                                                                      and have larger societal impact.
+Most related to our work are Song et al. (2024) and Zheng
+et al. (2024b), which also study timing attacks and privacy           Acknowledgments
+leakages arising from prompt caching, including both KV
+cache reuse and semantic caching, primarily in simulated,             CG was supported by the Stanford CURIS program. XL
+controlled environments. Our work differs in developing               was supported by a Two Sigma PhD Fellowship. PL was
+an audit that is practical and provides statistical guarantees,       supported by NSF Award Grant no. 1805310 and an Open
+using these audits to precisely identify different levels of          Philanthropy Project Award. TH was supported by gifts
+cache sharing, and extracting information about model ar-             from Open Philanthropy, Amazon, Google, Meta, and a
+chitecture. Song et al. (2024) demonstrate prompt extraction          grant under the NSF CAREER IIS-2338866.
+attacks in a simulated setting, but the attack is run locally
+without network latency, uses knowledge of the distribution           Conflicts of Interest
+of prompts, requires explicit clearing of the cache to make
+repeated measurements, and makes an average of over 200               PL is a co-founder of Together AI. However, this work
+measurements for each extracted token. Due to these limita-           was done in his Stanford capacity. The methods, providers
+tions, we believe that these simulated attacks are currently          audited, and results were not influenced by or shared with
+unlikely to be real-world privacy threats.                            Together prior to the public release of this paper. All API
+
+                                                                  9
+                                     Auditing Prompt Caching in Language Model APIs
+
+providers were audited using the same procedure, including          Chen, C., Borgeaud, S., Irving, G., Lespiau, J.-B., Sifre,
+Together. When this work was conducted, none of the other             L., and Jumper, J. Accelerating large language model
+authors had conflicts of interest with the providers audited          decoding with speculative sampling. arXiv preprint
+in this paper.                                                        arXiv:2302.01318, 2023.
+
+                                                                    DeepSeek. Deepseek api introduces context caching on disk,
+References                                                            cutting prices by an order of magnitude. https://web.
+Anthropic.  Prompt caching (beta). https:                             archive.org/web/20241120201047/https:
+ //web.archive.org/web/20241204121302/                                //api-docs.deepseek.com/news/news0802,
+  https://docs.anthropic.com/en/docs/                                 2024.
+  build-with-claude/prompt-caching, 2024a.
+                                                                    Dubey, A., Jauhri, A., Pandey, A., Kadian, A., Al-Dahle,
+Anthropic. Prompt caching with claude. https:                        A., Letman, A., Mathur, A., Schelten, A., Yang, A., Fan,
+ //web.archive.org/web/20240814170229/                               A., et al. The llama 3 herd of models. arXiv preprint
+  https://www.anthropic.com/news/                                     arXiv:2407.21783, 2024.
+  prompt-caching, 2024b.
+                                                                    Felten, E. W. and Schneider, M. A. Timing attacks on
+Bang, F. GPTCache: An open-source semantic cache                      web privacy. In Proceedings of the 7th ACM Conference
+  for LLM applications enabling faster answers and cost               on Computer and Communications Security, pp. 25–32,
+  savings. In Tan, L., Milajevs, D., Chauhan, G., Gwin-               2000.
+  nup, J., and Rippeth, E. (eds.), Proceedings of the 3rd
+                                                                    Finlayson, M., Ren, X., and Swayamdipta, S. Logits of API-
+  Workshop for Natural Language Processing Open Source
+                                                                      protected LLMs leak proprietary information. In First
+  Software (NLP-OSS 2023), pp. 212–218, Singapore, De-
+                                                                      Conference on Language Modeling, 2024. URL https:
+  cember 2023. Association for Computational Linguis-
+                                                                      //openreview.net/forum?id=oRcYFm8vyB.
+  tics. doi: 10.18653/v1/2023.nlposs-1.24. URL https:
+  //aclanthology.org/2023.nlposs-1.24.                              Fireworks. Prompt caching. https://web.archive.
+                                                                      org/web/20250118003034/https://docs.
+Bernstein, D. J.  Cache-timing attacks on aes.
+                                                                      fireworks.ai/guides/prompt-caching,
+  2005. URL https://cr.yp.to/antiforgery/
+                                                                      2024.
+  cachetiming-20050414.pdf.
+                                                                    Gage, P. A new algorithm for data compression. The C
+Bonneau, J. and Mironov, I. Cache-collision timing attacks
+                                                                      Users Journal, 12(2):23–38, 1994.
+  against aes. In Cryptographic Hardware and Embedded
+  Systems-CHES 2006: 8th International Workshop, Yoko-              Gim, I., Chen, G., Lee, S.-s., Sarda, N., Khandelwal, A.,
+  hama, Japan, October 10-13, 2006. Proceedings 8, pp.                and Zhong, L. Prompt cache: Modular attention reuse for
+  201–215. Springer, 2006.                                            low-latency inference. Proceedings of Machine Learning
+Bortz, A. and Boneh, D. Exposing private information                  and Systems, 6:325–338, 2024.
+  by timing web applications. In Proceedings of the 16th            Gullasch, D., Bangerter, E., and Krenn, S. Cache games–
+  international conference on World Wide Web, pp. 621–                bringing access-based cache attacks on aes to practice.
+  628, 2007.                                                          In 2011 IEEE Symposium on Security and Privacy, pp.
+Carlini, N. and Nasr, M. Remote timing attacks on                    490–505. IEEE, 2011.
+  efficient language model inference. arXiv preprint                Hodges Jr, J. The significance probability of the smirnov
+  arXiv:2410.17175, 2024.                                             two-sample test. Arkiv för matematik, 3(5):469–486,
+Carlini, N., Paleka, D., Dvijotham, K. D., Steinke, T.,              1958.
+  Hayase, J., Cooper, A. F., Lee, K., Jagielski, M., Nasr,          Hu, J., Huang, W., Wang, H., Wang, W., Hu, T., Zhang,
+  M., Conmy, A., Wallace, E., Rolnick, D., and Tramèr,               Q., Feng, H., Chen, X., Shan, Y., and Xie, T. Epic: Ef-
+  F. Stealing part of a production language model. In                 ficient position-independent context caching for serving
+  Salakhutdinov, R., Kolter, Z., Heller, K., Weller, A.,              large language models. arXiv preprint arXiv:2410.15332,
+  Oliver, N., Scarlett, J., and Berkenkamp, F. (eds.), Pro-           2024.
+  ceedings of the 41st International Conference on Ma-
+  chine Learning, volume 235 of Proceedings of Machine              Juravsky, J., Brown, B., Ehrlich, R., Fu, D. Y., Ré, C., and
+  Learning Research, pp. 5680–5705. PMLR, 21–27 Jul                   Mirhoseini, A. Hydragen: High-throughput llm inference
+  2024. URL https://proceedings.mlr.press/                            with shared prefixes. arXiv preprint arXiv:2402.05099,
+  v235/carlini24a.html.                                               2024.
+
+                                                               10
+                                    Auditing Prompt Caching in Language Model APIs
+
+Kocher, P., Horn, J., Fogh, A., Genkin, D., Gruss, D., Haas,          Conference 2006, San Jose, CA, USA, February 13-17,
+  W., Hamburg, M., Lipp, M., Mangard, S., Prescher, T.,               2005. Proceedings, pp. 1–20. Springer, 2006.
+  Schwarz, M., and Yarom, Y. Spectre attacks: Exploit-
+  ing speculative execution. In 2019 IEEE Symposium                 Percival, C. Cache missing for fun and profit. BSDCan
+  on Security and Privacy (SP), pp. 1–19, 2019. doi:                  Ottawa, 2005. URL https://www.daemonology.
+ 10.1109/SP.2019.00002.                                               net/papers/htt.pdf.
+
+Kwon, W., Li, Z., Zhuang, S., Sheng, Y., Zheng, L., Yu,             Qin, R., Li, Z., He, W., Zhang, M., Wu, Y., Zheng,
+ C. H., Gonzalez, J., Zhang, H., and Stoica, I. Efficient             W., and Xu, X. Mooncake: A kvcache-centric disag-
+ memory management for large language model serving                   gregated architecture for llm serving. arXiv preprint
+ with pagedattention. In Proceedings of the 29th Sym-                 arXiv:2407.00079, 2024.
+ posium on Operating Systems Principles, pp. 611–626,               Sennrich, R., Haddow, B., and Birch, A. Neural machine
+ 2023.                                                                translation of rare words with subword units. In Erk,
+Leviathan, Y., Kalman, M., and Matias, Y. Fast in-                    K. and Smith, N. A. (eds.), Proceedings of the 54th
+  ference from transformers via speculative decoding.                 Annual Meeting of the Association for Computational
+  In Krause, A., Brunskill, E., Cho, K., Engelhardt,                  Linguistics (Volume 1: Long Papers), pp. 1715–1725,
+  B., Sabato, S., and Scarlett, J. (eds.), Proceedings of             Berlin, Germany, August 2016. Association for Compu-
+  the 40th International Conference on Machine Learn-                 tational Linguistics. doi: 10.18653/v1/P16-1162. URL
+  ing, volume 202 of Proceedings of Machine Learn-                    https://aclanthology.org/P16-1162.
+  ing Research, pp. 19274–19286. PMLR, 23–29 Jul                    Song, L., Pang, Z., Wang, W., Wang, Z., Wang, X., Chen,
+  2023. URL https://proceedings.mlr.press/                            H., Song, W., Jin, Y., Meng, D., and Hou, R. The early
+  v202/leviathan23a.html.                                             bird catches the leak: Unveiling timing side channels in
+Lipp, M., Schwarz, M., Gruss, D., Prescher, T., Haas, W.,             llm serving systems. arXiv preprint arXiv:2409.20002,
+  Fogh, A., Horn, J., Mangard, S., Kocher, P., Genkin,                2024.
+  D., Yarom, Y., and Hamburg, M. Meltdown: Reading                  Tromer, E., Osvik, D. A., and Shamir, A. Efficient cache
+  kernel memory from user space. In 27th USENIX Security              attacks on aes, and countermeasures. Journal of Cryptol-
+  Symposium (USENIX Security 18), 2018.                               ogy, 23:37–71, 2010.
+Liu, F., Yarom, Y., Ge, Q., Heiser, G., and Lee, R. B. Last-        Van Goethem, T., Joosen, W., and Nikiforakis, N. The clock
+  level cache side-channel attacks are practical. In 2015             is still ticking: Timing attacks in the modern web. In
+  IEEE symposium on security and privacy, pp. 605–622.                Proceedings of the 22nd ACM SIGSAC Conference on
+  IEEE, 2015.                                                         Computer and Communications Security, pp. 1382–1393,
+Muennighoff, N., Tazi, N., Magne, L., and Reimers, N.                 2015.
+ MTEB: Massive text embedding benchmark. In Vla-                    Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones,
+ chos, A. and Augenstein, I. (eds.), Proceedings of the               L., Gomez, A. N., Kaiser, L. u., and Polosukhin, I.
+ 17th Conference of the European Chapter of the Asso-                 Attention is all you need. In Guyon, I., Luxburg, U. V.,
+ ciation for Computational Linguistics, pp. 2014–2037,                Bengio, S., Wallach, H., Fergus, R., Vishwanathan, S.,
+ Dubrovnik, Croatia, May 2023. Association for Compu-                 and Garnett, R. (eds.), Advances in Neural Information
+ tational Linguistics. doi: 10.18653/v1/2023.eacl-main.               Processing Systems, volume 30. Curran Associates, Inc.,
+ 148. URL https://aclanthology.org/2023.                              2017. URL https://proceedings.neurips.
+ eacl-main.148/.                                                      cc/paper_files/paper/2017/file/
+OpenAI.  Prompt caching. https://platform.                            3f5ee243547dee91fbd053c1c4a845aa-Paper.
+  openai.com/docs/guides/prompt-caching,                              pdf.
+  2024a.                                                            Virtanen, P., Gommers, R., Oliphant, T. E., Haberland, M.,
+OpenAI.       Prompt caching  in    the api.                          Reddy, T., Cournapeau, D., Burovski, E., Peterson, P.,
+  https://web.archive.org/web/                                        Weckesser, W., Bright, J., van der Walt, S. J., Brett, M.,
+  20241003095307/https://openai.com/                                  Wilson, J., Millman, K. J., Mayorov, N., Nelson, A. R. J.,
+  index/api-prompt-caching/, 2024b.                                   Jones, E., Kern, R., Larson, E., Carey, C. J., Polat, İ.,
+                                                                      Feng, Y., Moore, E. W., VanderPlas, J., Laxalde, D.,
+Osvik, D. A., Shamir, A., and Tromer, E. Cache attacks and            Perktold, J., Cimrman, R., Henriksen, I., Quintero, E. A.,
+  countermeasures: the case of aes. In Topics in Cryptology–          Harris, C. R., Archibald, A. M., Ribeiro, A. H., Pedregosa,
+  CT-RSA 2006: The Cryptographers’ Track at the RSA                   F., van Mulbregt, P., and SciPy 1.0 Contributors. SciPy
+
+                                                               11
+                                      Auditing Prompt Caching in Language Model APIs
+
+  1.0: Fundamental Algorithms for Scientific Computing                   Systems, 2024a. URL https://openreview.net/
+  in Python. Nature Methods, 17:261–272, 2020. doi:                      forum?id=VqkAKQibpq.
+  10.1038/s41592-019-0686-2.
+                                                                       Zheng, X., Han, H., Shi, S., Fang, Q., Du, Z., Guo, Q.,
+Wei, J., Abdulrazzag, A., Zhang, T., Muursepp, A., and                   and Hu, X. Inputsnatch: Stealing input in llm ser-
+ Saileshwar, G. Privacy risks of speculative decoding in                 vices via timing side-channel attacks. arXiv preprint
+ large language models. arXiv preprint arXiv:2411.01076,                 arXiv:2411.18191, 2024b.
+ 2024.
+                                                                       Zhu, M. Recall, precision and average precision. Depart-
+Weiss, R., Ayzenshteyn, D., and Mirsky, Y. What was                      ment of Statistics and Actuarial Science, University of
+ your prompt? a remote keylogging attack on AI assis-                    Waterloo, Waterloo, 2(30):6, 2004.
+ tants. In 33rd USENIX Security Symposium (USENIX
+ Security 24), pp. 3367–3384, Philadelphia, PA, August
+ 2024. USENIX Association. ISBN 978-1-939133-44-1.
+ URL https://www.usenix.org/conference/
+ usenixsecurity24/presentation/weiss.
+
+Yao, J., Li, H., Liu, Y., Ray, S., Cheng, Y., Zhang, Q.,
+  Du, K., Lu, S., and Jiang, J. Cacheblend: Fast large
+  language model serving for rag with cached knowl-
+  edge fusion. In Proceedings of the Twentieth Euro-
+  pean Conference on Computer Systems, EuroSys ’25,
+  pp. 94–109, New York, NY, USA, 2025. Association for
+  Computing Machinery. ISBN 9798400711961. doi: 10.
+  1145/3689031.3696098. URL https://doi.org/
+  10.1145/3689031.3696098.
+
+Yarom, Y. and Falkner, K. {FLUSH+ RELOAD}: A high
+  resolution, low noise, l3 cache {Side-Channel} attack. In
+  23rd USENIX security symposium (USENIX security 14),
+  pp. 719–732, 2014.
+
+Yarom, Y., Genkin, D., and Heninger, N. Cachebleed: a
+  timing attack on openssl constant-time rsa. Journal of
+  Cryptographic Engineering, 7:99–112, 2017.
+
+Ye, L., Tao, Z., Huang, Y., and Li, Y. ChunkAttention:
+  Efficient self-attention with prefix-aware KV cache and
+  two-phase partition. In Ku, L.-W., Martins, A., and Sriku-
+  mar, V. (eds.), Proceedings of the 62nd Annual Meeting
+  of the Association for Computational Linguistics (Volume
+  1: Long Papers), pp. 11608–11620, Bangkok, Thailand,
+  August 2024a. Association for Computational Linguis-
+  tics. doi: 10.18653/v1/2024.acl-long.623. URL https:
+  //aclanthology.org/2024.acl-long.623.
+
+Ye, Z., Lai, R., Lu, B.-R., Lin, C.-Y., Zheng, S., Chen,
+  L., Chen, T., and Ceze, L. Cascade inference: Mem-
+  ory bandwidth efficient shared prefix batch decoding,
+  February 2024b. URL https://flashinfer.ai/
+  2024/02/02/cascade-inference.html.
+
+Zheng, L., Yin, L., Xie, Z., Sun, C., Huang, J., Yu, C. H.,
+  Cao, S., Kozyrakis, C., Stoica, I., Gonzalez, J. E., Barrett,
+  C., and Sheng, Y. SGLang: Efficient execution of struc-
+  tured language model programs. In The Thirty-eighth
+  Annual Conference on Neural Information Processing
+
+                                                                  12
+                                    Auditing Prompt Caching in Language Model APIs
+
+A. Precision-Recall Curves
+Figure 6 shows precision-recall curves for distinguishing between cache hit and cache miss times in APIs where we detected
+caching in our audits (Table 1).
+
+B. P-values from Audits
+We report all the p-values from our audits on APIs. Table 3 contains p-values from level 1 of our audits: same prompt,
+per-user caching. Table 4 contains p-values from level 2 of our audits: prompts with the same prefix but different suffixes,
+per-user caching. Table 5 contains p-values from level 3 of our audits: prompts with the same prefix but different suffixes,
+per-organization caching. Table 6 contains p-values from level 4 of our audits: prompts with the same prefix but different
+suffixes, global caching.
+
+C. Ablation Effects on Audit p-values
+Figure 7 shows the effects of the ablations in §4.3 on the audit p-values. Each test is run using N UM S AMPLES = 250.
+We observe similar patterns as in §4.3, with decreases in average precision corresponding to increases in p-values. As the
+prompt length or prefix match length decreases, the p-values grow larger. We detect caching across all model sizes, with no
+clear relationship between model size and p-values.
+
+D. Embeddings and Response Times from the OpenAI text-embedding-3-small API
+Tables 7, 8, and 9 contain real examples of response times and embeddings illustrating the phenomenon discussed in §5.
+Each table contains the server-side response times and first five embedding coordinates when sending the same prompt 25
+consecutive times to the OpenAI text-embedding-3-small API from the same user. More specifically, each table shows the
+victim requests for one prompt in the main audits, which used P ROMPT L ENGTH = 5000.
+The tables show that there is a “normal” embedding (shown in blue) that is returned in most of the responses with normal
+response times, which indicate cache misses. When the response time is noticeably faster (shown in green), indicating a
+cache hit, the embedding differs slightly from the “normal” embedding. Most, but not always all, fast responses have the
+same embedding. In some responses, especially those that are noticeably slower, the embedding (shown in red) differs from
+both the “normal” and “cache hit” embeddings. There are several different “alternate” embeddings among these responses.
+
+
+
+
+                                                            13
+                                                                            Auditing Prompt Caching in Language Model APIs
+
+
+
+
+              Anthropic Claude-3 Haiku                                      Azure embedding-3-small                                    Deep Infra Llama 3.1 8B                                    Fireworks Llama 3.1 8B
+              per-org., client time, v = 1
+            1.0                                                       1.0
+                                                                            global, client time, v = 25                          1.0
+                                                                                                                                       global, client time, v = 5                          1.0
+                                                                                                                                                                                                 global, client time, v = 1
+            0.8                                                       0.8                                                        0.8                                                       0.8
+
+            0.6                                                       0.6                                                        0.6                                                       0.6
+Precision   0.4                                           Precision   0.4                                            Precision   0.4                                           Precision   0.4
+
+            0.2                                                       0.2                                                        0.2                                                       0.2
+                         Average precision = 0.84                                  Average precision = 0.80                                   Average precision = 0.84                                  Average precision = 0.77
+            0.0                                                       0.0                                                        0.0                                                       0.0
+                  0.0   0.2   0.4   0.6   0.8       1.0                     0.0   0.2   0.4   0.6   0.8       1.0                      0.0   0.2   0.4   0.6   0.8       1.0                     0.0   0.2   0.4   0.6   0.8       1.0
+                               Recall                                                    Recall                                                     Recall                                                    Recall
+                   Fireworks Llama 3.1 8B                                     Lepton Llama 3.1 8B                                        Lepton Llama 3.1 8B                                    OpenAI GPT-4o mini
+            1.0
+                  global, server time, v = 1                          1.0
+                                                                            global, client time, v = 5                           1.0
+                                                                                                                                       global, server time, v = 5                            per-org., client time, v = 1
+                                                                                                                                                                                           1.0
+
+            0.8                                                       0.8                                                        0.8                                                       0.8
+
+            0.6                                                       0.6                                                        0.6                                                       0.6
+Precision   0.4                                           Precision   0.4                                            Precision   0.4                                           Precision   0.4
+
+            0.2                                                       0.2                                                        0.2                                                       0.2
+                         Average precision = 0.79                                  Average precision = 0.71                                   Average precision = 0.70                                  Average precision = 0.79
+            0.0                                                       0.0                                                        0.0                                                       0.0
+                  0.0   0.2   0.4   0.6   0.8       1.0                     0.0   0.2   0.4   0.6   0.8       1.0                      0.0   0.2   0.4   0.6   0.8       1.0                     0.0   0.2   0.4   0.6   0.8       1.0
+                               Recall                                                    Recall                                                     Recall                                                    Recall
+                  OpenAI GPT-4o mini                                    OpenAI embedding-3-small                                   OpenAI embedding-3-small                                    Perplexity Llama 3.1 8B
+              per-org.,
+            1.0
+                        server time, v = 1                            1.0
+                                                                          global, client time, v = 25                            1.0
+                                                                                                                                    global, server time, v = 25                            1.0
+                                                                                                                                                                                               global, client time, v = 1
+            0.8                                                       0.8                                                        0.8                                                       0.8
+
+            0.6                                                       0.6                                                        0.6                                                       0.6
+Precision   0.4                                           Precision   0.4                                            Precision   0.4                                           Precision   0.4
+
+            0.2                                                       0.2                                                        0.2                                                       0.2
+                         Average precision = 0.86                                  Average precision = 0.78                                   Average precision = 0.79                                  Average precision = 0.90
+            0.0                                                       0.0                                                        0.0                                                       0.0
+                  0.0   0.2   0.4   0.6   0.8       1.0                     0.0   0.2   0.4   0.6   0.8       1.0                      0.0   0.2   0.4   0.6   0.8       1.0                     0.0   0.2   0.4   0.6   0.8       1.0
+                               Recall                                                    Recall                                                     Recall                                                    Recall
+                  Replicate Llama 3 8B
+            1.0
+                global, server time, v = 1
+                         Average precision = 1.00
+            0.8
+
+            0.6
+Precision   0.4
+
+            0.2
+
+            0.0
+                  0.0   0.2   0.4   0.6   0.8       1.0
+                               Recall
+
+Figure 6. Precision-recall curves for distinguishing between times produced by the cache hit and cache miss procedures in APIs where we
+detected caching in our audits (Table 1). Cache hits are the positive class, and cache misses are the negative class. The curves show that
+cache hits can be detected with near perfect precision up to moderate recall scores. Note that our cache hit procedure attempts to produce
+cache hits but cannot guarantee cache hits (e.g., due to server routing), so some times in the cache hit distribution may actually be cache
+misses, which would hurt recall scores.
+
+
+
+
+                                                                                                                    14
+                                         Auditing Prompt Caching in Language Model APIs
+
+
+
+Table 3. P-values from level 1 of our audits: same prompt, per-user caching. Each column shows one combination of N UM V ICTIM R E -
+QUESTS and timing source (client-side or server-side timing). Green indicates a significant p-value, after performing the appropriate
+Bonferroni corrections. Red indicates a p-value that is not significant. “—” indicates that the given timing source was not available for
+the API. APIs are grouped by whether caching was detected in this level and sorted alphabetically within the groups.
+
+                                                                                  N UM V ICTIM R EQUESTS
+                                                                                            25
+ Provider        Model                                            Client                                       Server
+                                                                           −21
+ Anthropic       Claude 3 Haiku                                7.8 × 10                                         —
+ Azure           text-embedding-3-small                        1.7 × 10−42                                      —
+ Deep Infra      Llama 3.1 8B Instruct                         9.5 × 10−116                                     —
+ Fireworks       Llama 3.1 8B Instruct                         2.0 × 10−80                                 4.7 × 10−109
+ Lepton          Llama 3.1 8B Instruct                         2.2 × 10−138                                2.2 × 10−138
+ OpenAI          GPT-4o mini                                   2.4 × 10−66                                 2.9 × 10−105
+ OpenAI          text-embedding-3-small                         7.6 × 10−9                                 2.3 × 10−10
+ Perplexity      Llama 3.1 8B Instruct                         1.9 × 10−90                                      —
+ Replicate       Llama 3 8B Instruct                                —                                      2.2 × 10−140
+ Amazon          Claude 3 Haiku                                    0.27                                         0.51
+ Azure           GPT-4o mini                                       0.95                                          —
+ Cohere          Command R                                         0.62                                         0.72
+ Cohere          embed-english-v3.0                                0.41                                         0.56
+ DeepSeek        DeepSeek Chat                                     0.75                                          —
+ Google          Gemini 1.5 Flash                                  0.17                                         0.20
+ Google          text-embedding-004                                0.20                                         0.24
+ Groq            Llama 3 8B Instruct                               0.41                                         0.51
+ Hyperbolic      Llama 3.1 8B Instruct                             0.72                                          —
+ Mistral         Mistral Nemo                                      0.56                                         0.96
+ Mistral         Mistral Embed                                     0.67                                         0.91
+ OctoAI          Llama 3.1 8B Instruct                             0.32                                         0.27
+ Together        Llama 3.1 8B Instruct                             0.51                                         0.96
+
+
+
+Table 4. P-values from level 2 of our audits: prompts with the same prefix but different suffixes, per-user caching. Each column shows one
+combination of N UM V ICTIM R EQUESTS and timing source (client-side or server-side timing). Green indicates a significant p-value,
+after performing the appropriate Bonferroni corrections. Red indicates a p-value that is not significant. “—” indicates that the given
+timing source was not available for the API. A blank cell indicates that the given value of N UM V ICTIM R EQUESTS was not tested because
+caching was detected in the API using a smaller value of N UM V ICTIM R EQUESTS. Caching was detected in all APIs audited in this level.
+APIs are sorted alphabetically.
+
+                                                                                 N UM V ICTIM R EQUESTS
+                                                         1                                  5                            25
+  Provider      Model                         Client           Server             Client        Server        Client            Server
+  Anthropic     Claude 3 Haiku             9.6 × 10−37            —
+  Azure         text-embedding-3-small         0.20               —          6.0 × 10−4          —         6.9 × 10−42            —
+  Deep Infra    Llama 3.1 8B Instruct          0.03               —          5.0 × 10−22         —
+  Fireworks     Llama 3.1 8B Instruct      4.3 × 10−15       5.0 × 10−33
+  Lepton        Llama 3.1 8B Instruct          1.00              0.96        7.7 × 10−10     7.7 × 10−10
+  OpenAI        GPT-4o mini                9.5 × 10−27       1.5 × 10−39
+  OpenAI        text-embedding-3-small         0.03              0.03              0.10         0.17       2.6 × 10−12        4.3 × 10−15
+  Perplexity    Llama 3.1 8B Instruct      5.4 × 10−68            —
+  Replicate     Llama 3 8B Instruct             —            8.6×10−150
+
+
+
+                                                                   15
+                                         Auditing Prompt Caching in Language Model APIs
+
+
+
+
+Table 5. P-values from level 3 of our audits: prompts with the same prefix but different suffixes, per-organization caching. Each column
+shows one combination of N UM V ICTIM R EQUESTS and timing source (client-side or server-side timing). Green indicates a significant
+p-value, after performing the appropriate Bonferroni corrections. Red indicates a p-value that is not significant. “—” indicates that the
+given timing source was not available for the API. A blank cell indicates that the given value of N UM V ICTIM R EQUESTS was not tested
+because caching was detected in the API using a smaller value of N UM V ICTIM R EQUESTS. Caching was detected in all APIs audited in
+this level. APIs are sorted alphabetically.
+
+                                                                             N UM V ICTIM R EQUESTS
+                                                          1                             5                                   25
+  Provider     Model                          Client            Server        Client         Server           Client               Server
+                                                    −31
+  Anthropic    Claude 3 Haiku              1.7 × 10                —
+  Fireworks    Llama 3.1 8B Instruct       1.3 × 10−21        5.2 × 10−32
+  OpenAI       GPT-4o mini                 1.1 × 10−19        4.6 × 10−34
+  OpenAI       text-embedding-3-small          0.27               0.14         0.27            0.27       8.2 × 10−14            8.2 × 10−14
+
+
+
+
+Table 6. P-values from level 4 of our audits: prompts with the same prefix but different suffixes, global cache sharing. Each column shows
+one combination of N UM V ICTIM R EQUESTS and timing source (client-side or server-side timing). Green indicates a significant p-value,
+after performing the appropriate Bonferroni corrections. Red indicates a p-value that is not significant. “—” indicates that the given
+timing source was not available for the API. A blank cell indicates that the given value of N UM V ICTIM R EQUESTS was not tested because
+caching was detected in the API using a smaller value of N UM V ICTIM R EQUESTS. APIs are grouped by whether caching was detected in
+this level and sorted alphabetically within the groups.
+
+                                                                             N UM V ICTIM R EQUESTS
+                                                          1                             5                                   25
+  Provider      Model                         Client             Server       Client          Server          Client               Server
+                                                                                                                      −21
+  Azure         text-embedding-3-small         0.46                —            0.02            —          1.3 × 10                  —
+  Deep Infra    Llama 3.1 8B Instruct      6.5 × 10−5              —        7.5 × 10−38         —
+  Fireworks     Llama 3.1 8B Instruct      9.0 × 10−17        5.2 × 10−32
+  Lepton        Llama 3.1 8B Instruct          0.12               0.07      1.2 × 10−10    1.4 × 10−9
+  OpenAI        text-embedding-3-small         0.41               0.36          0.20           0.08        1.1 × 10−19           1.1 × 10−19
+  Perplexity    Llama 3.1 8B Instruct      5.3 × 10−74             —
+  Replicate     Llama 3 8B Instruct             —             8.6×10−150
+  Anthropic     Claude 3 Haiku                 0.24               —            0.77             —              0.87                  —
+  OpenAI        GPT-4o mini                    0.41              0.20          0.41            0.62            0.41                 0.94
+
+
+
+
+                                                                     16
+                                      Auditing Prompt Caching in Language Model APIs
+
+
+
+
+Table 7. Server-side response times and first five embedding coordinates when sending the same prompt 25 consecutive times to the
+OpenAI text-embedding-3-small API from the same user. Blue denotes the “normal” embedding returned in most of the responses
+with normal response times, which indicate cache misses. Green denotes fast response times, which indicate cache hits. Red denotes
+embeddings that differ from both the “normal” and “cache hit” embeddings.
+
+                                                                 Embedding
+ Time (s)        Coordinate 1           Coordinate 2            Coordinate 3           Coordinate 4            Coordinate 5
+  0.100          0.00522740              0.02509154            −0.04450446              0.01837845             0.02944954
+  0.096          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.119          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.088          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.216          0.00523302              0.02509207            −0.04457144              0.01835683             0.02947217
+  0.100          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.096          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.088          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.077          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.036          0.00535751              0.02517040            −0.04455426              0.01839376             0.02954882
+  0.076          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.124          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.280          0.00522179              0.02509099            −0.04452551              0.01835604             0.02947091
+  0.032          0.00535751              0.02517040            −0.04455426              0.01839376             0.02954882
+  0.089          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.034          0.00535751              0.02517040            −0.04455426              0.01839376             0.02954882
+  0.092          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.089          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.103          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.127          0.00523272              0.02513466            −0.04454690              0.01837780             0.02944849
+  0.094          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.039          0.00535751              0.02517040            −0.04455426              0.01839376             0.02954882
+  0.035          0.00535751              0.02517040            −0.04455426              0.01839376             0.02954882
+  0.080          0.00534875              0.02516800            −0.04450600              0.01841400             0.02952400
+  0.034          0.00535751              0.02517040            −0.04455426              0.01839376             0.02954882
+
+
+
+
+                                                               17
+                                      Auditing Prompt Caching in Language Model APIs
+
+
+
+
+Table 8. Server-side response times and first five embedding coordinates when sending the same prompt 25 consecutive times to the
+OpenAI text-embedding-3-small API from the same user. Blue denotes the “normal” embedding returned in most of the responses
+with normal response times, which indicate cache misses. Green denotes fast response times, which indicate cache hits. Red denotes
+embeddings that differ from both the “normal” and “cache hit” embeddings.
+
+                                                                 Embedding
+ Time (s)        Coordinate 1           Coordinate 2            Coordinate 3           Coordinate 4            Coordinate 5
+  0.093          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.079          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.081          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.087          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.112          0.00455518              0.02146046            −0.05157467              0.01972101             0.02807036
+  0.038          0.00453244              0.02149035            −0.05159424              0.01968498             0.02810276
+  0.113          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.036          0.00453244              0.02149035            −0.05159424              0.01968498             0.02810276
+  0.078          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.118          0.00455531              0.02148279            −0.05153262              0.01974330             0.02809289
+  0.079          0.00455518              0.02146046            −0.05157467              0.01972101             0.02807036
+  0.084          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.096          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.110          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.089          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.063          0.00453244              0.02149035            −0.05159424              0.01968498             0.02810276
+  0.035          0.00453244              0.02149035            −0.05159424              0.01968498             0.02810276
+  0.094          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.100          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.033          0.00453244              0.02149035            −0.05159424              0.01968498             0.02810276
+  0.112          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.036          0.00453244              0.02149035            −0.05159424              0.01968498             0.02810276
+  0.033          0.00453244              0.02149035            −0.05159424              0.01968498             0.02810276
+  0.092          0.00455398              0.02148935            −0.05159185              0.01970582             0.02810146
+  0.118          0.00454002              0.02149847            −0.05158763              0.01983471             0.02807742
+
+
+
+
+                                                               18
+                                      Auditing Prompt Caching in Language Model APIs
+
+
+
+
+Table 9. Server-side response times and first five embedding coordinates when sending the same prompt 25 consecutive times to the
+OpenAI text-embedding-3-small API from the same user. Blue denotes the “normal” embedding returned in most of the responses
+with normal response times, which indicate cache misses. Green denotes fast response times, which indicate cache hits. Red denotes
+embeddings that differ from both the “normal” and “cache hit” embeddings.
+
+                                                                 Embedding
+ Time (s)        Coordinate 1           Coordinate 2            Coordinate 3           Coordinate 4            Coordinate 5
+  0.113          0.00306934              0.02534029            −0.05656114              0.02567696             0.02828057
+  0.033          0.00308367              0.02534279            −0.05652182              0.02570194             0.02821602
+  0.087          0.00306934              0.02534029            −0.05656114              0.02567696             0.02828057
+  0.097          0.00306934              0.02534029            −0.05656114              0.02567696             0.02828057
+  0.163          0.00306934              0.02534029            −0.05656114              0.02567696             0.02828057
+  0.142          0.00305834              0.02536461            −0.05647554              0.02572376             0.02826022
+  0.033          0.00308367              0.02534279            −0.05652182              0.02570194             0.02821602
+  0.119          0.00306308              0.02531247            −0.05650425              0.02569395             0.02827457
+  0.090          0.00306934              0.02534029            −0.05656114              0.02567696             0.02828057
+  0.100          0.00306934              0.02534029            −0.05656114              0.02567696             0.02828057
+  0.261          0.00306656              0.02531808            −0.05647188              0.02576698             0.02823594
+  0.426          0.00308757              0.02537424            −0.05663172              0.02575598             0.02822604
+  0.040          0.00308367              0.02534279            −0.05652182              0.02570194             0.02821602
+  0.036          0.00308367              0.02534279            −0.05652182              0.02570194             0.02821602
+  0.075          0.00306934              0.02534029            −0.05656114              0.02567696             0.02828057
+  0.087          0.00306934              0.02534029            −0.05656114              0.02567696             0.02828057
+  0.093          0.00306934              0.02534029            −0.05656114              0.02567696             0.02828057
+  0.116          0.00305834              0.02536461            −0.05647554              0.02572376             0.02826022
+  0.140          0.00306308              0.02531247            −0.05650425              0.02569395             0.02827457
+  0.034          0.00308367              0.02534279            −0.05652182              0.02570194             0.02821602
+  0.033          0.00306686              0.02536540            −0.05638750              0.02572455             0.02823864
+  0.033          0.00308367              0.02534279            −0.05652182              0.02570194             0.02821602
+  0.032          0.00308367              0.02534279            −0.05652182              0.02570194             0.02821602
+  0.089          0.00306934              0.02534029            −0.05656114              0.02567696             0.02828057
+  0.032          0.00308367              0.02534279            −0.05652182              0.02570194             0.02821602
+
+
+
+
+                                                               19
+                                                                                           Auditing Prompt Caching in Language Model APIs
+
+
+
+
+                           (a) Vary prompt length (same prompt)                       (b) Vary prompt length (same prefix, diff. suffix)                              (c) Vary prefix match length                                                   (d) Vary model size
+                         1.0                                                             1.0                                                                1.0                                                                      1.0
+                         0.8                                                             0.8                                                                0.8                                                                      0.8
+                         0.6                                                             0.6                                                                0.6                                                                      0.6
+              p-value    0.4                                                  p-value    0.4                                                     p-value    0.4                                                           p-value    0.4
+                         0.2                                                             0.2                                                                0.2                                                                      0.2
+                         0.0                                                             0.0                                                                0.0                                                                      0.0
+                               0   1000 2000 3000 4000 5000                                    0   1000 2000 3000 4000 5000                                       0     200   400    600   800       1000                                  1B   3B      8B 11B 70B 90B 405B
+                                   Prompt length (tokens)                                         Prompt length (tokens)                                              Prefix match length (tokens)                                                    Llama model size
+                           (a) Vary prompt length (same prompt)                       (b) Vary prompt length (same prefix, diff. suffix)                              (c) Vary prefix match length                                                   (d) Vary model size
+                         100                                                             100                                                                100                                                                      100
+                       10 25                                                           10 25                                                              10 25                                                                    10 25
+
+
+
+p-value (log scale)                                             p-value (log scale)                                                p-value (log scale)                                                      p-value (log scale)
+                       10 50                                                           10 50                                                              10 50                                                                    10 50
+                       10 75                                                           10 75                                                              10 75                                                                    10 75
+                      10 100                                                          10 100                                                             10 100                                                                   10 100
+                      10 125                                                          10 125                                                             10 125                                                                   10 125
+                      10 150                                                          10 150                                                             10 150                                                                   10 150
+                               0   1000 2000 3000 4000 5000                                    0   1000 2000 3000 4000 5000                                       0     200   400    600   800       1000                                  1B   3B      8B 11B 70B 90B 405B
+                                   Prompt length (tokens)                                          Prompt length (tokens)                                             Prefix match length (tokens)                                                   Llama model size
+
+                                                       Fireworks (client time)                           Fireworks (server time)                             Perplexity (client time)            Replicate (server time)
+
+
+Figure 7. Ablations on the effects of P ROMPT L ENGTH, P REFIX F RACTION, and model size on the audit p-values. Each test is run using
+N UM S AMPLES = 250. The top and bottom rows display the p-values on linear and logarithmic scales, respectively. In (a)–(c), as the
+prompt length or prefix match length decreases, the p-values grow larger. In (d), we detect caching across all model sizes, with no clear
+relationship between model size and p-values.
+
+
+
+
+                                                                                                                                   20
+

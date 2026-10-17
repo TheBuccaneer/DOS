@@ -218,3 +218,4 @@ __marimo__/
 .streamlit/secrets.toml
 # Generated Phase A measurement outputs
 new/runs/phase_a/results/
+/new/runs/cache_isolation_gate/metrics_smoke_20261016T162146Z.jsonl

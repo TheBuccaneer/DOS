@@ -1,0 +1,33 @@
+{
+  "pdf_nonwhitespace_characters": 28440,
+  "abstract_words": 167,
+  "tex_characters": 31032,
+  "tex_and_bib_nonwhitespace": 30935,
+  "position_character_range": [
+    8000,
+    40000
+  ],
+  "regular_character_range": [
+    10000,
+    50000
+  ],
+  "note": "Rendered text count includes references and line-break hyphenation. Portal count can differ slightly.",
+  "template_url": "https://scitepress.org/documents/SCITEPRESS_Conference_Latex.zip",
+  "template_sha256": "5385a752f5da2f970236f21404405a2f5c78856c30abc96e02752f06aac20ab8",
+  "template_files_unchanged": {
+    "SCITEPRESS.sty": true,
+    "article.cls": true,
+    "apalike.sty": true,
+    "apalike.bst": true
+  },
+  "pdf_info": "Creator:         tectonic\nProducer:        xdvipdfmx (0.1)\nCreationDate:    Sat Oct 17 16:12:33 2026 CEST\nCustom Metadata: no\nMetadata Stream: no\nTagged:          no\nUserProperties:  no\nSuspects:        no\nForm:            none\nJavaScript:      no\nPages:           8\nEncrypted:       no\nPage size:       595.28 x 841.89 pts (A4)\nPage rot:        0\nFile size:       63508 bytes\nOptimized:       no\nPDF version:     1.5\n",
+  "pdf_sha256": "80f84f769577913ba5822ef497734e5ef616939b7da8863e1c8b6f702467d226",
+  "section_ai_citations": 9,
+  "pdf_fonts": "name                                 type              encoding         emb sub uni object ID\n------------------------------------ ----------------- ---------------- --- --- --- ---------\nIHAIZV+NimbusRomNo9L-Medi            Type 1C           Custom           yes yes yes      4  0\nBZIVMZ+NimbusRomNo9L-Regu            Type 1C           Custom           yes yes yes      5  0\nIXFAWU+NimbusRomNo9L-ReguItal        Type 1C           Custom           yes yes yes      6  0\nYEUUOC+CMSY10                        Type 1C           Builtin          yes yes yes     11  0\nTQTHRL+CMMI10                        Type 1C           Builtin          yes yes yes     12  0\nAKHCZK+CMR10                         Type 1C           Builtin          yes yes yes     13  0\nVDVGTR+MSBM10                        Type 1C           Builtin          yes yes yes     14  0\nCAFSZL+NimbusMonL-Regu               Type 1C           Custom           yes yes yes     21  0\n",
+  "visual_review": {
+    "all_pages_inspected": true,
+    "pages": 8,
+    "scope": "final PDF after moving footnote markers into text; no clipping/overlap found",
+    "independent_human_review": false
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "source": "/home/rock/projects/DOS/new/research/icissp2027_rdna_20261017/reference/vllm_v0_17_1/v1/utils.py",
+  "source_sha256": "625b5649bda0f769ec993f831c4c58318de1d320346d79a3def729de6f554ac7",
+  "method": "pure AST extraction; no vLLM import, CUDA, server, or network",
+  "cases": [
+    {
+      "case": "new_request_17_scheduled",
+      "synthetic": true,
+      "scheduled_tokens": 17,
+      "result": {
+        "num_ctx_requests": 1,
+        "num_ctx_tokens": 17,
+        "num_generation_requests": 0,
+        "num_generation_tokens": 0
+      }
+    },
+    {
+      "case": "zero_output_request_17_scheduled",
+      "synthetic": true,
+      "scheduled_tokens": 17,
+      "result": {
+        "num_ctx_requests": 1,
+        "num_ctx_tokens": 17,
+        "num_generation_requests": 0,
+        "num_generation_tokens": 0
+      }
+    },
+    {
+      "case": "positive_output_request_17_scheduled",
+      "synthetic": true,
+      "scheduled_tokens": 17,
+      "result": {
+        "num_ctx_requests": 0,
+        "num_ctx_tokens": 0,
+        "num_generation_requests": 1,
+        "num_generation_tokens": 17
+      }
+    },
+    {
+      "case": "positive_output_request_1_scheduled",
+      "synthetic": true,
+      "scheduled_tokens": 1,
+      "result": {
+        "num_ctx_requests": 0,
+        "num_ctx_tokens": 0,
+        "num_generation_requests": 1,
+        "num_generation_tokens": 1
+      }
+    }
+  ]
+}

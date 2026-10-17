@@ -1,0 +1,1035 @@
+                                             PrefixWall: Mitigating Prefix Caching Side Channels in Shared
+                                                                      LLM Systems
+                                                           Panagiotis Georgios Pennas                                                        Konstantinos Papaioannou
+                                                             IMDEA Software Institute                                                     IMDEA Software Institute
+                                                          Universidad Politécnica de Madrid                                           Universidad Politécnica de Madrid
+                                                           panagiotis.pennas@imdea.org                                              konstantinos.papaioannou@imdea.org
+
+                                                                   Marco Guarnieri                                                             Thaleia Dimitra Doudali
+                                                               IMDEA Software Institute                                                          IMDEA Software Institute
+                                                              marco.guarnieri@imdea.org                                                         thaleia.doudali@imdea.org
+
+
+
+
+arXiv:2603.10726v2 [cs.CR] 20 May 2026
+                                         ABSTRACT                                                                                Secret Inputs                          Serving System
+                                                                                                                                 Name: **
+                                         Large Language Models (LLMs) rely on optimizations like Auto-
+                                                                                                                                 Password: **          Response
+                                         matic Prefix Caching (APC) to accelerate inference. APC works                                                                      Shared
+                                                                                                                                 Address: **            Request                       Miss
+                                         by reusing previously computed states for the beginning part of                Victim                                               Prefix
+                                                                                                                                 Email: **                                  Cache                 LLM
+                                                                                                                                                                                       Time
+                                         a request (prefix), when another request starts with the same text.                                                      Request               Diff
+                                                                                                                                                                                               Response
+                                         While APC improves throughput, it introduces timing side chan-                                                Response
+                                                                                                                                                                                      Hit      Generation
+                                         nels: cache hits are faster than misses, creating observable latency                                           Request
+                                         differences. In multi-tenant systems, attackers can exploit these                                                            Response
+                                                                                                                           LLM
+                                         differences to infer sensitive information, e.g., by incrementally re-                    Attacker               …
+                                                                                                                          Prompt FEEDBACK Time
+                                         constructing another user’s request by observing hit/miss patterns.            Constructor         Analyzer
+                                         Current defenses take a sledgehammer approach: they disable APC
+                                         and cache sharing, isolating users, and sacrificing efficiency for
+                                         regular users. This paper presents PrefixWall, a system that secures          Figure 1: Timing side-channel leakage in prefix-sharing LLM
+                                         multi-tenant LLM serving systems against APC side channels with-              inference. The attacker sends crafted prompts and measures
+                                         out sacrificing performance and efficiency. PrefixWall monitors               time-to-first-token (TTFT) to detect cache hits or misses
+                                         cache reuse across users, flags suspicious sharing, and selectively           caused by Automatic Prefix Caching (APC) and steal the sen-
+                                         isolates prefixes, restricting their reuse, only when necessary. Eval-        sitive information in the victim’s prompt.
+                                         uation shows that PrefixWall enables up to 70% higher cache reuse
+                                         and 30% lower inference latency compared to existing defenses
+                                         that isolate users. PrefixWall’s lightweight design demonstrates              17, 30, 70]. APC creates observable variations in inference latency
+                                         how security in LLM serving does not have to come at the cost of              depending on whether a request reuses cached prefixes or not.
+                                         unnecessarily reduced performance or unbearable overheads.                    These latency differences create a timing side channel, that is, an un-
+                                                                                                                       intended information leak where execution time reveals properties
+                                         1    INTRODUCTION                                                             of secret data without direct access. In multi-tenant deployments
+                                         Large Language Models (LLMs) now power applications such as con-              where the prefix cache is shared across different security domains
+                                         versational assistants, code generation, and enterprise analytics [13].       (e.g., different users), attackers can exploit this side channel to infer
+                                         These services operate at massive scale under strict latency and              private information. For example, by sending crafted requests and
+                                         throughput requirements, making inference serving a critical sys-             measuring time-to-first-token (TTFT), an attacker can determine
+                                         tems challenge [76]. Modern serving systems employ system-level               whether parts of their input match cached prefixes from another
+                                         optimizations such as cache management [39, 40, 59] and schedul-              user’s request. Repeating this process enables prompt-stealing at-
+                                         ing [2, 3, 33] to accelerate LLM inference. Among these optimiza-             tacks that reconstruct sensitive content from other users [31, 58].
+                                         tions, prefix sharing [10, 37, 71], or otherwise known as Automatic              To prevent these attacks, prior work has proposed several de-
+                                         Prefix Caching (APC), is widely used by state-of-the-art frameworks           fenses against APC timing leaks [14, 16, 31, 51, 75]. These ap-
+                                         and commercial APIs, such as OpenAI [49], DeepSeek [19], Google               proaches span three main strategies: (i) full user-level isolation,
+                                         Gemini [18], MoonShot Kimi [55], vLLM [39], and SGLang [74].                  which disables prefix sharing entirely [31, 51, 75]; (ii) timing obfus-
+                                         APC accelerates inference by caching and reusing previously com-              cation, which injects noise to mask latency differences [14]; and (iii)
+                                         puted model states for the beginning part of a request (the request’s         selective isolation of secret-dependent prompts based on LLM-aided
+                                         prefix) whenever another request starts with the same text. The               semantic analysis [16]. While effective in theory, all these defenses
+                                         use of a prefix cache avoids redundant computation and signifi-               suffer from a critical drawback: they introduce significant overhead,
+                                         cantly reduces latency for long prompts and multi-turn conversa-              often unnecessarily. For example, for prompts that are not involved
+                                         tions [37, 71].                                                               in attacks or for situations where the timing side channel is not
+                                            While APC delivers substantial performance benefits, it also in-           exploitable in practice. As a consequence, these solutions erase
+                                         troduces security risks similar to other caching optimizations [12,           APC’s performance benefits and penalize regular, benign users;
+                                                                                                                   1
+thereby limiting their applicability in realistic, high-performance          • The design of PrefixWall, a lightweight and practical system
+multi-tenant environments.                                                     that secures prefix reuse against timing attacks by selectively iso-
+    To address the shortcomings of current defenses, we introduce              lating suspicious prefixes rather than entire users, while preserv-
+PrefixWall, a system-level solution that secures multi-tenant LLM              ing performance benefits (Section 3). PrefixWall will be open-
+serving against timing side channels caused by APC, while pre-                 sourced to allow community adoption.
+serving its performance benefits. PrefixWall is based on the key             • A comprehensive security analysis of PrefixWall ’s guarantees
+insight that isolating entire users (as done in [31, 51, 75]) is not           and limitations, complemented by empirical validation against
+necessary to prevent attacks; rather it is sufficient to protect the           prompt-stealing attacks (Section 4).
+shared prefixes that might lead to attacks. Building on this insight,        • An extensive evaluation of PrefixWall across diverse workloads
+PrefixWall (1) continuously monitors prefix reuse across users, (2)            and state-of-the-art LLM models, demonstrating up to 70% higher
+flags prefixes that are suspiciously reused by multiple users, and             cache reuse and 30% lower latency compared to user-level isola-
+(3) prevents further reuse of flagged prefixes in follow-up requests.          tion defenses, with negligible overhead (Section 5).
+This approach enables efficient sharing for benign users, while se-
+lectively isolating only those prefixes associated with suspicious
+behavior, avoiding unnecessary penalties for all users.                      2     BACKGROUND AND MOTIVATION
+    The system design of PrefixWall consists of lightweight com-             In this section, we provide background and motivation for Pre-
+ponents that work together to secure prefix caching without sac-             fixWall. We start by introducing background on LLM serving sys-
+rificing efficiency. First, PrefixWall extends the prefix cache with         tems and, in particular, on the APC optimization (2.1). We then
+minimal metadata for each entry to track ownership and flag suspi-           characterize the parameters that influence the exploitability of tim-
+cious reuse. Second, the Detector monitors cache hits and isolates           ing side channels due to APC (Section 2.2). Then, we illustrate
+flagged prefixes when multiple users attempt to share them. Finally,         how attackers can exploit APC through timing leaks to learn sen-
+PrefixWall introduces a system-level optimization that activates pre-        sitive prompts (2.3). Next, we overview current defenses for APC
+fix isolation only when a timing side channel is actually exploitable.       timing leaks and discuss their limitations (2.4). We conclude by
+This is handled by the Activator, which continuously evaluates               summarizing our motivational observations in (2.5).
+whether latency differences between cache hits and misses are
+distinguishable, based on factors such as the hardware platform,
+LLM model size, system load, and request length. These parame-               2.1    Caching in LLM Serving Systems
+ters directly influence the strength and exploitability of the timing        Large Language Models (LLMs), such as GPT [13] and LLaMA [62],
+side channel, as demonstrated in our motivational analysis. Overall          are the backbone of modern AI services. Integrating them in mod-
+PrefixWall’s system components interact seamlessly: the cache ex-            ern IT systems requires serving systems that deliver inference with
+tension provides metadata, the Detector enforces selective isolation,        low latency and high throughput under multi-user workloads. In-
+and the Activator optimizes the security-performance trade-off.              ference happens in two stages: prefill and decode. During prefill, the
+    PrefixWall is implemented on top of the open-source, state-of-           entire input prompt (also called a request) is processed in a single
+the-art LLM serving system vLLM [64]. We conduct an extensive                forward pass, generating key-value (KV) tensors for each token. In
+evaluation across multi-tenant workloads with varying levels of              the decode phase, tokens are produced autoregressively; for each
+intra- and inter-user prefix sharing and nine LLM models spanning            new token, the model computes a new key-value tensor using all
+different families and sizes (from 0.5B to 13B parameters). Our ex-          previously generated tensors. Without caching, every decode step
+perimental results show that PrefixWall achieves up to 70% higher            would recompute all KV tensors for both prefill and prior decode
+cache reuse and 30% lower inference latency compared to defenses             tokens, incurring quadratic cost.
+that enforce user-level isolation. In addition, PrefixWall introduces           To avoid this, current LLM serving systems employ a KV cache
+negligible time and memory overheads during runtime, demonstrat-             that stores tensors generated during the prefill and previous decod-
+ing that security can be achieved without sacrificing performance            ing steps for reuse. To further accelerate inference, several com-
+when implemented in a lightweight and principled way. Finally, to            mercial frameworks such as OpenAI [49], DeepSeek [19], Google
+validate the security of PrefixWall, we performed a detailed security        Gemini [18], MoonShot Kimi [55], vLLM [39], and SGLang [74]
+analysis that precisely characterizes PrefixWall’s security guaran-          implement Automatic Prefix Caching (APC). APC reduces redun-
+tees, which we complement with an empirical validation showing               dant computation by reusing cached KV tensors whenever a new
+that PrefixWall indeed closes the timing side-channel introduced             request shares a prefix with an earlier one. This optimization is
+by APC across requests from different users.                                 particularly effective for scenarios such as long-document queries
+The specific paper contributions are:                                        or multi-round conversations [65], where repeated processing of
+ • A detailed analysis of timing side channels introduced by Auto-           the same prefix would otherwise incur significant overhead.
+    matic Prefix Caching (APC) in multi-tenant LLM serving systems,             When serving systems apply APC, a prompt can be viewed as a
+    including observations on their exploitability under different           sequence of prefixes, each mapped to a cache entry in the KV/prefix
+   workload and system conditions (Section 2).                               cache. Requests may experience partial cache hits, starting from the
+                                                                             beginning of the prompt and reusing some cached prefixes while
+                                                                             recomputing others. The leftmost example in Figure 5 illustrates
+                                                                             this process, where each node corresponds to a cache entry for that
+                                                                             particular prefix/part of the prompt sentence.
+                                                                         2
+2.2    Timing Differences due to APC                                                      60                                                    60
+
+
+
+                                                                              TTFT (ms)                                             TTFT (ms)
+Although the use of the prefix cache accelerates inference, it in-                        40                                                    40
+troduces observable latency differences between cache hits and
+misses, particularly in the time-to-first-token (TTFT). These varia-                      20                                                    20
+tions create a timing side channel, an unintended information leak
+where execution time reveals whether a request shares prefixes                             0       200       400                                 0       200       400
+with cached prompts. In multi-tenant environments, such leaks                               Prompt Length (Tokens)                                Prompt Length (Tokens)
+can be exploited by attackers to infer sensitive information. In the                           (a) LLava-0.5B                                        (b) Qwen2.5-3B
+following examples, we illustrate how APC-induced timing differ-
+ences manifest and we identify the key parameters that influence                          60                                                    60
+the strength and exploitability of the side channel.
+
+                                                                              TTFT (ms)                                             TTFT (ms)
+                                                                                          40                                                    40
+
+   Example 2.1. To illustrate how APC impacts latency, recall from                        20                                                    20
+Section 2.1 that a prompt is processed as a sequence of prefixes,
+each mapped to a cache entry. When APC is enabled, these prefixes                          0       200      400                                  0      200      400
+may either hit in the cache or require recomputation. We consider                           Prompt Length (Tokens)                                Prompt Length (Tokens)
+two cases: one where all prefixes of the prompt hit the cache, and                             (c) Gemma3-4B                                         (d) Llama2-7B
+another where a miss occurs early, forcing all subsequent prefixes
+                                                                                        150                                         150
+to be recomputed. This difference in reuse leads to observable vari-
+ations in time-to-first-token (TTFT) between requests that fully
+
+                                                                            TTFT (ms)                                   TTFT (ms)
+                                                                                        100                                         100
+reuse cached prefixes and those that recompute them. 2 reports
+TTFT comparisons across four LLMs of increasing size and varying
+                                                                                          50                                           50
+prompt lengths, with requests sent at a constant rate (RPS = 1).
+TTFT for cache hits is shown in red, while misses are shown in
+blue. For all models except the smallest one (i.e., LLava-0.5B), we                        0        200        400                          0         200        400
+highlight the following aspects:                                                               Prompt Length (Tokens)                            Prompt Length (Tokens)
+ • TTFT differences between cache hits and misses become notice-                                 (e) RPS = 10                                        (f) RPS = 20
+   able after a certain prefix length for each model.                                   150                                         150
+ • The latency gap grows as the shared prefix length increases.
+
+
+                                                                            TTFT (ms)                                   TTFT (ms)
+ • For the same prefix length, larger LLMs exhibit greater TTFT                         100                                         100
+   differences.
+ • Larger LLMs show distinguishable timing differences even at                            50                                           50
+   shorter prefixes.
+For LLava-0.5B, TTFT differences between hits and misses are neg-
+                                                                                           0        200        400                          0         200        400
+ligible because the model is small and the recomputation latency                               Prompt Length (Tokens)                            Prompt Length (Tokens)
+for the misses is minimal.
+                                                                                                 (g) RPS = 30                                        (h) RPS = 40.
+
+ Observation 1: TTFT reveals whether a request reuses cached
+                                                                            Figure 2: TTFT difference between cache hits (red) and misses
+ prefixes (hits) or recomputes them (misses), and the difference
+                                                                            (blue) for increasing length of prefixes/prompts reused across
+ becomes more pronounced with larger models and longer pre-
+                                                                            users. Examples for different LLM models and system load
+ fixes that are reused across users.
+                                                                            (requests per second RPS).
+
+
+   Example 2.2. Next, we examine how system load influences these
+timing differences using the same setup as before with the Llama-              Observation 2: As system load increases, TTFT differences be-
+13B model. 2 shows TTFT measurements under increasing request-                 tween prefix cache hits and misses disappear because batching
+per-second (RPS) rates (10, 20, 30, 40) for prompts with prefixes of           and queuing delays dominate latency, masking cache-related
+100–500 tokens. We observe that as the request-per-second (RPS)                timing variations.
+rate increases, the latency gap between cache hits and misses pro-
+gressively collapses, making them hard to distinguish. This happens            To further validate observations 1 and 2 across a wide range
+because higher RPS introduces resource contention and head-of-              of conditions, Figure 3 shows the KDE overlap between the TTFT
+line blocking in the LLM serving pipeline [2, 3, 52, 76]. Under these       distributions of cache hits and misses across 5 different LLMs, in-
+conditions, batching and queuing delays dominate latency, over-             creasing prefix/prompt length and system load (requests per sec-
+shadowing the computational savings of prefix reuse. Consequently,          ond). KDE overlap is a statistical measure of similarity between
+cache hits appear as slow as misses, effectively eliminating any tim-       two probability distributions, computed as the integral of the mini-
+ing differences.                                                            mum of their density functions [34]. In our context, it quantifies
+                                                                        3
+                          Gemma-4B           LLama2-7B        Qwen2.5-3B           reconstruct sensitive prompts or steal private information (secrets)
+                          LLama2-13B         Llava-0.5B                            of other users by observing the TTFT of attacker requests. That is,
+                  100                                                              APC leaks can be exploited to perform prompt stealing attacks [58].
+
+
+
+
+KDE Overlap (%)
+                                                                                   Prior studies [16] show that datasets capturing real-world LLM
+                   75
+                                                                                   workloads, such as ShareGPT [9], Multiturn Chat [11], and Prompt
+                   50                                                              Multitasks [24], reveal frequent prefix reuse within and across users.
+                                                                                   Specifically, requests from the same user share prefixes in 9–60%
+                   25                                                              of cases, while up to 30% reuse occurs across different users. Thus,
+                                                                                   APC leaks are a real threat for the security of multi-tenant LLM
+                    0
+                        100    200     300      400       20         40            serving systems.
+                         Prompt Length (Tokens)       Request Rate (req/s)
+                                                                                      Figure 1 illustrates the workflow of a timing-based prompt steal-
+                                                                                   ing attack that exploits APC leaks, inspired by [58]. First, the victim
+ Figure 3: Effect of the LLM model, prefix/prompt length and
+                                                                                   user issues a request that includes a prompt containing sensitive in-
+ system load (requests per second) on the distinguishability
+                                                                                   formation. For simplicity, here we assume that the prompt follows a
+ of the APC timing differences, which is captured with the
+                                                                                   fixed template (known by the attacker) and it includes user-specific
+ KDE overlap between cache hits and misses.
+                                                                                   secrets. For example, a prompt template can be Compose a meeting
+                                                                                   agenda for an interdisciplinary team discussing the treatment plan
+ how much the TTFT distributions of cache hits and misses inter-                   for [Name] with [medical condition]), where [Name] and [medical
+ sect: higher overlap indicates that hits and misses are harder to                 condition] are secret. The attacker uses an LLM-based Prompt Con-
+ distinguish, while lower overlap means the opposite. The left plot                structor to create candidate prompts by varying words within the
+ shows that the overlap decreases as the prefix length grows, making               template. Next, each candidate is submitted to the LLM serving
+ timing differences more pronounced for longer prefixes, especially                system, and the time-to-first-token (TTFT) is measured. By observ-
+ in larger models such as LLaMA-13B and LLaMA-7B. In contrast,                     ing the TTFT, the attacker can determine (e.g., using a dedicated
+ smaller models like Llava-0.5B maintain high overlap even for long                pre-trained classifier) whether the observed latency corresponds
+ prefixes, meaning that it’s hard to distinguish any TTFT differences,             to hits or misses in the prefix cache. In particular, a cache hit indi-
+ as shown previously in Figure 2. The right plot shows that overlap                cates that the candidate shares a prefix with the victim’s prompt.
+ increases with request rate (RPS), as batching and queuing delays                 By repeating this process iteratively, the attacker can reconstruct
+ dominate latency and mask cache-dependent variations. At high                     the original prompt word-by-word or retrieve missing/private data
+ RPS, hits and misses become nearly indistinguishable across all                   fields (e.g., names, dates, identifiers) without direct access to the
+ models, effectively eliminating the timing leak.                                  cache [31, 58].
+    In conclusion, while prior work acknowledges APC-induced
+ timing side channels [16, 31, 51, 75], our motivational analysis                  2.4    Defenses Against APC leaks
+ shows that the strength and exploitability of the channel depend                  Recent works have proposed several defenses against timing leaks
+ on the following critical parameters:                                             induced by APC. These defenses fall into three main categories,
+  • the length of the shared prefix: longer prefixes are more                      each with distinct trade-offs between security and performance, as
+    vulnerable.                                                                    summarized in Table 1.
+  • the size of the LLM model: larger models are more vulnerable.
+                                                                                      Cache Isolation and Partitioning. On the one extreme, several
+  • the system load: lower load (requests received per second) is
+                                                                                   works propose mitigating APC leaks by eliminating cache shar-
+    more vulnerable.
+                                                                                   ing entirely across different users and security domains. Input-
+  • the underlying hardware platform: since it directly influ-
+                                                                                   Snatch [75] and Auditing Prompt Caching [31] advocate per-user
+    ences timing measurements.
+                                                                                   cache isolation or disabling prefix reuse across requests. Cache
+    These parameters jointly determine whether timing side chan-
+                                                                                   Partitioning [51] similarly enforces user-boundaries within the KV-
+ nels are distinguishable and, should be taken into consideration
+                                                                                   cache to prevent cross-user hits. These approaches ensure strong
+ into building robust and practical mitigation mechanisms.
+                                                                                   security guarantees and effectively block timing leaks due to shared
+            Key insight: While APC introduces timing side channels, their          prefixes by addressing the leak at its source. However, they also
+            exploitability depends on various parameters: the prefix length,       sacrifice the performance benefits of prefix caching, which can re-
+            LLM size, system load, and hardware platform. Prior work               sult in significant overhead given that “real-world LLM workloads
+            treated APC leaks as uniformly exploitable, whereas our analy-         frequently exhibit significant cross-query reuse” [16].
+            sis reveals that these parameters jointly determine side-channel
+            strength and must guide efficient and practical mitigation.             Shortcoming 1: User-based cache isolation prevents timing
+                                                                                    leaks but introduces overhead due to reduced prefix sharing.
+
+ 2.3                    Prompt Stealing Attacks via APC leaks                         Timing Obfuscation. On the other extreme, Carlini and Nasr [14]
+ In multi-tenant systems the prefix cache is shared between requests               propose to secure systems by making the execution time of infer-
+ from different users and security domains. Hence, these visible                   ence “constant” across hits and misses. For this, they propose to
+ timing differences can be exploited by attackers to incrementally                 inject noise in the system to mask timing signals and, ultimately,
+                                                                               4
+      Related Work           Mitigation         Prefix   Low                analysis, limiting scalability and leaving misclassified requests ex-
+                                                Reuse    TTFT               posed. These shortcomings highlight a fundamental gap: we need
+      Partitioning [51]    Per-user Isolation   ✗        ✗
+                                                                            a defense that adapts to the conditions under which timing leaks are
+      InputSnatch [75]     Per-user Isolation   ✗        ✗
+                                                                            exploitable, secures prefix reuse without blind per-user isolation,
+      Audit [31]           Per-user Isolation   ✗        ✗
+                                                                            and preserves the efficiency of APC across diverse workloads, with-
+      Remote [14]         Timing Obfuscation    ✓        ✗
+      SafeKV [16]          Selective Sharing    ✓        ✗
+                                                                            out introducing unbearable overheads in return for security. This
+                                                                            motivates the design of a new system that achieves robust security
+      PrefixWall           Selective Sharing    ✓        ✓
+                                                                            with lightweight, practical mechanisms, enabling multi-tenant LLM
+   Table 1: Comparison of current mitigation strategies.                    serving to remain both performant and secure.
+
+close the side channel by making hits and misses in the prefix cache        3     SYSTEM DESIGN
+indistinguishable to attackers. That is, these defenses would ensure        In this section, we introduce PrefixWall, that provides system-level
+that the distributions of hits and misses in 2 overlap. Although            security against timing leaks induced by APC. We start by providing
+obfuscation defenses can prevent APC leaks, they have two lim-              a high-level overview of PrefixWall and its objectives (3.1). Next,
+itations. First, they introduce uniform delays across all requests,         we describe PrefixWall’s core components (Sections 3.2 and 3.3).
+penalizing benign users and reducing overall performance. Sec-
+ond, they do not address the source of the timing leak (i.e., the
+                                                                            3.1    Overview and Objectives
+prefix cache being shared between security domains) and histor-
+ically obfuscation defenses for timing leaks are less robust since          PrefixWall deploys a lightweight defense mechanism that secures
+attackers can often find ways of amplifying even small differences          multi-tenant LLM serving systems against timing side-channel at-
+in execution time [29, 38, 63].                                             tacks caused by Automatic Prefix Caching (APC). PrefixWall builds
+                                                                            on the key insight that preventing timing side-channel attacks
+ Shortcoming 2: Obfuscation-based techniques do not address                 does not require isolating entire users (like it is done in [31, 51, 75]);
+ the source of leaks and introduce overheads for benign requests.           it only requires isolating prefixes that might lead to attacks. Build-
+                                                                            ing on this insight, PrefixWall allows cached prefixes to be reused
+    Selective Cache Sharing. To balance security and efficiency, some       across users but stops reuse beyond prefixes that could reveal sen-
+defenses restrict cache sharing rather than disabling it completely.        sitive information. This selective prefix isolation works on a simple
+SafeKV [16] introduces a multi-tier detection pipeline that seman-          principle: attacks require different users to share and reuse a pre-
+tically classifies requests using rule-based checks and semantic            fix. PrefixWall enforces this by tracking how users interact with
+validation via LLMs either as “sensitive” (i.e., that may contain           shared cache entries without requiring any knowledge of prompt
+secret information) or non-sensitive. In SafeKV, only requests clas-        semantics [16]. Benign users benefit from shared caching, where
+sified as sensitive are isolated at cache-level, thereby preventing         common prefixes remain widely reusable. When suspicious behav-
+other users (attackers included) from hitting on them. Although this        ior is detected, PrefixWall intervenes by isolating the corresponding
+approach prevents leakage without fully disabling APC, its reliance         prefixes rather than penalizing all users. This design ensures that
+on heavyweight semantic LLM-based analysis limits scalability for           cache reuse within and across users is maximized to the greatest
+high-performance deployments. Moreover, some requests might be              extent possible without compromising security.
+misclassified and, therefore, left unprotected.
+                                                                               Objectives. The design of PrefixWall is guided by the following
+ Shortcoming 3: Current selective sharing defenses may fail in              three objectives:
+ preventing leaks for “misclassified” requests and still introduce
+ unnecessary overhead.                                                      [O1] Secure Prefix Reuse: Prevent timing attacks introduced
+                                                                                 by Automatic Prefix Caching (APC) by isolating suspicious
+                                                                                 prefixes, avoiding heavy-handed approaches such as per-
+2.5     Summary                                                                  user isolation or disabling cache sharing.
+Our motivational analysis reveals that Automatic Prefix Caching             [O2] Performance Preservation: Maximize cache reuse and
+(APC), while critical for high-throughput LLM inference, introduces              accelerate inference speed, across diverse workloads and
+timing side channels whose exploitability depends on concrete pa-                LLM models, thereby ensuring that security does not come
+rameters such as the prefix length, LLM size, system load and,                   at the cost of performance.
+effectively, the underlying hardware platform. Longer prefixes that         [O3] Lightweight and Practical Design: Provide real-time pro-
+are reused across users and larger models amplify latency gaps be-               tection with minimal overhead, without requiring semantic
+tween cache hits and misses, enabling adversaries to infer sensitive             analysis or prior knowledge of sensitive content, and inte-
+prompts under low-load conditions. Existing defenses fail to recon-              grate seamlessly with state-of-the-art LLM serving systems.
+cile this tension between security and efficiency: isolation-based
+approaches eliminate cache sharing entirely, sacrificing the perfor-           System overview. To achieve these objectives, PrefixWall intro-
+mance benefits that make APC essential; obfuscation techniques              duces a lightweight pipeline that operates on the request-serving
+inject noise without addressing the root cause, imposing uniform            path, as illustrated in Figure 4. PrefixWall extends the KV cache
+delays and remaining vulnerable to amplification attacks; and selec-        with minimal metadata per entry to enable fine-grained tracking
+tive sharing mechanisms rely on heavyweight LLM-based semantic              of user-prompt interactions and flag suspicious prefixes that are
+                                                                        5
+shared and reused across users. When a request arrives, the Acti-                                                PrefixWall
+vator first decides whether selective isolation should be enabled
+                                                                                         Request                          ON
+based on the distinguishability of the timing side channel, under                                    Activator                         Detector
+the current LLM model, prefix length, system load and underly-
+
+
+
+
+                                                                                                                                                      Checks on attack flag and owner ID
+                                                                                                     Request                               Hit
+ing hardware platform. At the same time, the LLM serving system
+                                                                                                         KV Cache              Extension
+checks whether the prefixes that are part of the request hit or miss                                      DATA      ATTACK FLAG OWNER ID
+the cache. On a cache miss, a new cache entry is created and tagged
+                                                                                      Users
+with the user’s ID; no further action is needed because misses do                                                                   Miss
+not leak timing information.
+                                                                                                               Prompt
+   On a cache hit, the Detector determines whether the prefix should                                                                Isolated prefix
+                                                                                                                Prefill
+be isolated to prevent attacks or shared as usual, following the                                   LLM                              Shared prefix
+                                                                                       Response
+procedure described in Section 3.2. If the prefix is shared (marked
+as 3 in Figure 4), the request proceeds with full reuse and the
+response is returned directly to the user. If the prefix is isolated,                     Figure 4: System Design of PrefixWall.
+PrefixWall stops reuse at that point and recomputes the remaining
+tokens through the LLM, creating a new cache entry for the isolated          cache entry, PrefixWall sets a boundary: reuse up to this point is
+prefix. This results in a partial hit: the request benefits from reuse       allowed, but going further is restricted for non-owners (potential
+up to the shared prefix, while the remaining portion is isolated and         attackers).
+recomputed to prevent leakage.
+PrefixWall consists of the following system components:                      3.2.2 Detection Pipeline. When a cache entry is created on a cache
+ • KV Cache Extension: Augments each cache entry with meta-                  miss, its metadata is initialized: OwnerID is set to the current user ID
+   data to track user-prompt interactions and flag suspicious pre-           and AttackFlag is cleared. When there is a cache hit, the request
+   fixes (Section 3.2).                                                      is sent to the Detector for validation. At this stage, the Detector
+ • Detector: Examines prefix reuse to identify cross-user access             examines whether the prefix should remain shared or be isolated
+   and enforce selective isolation when suspicious reuse occurs              to prevent leakage. Two scenarios can occur during validation:
+   (Section 3.2).                                                             • Hit on an unflagged prefix: If the prefix is unflagged and
+ • Activator: Dynamically activates selective isolation only under              owned by the requesting user, reuse proceeds without changes,
+   conditions that create exploitable timing side-channels, balanc-             the cached entry is returned back to the user. If the prefix is
+   ing security with performance (Section 3.3).                                 owned by a different user, the Detector flags this prefix as isolated
+Together, these components enable PrefixWall to maximize secure                 for future requests, ensuring that reuse beyond this point is
+cache reuse while mitigating timing attacks without sacrificing                 blocked for non-owners.
+efficiency.                                                                   • Hit on a flagged prefix: If the prefix is previously flagged, the
+                                                                                Detector checks whether the next prefix in the prompt belongs
+3.2    KV Cache Extension and Detector                                          to the requesting user. If yes, reuse continues normally. If not,
+                                                                                reuse stops at the flagged prefix, and the remaining ones are
+3.2.1 KV Cache Extension. PrefixWall extends each cache entry
+                                                                                recomputed through the LLM.
+with the following metadata fields:
+ • OwnerID: the identifier of the user who first created and pop-            3.2.3 Example Workflow. Figure 5 illustrates how PrefixWall han-
+   ulated this cache entry. It is set exactly once at allocation time        dles reuse across three users that issue requests at consecutive
+   and remains immutable.                                                    timestamps 𝑡 1 –𝑡 4 . Each request contains similar prompts that differ
+ • AttackFlag: a marker indicating that this prefix has been flagged         only on private data, such as names. In the figure, circles represents
+   for isolation due to being reused by multiple users. When set,            cache entries, and arrows show the sequence of prefixes in a prompt.
+   prefix reuse beyond this point must be disabled for non-owners.           Red circles indicate cache misses, green circles indicate cache hits,
+These fields add only a few bytes per entry and do not affect tensor         and orange circles mark flagged entries where selective isolation
+layout or memory mapping. Next, we explain why we track these                applies. Next, we describe what happens at each timestamp:
+metadata.
+                                                                             𝑡 1 : User 1 submits a prompt and populates the cache with a new
+  Why Track the Owner? Tracking OwnerID is essential because                       cache entries tagged with OwnerID = 1. All entries are unflagged.
+any user other than the original creator is a potential attacker             𝑡 2 : User 2 issues a prompt that reuses the first two entries from
+and may attempt to infer information about private fields of a                     User 1. During detection, PrefixWall checks the OwnerID of every
+prefix by exploiting timing differences. By recording ownership,                   entry and identifies that the second entry belongs to a different
+PrefixWall can distinguish benign reuse from suspicious one and                    user. This entry is then flagged by setting its AttackFlag (orange
+enforce selective isolation only when necessary.                                   in the figure). New and separate cache entries are created beyond
+                                                                                   this flagged entry for User 2.
+   Why Flag a Cache Entry? Flagging an entry is essential because            𝑡 3 : User 1 sends a follow-up prompt. Although the flagged entry is
+cross-user reuse is the point where timing side channels become                    reused, this is acceptable because User 1 is the original owner.
+exploitable. When a request reuses cache entries created by another                Thus, PrefixWall allows User 1 to reuse all prefixes beyond the
+user, the risk of prompt stealing begins. By flagging a suspicious                 flagged entry without restriction (owner-aware continuation).
+                                                                         6
+   User: 1 | Time: t1                      User: 2 | Time: t2                                   User: 1 | Time: t3                                                   User: 3 | Time: t4
+
+                                       Write a                                              Write a                                               Write a
+          Write a                1
+      1                                conversational                                 1     conversational                                  1     conversational
+          conversational
+                                                                Christina for a job                                   Christina for a job
+                                                                application                                                                                                                             George for a job
+          cover letter for            cover letter for                                                                application                cover letter for
+                                                                                           cover letter for                                                                                             application
+                                                                                                                                                                            Christina for a job   9
+      2                          2                          6                         2                           6                         2                          6    application
+           George for a job           George for a job           as secretary              George for a job            as secretary               George for a job                                      as programmer
+           application                application                                          application
+                                                                                                                                                  application               as secretary
+      3                          3                          7                         3                           7                         3                          7                          10
+
+          as programmer               as programmer                                        as programmer                                         as programmer                                         at GitPushForce Ltd.
+                                                                at NullPointer Labs                                   at NullPointer Labs                                  at NullPointer Labs
+
+      4                          4                          8                         4                           8                         4                          8                          11
+
+                                     at GitPushForce Ltd.                                 at GitPushForce Ltd.                                  at GitPushForce Ltd.
+          at GitPushForce Ltd.
+      5                          5                                                    5                                                     5
+
+
+
+                                                                                      6     , again
+
+
+
+
+                                                                     Figure 5: Example workflow of PrefixWall.
+
+
+𝑡 4 : User 3 attempts to reuse User 1’s prompt but with a different                                               When the overlap exceeds a threshold 𝜃 , PrefixWall deactivates
+      name in the private information. PrefixWall detects that the                                            selective isolation and allows full prefix reuse. However, the cache is
+      AttackFlag is set and that the OwnerID differs, so continuation                                         still updated with the extra metadata. Conversely, when the overlap
+      is not allowed. The common prefix is isolated at the flagged                                            falls below 𝜃 , timing differences are exploitable, and PrefixWall
+      entry to prevent leaks, and new cache entries are created for                                           activates its detection and prefix isolation mechnism. This decision
+      User 3.                                                                                                 is evaluated at every request using the most recent sliding window
+                                                                                                              of TTFT samples, ensuring that activation adapts dynamically to
+   In summary, this example illustrates PrefixWall’s selective isola-
+                                                                                                              workload conditions. The selection of the threshold 𝜃 is left to the
+tion: flagged cache entries restrict cross-user continuation, diverg-
+                                                                                                              system administrator and it should reflect (1) the point where hits
+ing into new secure paths for non-owners, while allowing full reuse
+                                                                                                              and misses are statistically indistinguishable, which would make
+along the original path for the owner. We stress that PrefixWall
+                                                                                                              timing attacks impractical, and (2) the trade-off between stronger
+always allows owners to extend their prefixes even though some
+                                                                                                              security and performance overhead.
+nodes might be flagged to ensure that benign requests are not de-
+layed. For instance, User 2 would be allowed to further extend their
+own path 1-2-6-7-8 although node 2 is flagged.                                                                4       SECURITY ANALYSIS
+                                                                                                              In this section, we analyze the security guarantees provided by
+                                                                                                              PrefixWall. We start our analysis by focusing on the case where
+3.3        Activator Optimization                                                                             PrefixWall is activated (3.2), and later on we analyze the impact of
+As shown in Section 2.2, timing side channels due to APC are con-                                             the activator (3.3) on the security of the system.
+ditionally distinguishable and exploitable: latency gaps between
+cache hits and misses grow with (i) longer shared prefixes and (ii)                                           Security guarantees when PrefixWall is activated. PrefixWall’s selec-
+larger model sizes, but are (iii) progressively masked as request-                                            tive isolation scheme has been designed to provide security against
+per-second (RPS) increases due to batching, queuing, and GPU                                                  prompt-stealing attacks performed through APC timing side chan-
+saturation effects, (iv) while the hardware platform directly influ-                                          nels. In this setting, an attacker attempts to reconstruct a prompt
+ences timing differences. Therefore, a defense that is always-on                                              that contains some secrets information. The prompt reconstruction
+would over-protect under high load and impose unnecessary over-                                               works by discovering one entry at-a-time and can be split into
+head on benign users. PrefixWall addresses this by allowing system                                            multiple entry-reconstruction problems, each one focusing on dis-
+administrator to conditionally activate selective isolation only when                                         covering the next secret entry secret given a known prefix pre. We
+timing signals are distinguishable for the current operating point                                            analyze PrefixWall’s security guarantees in terms of one of these
+(model, hardware, workload).                                                                                  sub-problems.
+    To achieve this, PrefixWall continuously monitors the latency                                                Let pre·secret be a prefix where pre is a known part extended with
+gap between hits and misses over a sliding time window and com-                                               a secret entry secret. To reconstruct the secret entry, an attacker
+putes the Kernel Density Estimation (KDE) overlap between their                                               (1) issues a probing sequence pre · 𝑣 1, . . . , pre · 𝑣𝑛 consisting of many
+distributions. The KDE overlap [34] is a statistical measure of sim-                                          different requests pre · 𝑣𝑖 sharing a common prefix pre and differing
+ilarity that indicates how distinguishable two distributions are.                                             in the last entry, while (2) measuring the TTFT of the probes to
+Values close to 100% mean the two distributions are nearly identical                                          determine whether they results in hits or misses in the prefix cache.
+(i.e., hits and misses are statistically indistinguishable), while values                                        To prevent these timing attacks, PrefixWall identifies prefixes
+near 0% mean they are well separated (i.e., an attacker can easily                                            that are shared between different users and selectively isolates
+tell them apart).                                                                                             them, which stops an attacker’s probing sequences from leaking
+                                                                                                      7
+information about a victim’s prefix. Below, we precisely characterize             threshold specified by the administrator). This can impact the secu-
+the guarantees provided by PrefixWall’s isolation scheme.                         rity of the system in two ways. If the system administrator chooses
+                                                                                  a too-low overlap threshold, this may results in the system being
+ Security guarantees: Consider an arbitrary initial state of the                  unprotected even when the attacker can effectively exploit the
+ KV-cache 𝑐 containing a secret prefix pre · secret owned by user                 timing side-channel induced by APC. Even if the overlap thresh-
+ 𝑢 and a probing sequence 𝑠 := pre · 𝑣 1, . . . , pre · 𝑣𝑛 (for different         old is properly chosen (i.e., the system is disabled only when the
+ values of 𝑣𝑖 ). If (1) |pre| ≥ 1, and (2) either pre’s final entry in 𝑐 is       signal-to-noise ratio in the side-channel is very low), an attacker
+ already flagged or 𝑣 1 ≠ secret, then PrefixWall ensures that exe-               might still attempt to bias the activation logic by shaping traffic
+ cuting all probes in the sequence 𝑠 from user identifiers different              patterns. For example, issuing bursts of requests to inflate the KDE
+ from 𝑢 (even interleaved with additional disjoint requests) will                 overlap and force deactivation, or throttling requests to reduce
+ always result in misses for entries 𝑣 1, . . . , 𝑣𝑛 .                            overlap and trigger isolation for probing. PrefixWall mitigates this
+                                                                                  risk through two design choices. First, the Activator computes the
+   We note that PrefixWall’s security guarantees are not uncondi-                 KDE overlap over a sliding window of recent requests, requiring
+tional, that is, PrefixWall protects against probing sequences only               sustained conditions rather than reacting to instantaneous fluctua-
+when conditions (1) and (2) above are met. We remark that this is                 tions. Second, activation decisions rely on aggregate system-level
+a conscious choice made as part of PrefixWall’s trade-off between                 measurements rather than per-user metrics, making it difficult for
+security and performance. Next, we describe the two cases not                     a single attacker to dominate the observed distributions. Together,
+covered by PrefixWall:                                                            these mechanisms ensure that activation cannot be easily manipu-
+ • Attacks targeting the first entry: PrefixWall does not protect                 lated by short-term traffic manipulation. Furthermore, we remark
+   against prompt-stealing attacks targeting the first entry of a                 that even when selective isolation is disabled, PrefixWall still tracks
+   prompt, i.e., against cases where there is no (non-empty) prefix               and updates the metadata in the cache. That is, prefixes that are
+   (that is, condition (1) above). This follows from the fact that in this        shared between different users are still flagged in the prefix cache
+   case there is no parent node that PrefixWall can flag as potentially           even when the isolation is turned off, that is, an attacker cannot
+   involved in an attack. However, as we show in 2.2, the security                exploit the threshold to manipulate the cache metadata.
+   risks associated with attacks targeting prefixes consisting of
+   a single entry is limited, since even for the largest model we                 5     EVALUATION
+   consider the distributions of hits and misses overlap (2d), which              We evaluate PrefixWall to understand its impact on performance
+   makes the timing leak more difficult to exploit. Furthermore,                  and scalability in multi-tenant LLM serving environments. Our goal
+   in real world deployments prefix caching is often only enabled                 is to quantify the performance benefits under realistic workloads,
+   for longer prefixes, e.g., OpenAI enables prefix reuse only for                across LLM families and sizes, while examining the overhead intro-
+   prompts longer than 1024 tokens [49].                                          duced by PrefixWall. Specifically, we address the following research
+ • Attacks correct at the first attempt: PrefixWall does not pro-                 questions:
+   tect an unflagged prefix pre · secret against an attacker that
+   guesses correctly the secret value on the first attempt (i.e., condi-          RQ1: Performance Gains: How much does PrefixWall acceler-
+   tion (2) above). This is due, again, to the lack of a flagged prefix                ate inference compared to existing defenses across different
+   pre that is needed for PrefixWall to start isolating a request. From                workloads and models (Sections 5.2.1 and 5.2.2)?
+   a security perspective, this can be problematic if the space of                RQ2: Overheads: What are the latency and resource overheads
+   secrets is very small since an attacker might easily guess cor-                     introduced by PrefixWall (Sections 5.2.1, 5.2.2, and 5.2.4)?
+   rectly on the first attempt, and the risk decreases for larger secret          RQ3: Security: Can PrefixWall prevent timing leaks and prompt-
+   spaces. Note that preventing these attacks by always treating                       stealing attacks? (5.2.3)
+   a prefix as flagged would make PrefixWall fall back to naive                   RQ4: Sensitivity: What is the impact of the activation threshold
+   user-level isolation, which introduces too high overhead.                           on PrefixWall’s performance? (5.2.4)
+Beyond the two cases mentioned above, PrefixWall successfully
+secures the system against all remaining probing sequences. We                    5.1    Experimental Setup
+remark that PrefixWall’s guarantees do not depend on identifying                  We evaluate the performance of PrefixWall on a native hardware
+secret information at a semantic level (like in [16]), but rather                 server equipped with an NVIDIA A100 GPU (40 GB memory). The
+on the overlap between prefixes from different users and security                 serving system is vLLM [64] (version 0.8.5) with a block size of 16.
+domains. Furthermore, PrefixWall’s guarantees hold regardless of                  Table 2 summarizes the LLM models used for evaluation, detailing
+(1) whether a probing sequence is executed by a single attacker or                their full name, their parameter count, memory footprint, and the
+multiple colluding ones, (2) whether benign requests from other                   remaining GPU memory available for hosting the KV cache.
+users are interleaved in the probing sequence (since these requests
+at most would result in evicting the victim prefix from the prefix                Evaluation Baselines. We compare PrefixWall against the follow-
+cache), and (3) the initial state of the prefix cache.                            ing baselines, based on the categorization of defenses in Table 1:
+                                                                                   • Prefix Caching: Enables reuse of common prefixes cached
+Security impact of threshold-based activation. The activator (3.3)                   across all users. This approach maximizes reuse and efficiency
+turns off PrefixWall’s selective-isolation scheme whenever exploit-                  but offers no isolation or security guarantees. That is, this is
+ing the timing side-channel is impractical (captured by the KDE                      vanilla unprotected vLLM with APC active.
+                                                                              8
+  Abbreviation LLM Model                       Model       Cache                                              Intra-User Reuse       Inter-User Reuse
+                                               Memory      Memory                              100
+
+  Gemma3-4B      gemma-3-4b-it [27]            8.6 GB      31.4 GB                              80
+
+
+
+
+                                                                                 Overlap (%)
+  Llava-0.5B     llava-onevision-qwen2-        1.68 GB     38.32 GB                             60
+                 0.5b-ov-hf [44]
+  Llava-7B       llava-onevision-qwen2-7b-     15.03 GB    24.97 GB                             40
+                 ov-chat-hf [45]                                                                20
+  Llama2-7B      Llama-2-7b-chat-hf [48]       12.6 GB     27.4 GB
+  Llama2-13B     Llama-2-13b-chat-hf [47]      24.3 GB     15.7 GB                               0   1         2         3       4          5       Avg
+  Qwen2-2B       Qwen2-VL-2B-Instruct [5]      4.15 GB     35.85 GB                                                   Workload Label
+  Qwen2.5-3B     Qwen2.5-VL-3B-Instruct [7]    7.16 GB     32.84 GB
+  Qwen2-7B       Qwen2-VL-7B-Instruct [6]      15.53 GB    24.47 GB                                      Figure 6: Workload Construction.
+  Qwen2.5-7B     Qwen2.5-VL-7B-Instruct [8]    15.63 GB    24.37 GB
+Table 2: LLM models used for evaluation, sorted by family
+and model size.
+                                                                              to reply to [sensitive information]”) creates high overlap, while
+                                                                              at the beginning (“My name is [sensitive information]”) results in
+ • User Cache Isolation: Allocates dedicated KV cache regions                 minimal overlap.
+   per user to ensure isolation and security [31, 51, 75]. However,              To capture a multi-user environment, we vary both the intra-
+   this eliminates the benefits of sharing cached common prefixes,            user reuse (how often a user reuses a previously cached prefix)
+   reducing efficiency. We implemented this by modifying vLLM                 and inter-user reuse (how much different users share common pre-
+   by preprending a unique user identifier (a single token) to each           fixes). Figure 6 illustrates these dimensions across our constructed
+   user request, which effectively results in isolating all requests of       workloads. To capture a system under attack, one user acts as an ad-
+   a user from those of other users.                                          versary targeting a popular prompt template. The attacker follows
+ • PrefixWall: Our proposed mechanism dynamically isolates com-               the methodology described in Section 4, sending multiple variations
+   mon prefixes rather than users, achieving a balance between                of the template with different candidate values at the suspected
+   security and performance.                                                  position of the private information (secret).
+The baselines are evaluated against two key metrics: time-to-first-              For all workloads and experiments in 5.2, the arrival times of
+token (TTFT) and cache hit rate. TTFT is a widely used metric                 requests are designed so that the system processes 1 request per
+for assessing LLM inference performance [64], as it reflects the              second, thereby ensuring that the system operates in a scenario
+responsiveness of the system in generating the first token. In con-           where the side-channel is easy to exploit (as shown in 2.2). Note
+trast, cache hit rate indicates the degree to which the shared prefix         also that, for all experiments in 5.2, the detector component of
+cache was utilized, providing insight into the effectiveness of the           PrefixWall is always active.
+evaluated baselines.
+Workloads. For our experiments, we construct 5 multi-user work-               Implementation Details. PrefixWall is implemented on top of
+loads starting from the ShareGPT [9] dataset, which contains real-            vLLM [64] (version 0.8.5) with the V1 engine for multi-tenancy.
+world LLM requests. Given that we want to understand the effects              To extend the KV cache as described in 3.2, we extend the KV-
+of prefix caching, the workloads we constructed cover varying level           CacheBlock class with the two metadata fields. We introduce a new
+of prefix overlap between requests                                            Detector component, as part of the Scheduler that detects malicious
+   Each workload consists of 10 users, each one issuing 100 re-               requests before scheduling and updates the new metadata fields
+quests, i.e., 1000 requests overall. The incoming times of the re-            attacker_flag and owner_id. We extend the metrics collection of
+quests follow a Poisson distribution, which is representative of              vLLM to support the Activator component which is implemented
+LLM workloads [3, 39, 53, 76]. To create realistic workloads con-             in the asynchronous LLM execution layer. PrefixWall is extensively
+taining private information from different users, we processed the            documented and will be open-sourced to encourage community
+ShareGPT requests as follows:                                                 adoption and future extensions.
+ • For each request in ShareGPT, we asked the BERT [21] model to
+   identify sensitive words in various position in the request and            5.2              Inference Performance
+   to mask them, i.e., to replace them with [Mask].                           Here, we analyze how PrefixWall behaves in terms of inference
+ • Next, for each masked request, we asked BERT the masked to-                performance for different kinds of workloads (5.2.1) and models
+   kens with different candidates, thereby simulating multiple in-            (5.2.2). Next, we empirically validate PrefixWall’s behavior on at-
+   stances of a public request that differ only in user-specific sensi-       tacker’s perceived performance on a concrete workload (5.2.3). We
+   tive information.                                                          conclude by analysing how the different components of PrefixWall
+Then, we constructed the workloads by selecting requests from this            contribute to the overall overhead (5.2.4).
+augmented dataset. We mix various prompts with varying levels of
+prefix overlap to capture a wide range of behaviors. Higher overlap           5.2.1 Across Workloads. Figure 7 reports average time-to-first-
+means a longer shared prefix, which leads to more cache reuse and             token (TTFT) and cache hit rate across the five representative
+better performance. For example, private data at the end of the               workloads (Figure 6) and their aggregate average. The reported
+prompt (“You are a helpful assistant. I want you to write an email            values exclude the attacker.
+                                                                          9
+                        Prefix Caching             PrefixWall       User Cache Isolation                                            Prefix Caching         PrefixWall   User Cache Isolation
+                                                                                                                  40
+
+
+
+
+  Average TTFT (ms)
+                  50
+
+
+
+
+                                                                                                  Average TTFT (ms)
+                  45                                                                                              30
+                  40
+                  35
+                  30                                                                                              20
+                  25
+                  20       1         2              3           4     5        Avg                                10
+                                               Workload Label
+                                                                                                                      0
+                                             (a) Average TTFT.                                                                B     .5B      B         ma B2-1
+                                                                                                                      a3 -4               va -7   2-7 Qw 3B
+                                                                                                                                                         en
+                        Prefix Caching             PrefixWall       User Cache Isolation                   mm
+                                                                                                                               va
+                                                                                                                              Lla
+                                                                                                                                  -0   Lla    ma     Qw 2-2B
+                                                                                                                                                       en 2.5
+                                                                                                                                                      Qw 3B
+                                                                                                                                                         en   -
+                                                                                                                                             Lla     Qw 2-7B
+                  100                                                                              Ge                                                Lla
+                                                                                                                                                       en 2.5 -7B
+                   80
+
+
+  Hit Rate (%)
+                                                                                                                                                  (a) Average TTFT.
+                   60                                                                                                                Prefix Caching       PrefixWall    User Cache Isolation
+                   40                                                                                             100
+                   20                                                                                                 80
+                    0
+
+                                                                                                  Hit Rate (%)
+                            1            2          3           4     5        Avg                                    60
+                                               Workload Label
+                                             (b) Cache Hit rate.                                                      40
+                                                                                                                      20
+Figure 7: Comparison of baselines across various workloads.
+                                                                                                                  mm   a3 0
+                                                                                                                          -
+                                                                                                                 Lla 4B
+                                                                                                                    va
+                                                                                                                   Lla  -0.
+                                                                                                                       va  -5B
+                                                                                                                Lla 7B
+                                                                                                                    ma
+                                                                                                               Lla -7B
+                                                                                                                   ma    2
+                                                                                                                       2-1
+Workloads with high intra-user reuse. Starting with one of the                                                   Qw 3B
+                                                                                                                     en
+                                                                                                               Qw 2-2B
+                                                                                                                   en
+                                                                                                                 Qw 3B2.5
+                                                                                                                     en   -
+                                                                                                        Ge     Qw 2-7B
+                                                                                                                   en 2.5
+extreme cases, Workload 1 exhibits high intra-user reuse and zero
+                                                                                                                          -7B
+inter-user reuse, meaning that each user repeats similar prompts                                                                                  (b) Cache hit rate.
+but does not share common prefixes with other users. As expected,
+for this workload all baselines behave similarly. Prefix Caching,                                 Figure 8: Comparison of baselines across various LLMs.
+PrefixWall, and User Cache Isolation achieve comparable hit rates
+and TTFT because reuse occurs only within user boundaries. Pre-
+fixWall introduces negligible overheads in this scenario, matching
+the efficiency of isolation while maintaining security. Similarly,                              PrefixWall preserves most of the performance benefits of prefix
+Workloaxd 2 maintains high intra-user reuse but introduces mod-                                 caching while enforcing strong security guarantees, even under
+erate inter-user reuse. As expected, User Cache Isolation suffers                               diverse workload patterns.
+lower hit rate and higher TTFT because it misses shared prefixes,
+while PrefixWall stays very close to Prefix Caching, showing that                               5.2.2 Across LLM Models. Figure 8 shows the average TTFT and
+selective isolation preserves most performance benefits.                                        cache hit rate of PrefixWall compared to the baselines across the
+                                                                                                LLM models summarized in Table 2. These models span different
+Workloads with high inter-user reuse. On the other extreme,
+                                                                                                families and parameter sizes. The model size directly impacts the
+Workload 5 has high inter-user reuse and zero intra-user reuse,
+                                                                                                available KV cache space on our 40 GB NVIDIA A100 GPU: larger
+meaning that users ask similar prompts to each other but not to
+                                                                                                models leave less memory for the cache (Table 2). It also affects
+themselves. This explains why User Cache Isolation has zero cache
+                                                                                                inference speed: the smaller the model, the faster the inference and
+hit rate, leading to cache misses and the highest TTFT among all
+                                                                                                the lower the TTFT [52].
+baselines. Most importantly, this workload stresses the critical
+                                                                                                   As discussed in Section 2 and shown in Figure 8a, the perfor-
+path of PrefixWall by activating the detector on every request due
+                                                                                                mance gap between Prefix Caching and User Cache Isolation widens
+to the high inter-user reuse. However, we see that PrefixWall’s
+                                                                                                as model size increases and also varies by model family. Across all
+lightweight design does not hurt performance: TTFT remains very
+                                                                                                models, PrefixWall effectively closes this gap, remaining within a
+close to Prefix Caching, and hit rate is similarly high, demonstrating
+                                                                                                6% margin of Prefix Caching, while significantly outperforming
+that PrefixWall can enforce security without sacrificing efficiency
+                                                                                                User Cache Isolation. This demonstrates that PrefixWall’s selective
+even under worst-case conditions.
+                                                                                                isolation delivers secure and fast inference. In Figure 8b, cache hit
+Average Case. Across all workloads (Avg group of bars), PrefixWall                              rates are similar across models except for LLaMA-13B. For this large
+performs between the two baselines: it significantly increases hit                              model, the KV cache is very small (Table 2), almost half the size
+rate and lowers TTFT compared to User Cache Isolation, while                                    compared to the rest of the models, causing frequent evictions and
+staying within roughly 5–10% of Prefix Caching, which is the                                    more cache misses. This limitation also explains the larger TTFT
+best-performing but insecure approach. This demonstrates that                                   differences across baselines, where even between PrefixWall and
+                                                                                           10
+                                  Prefix Caching            PrefixWall                     Component            Time                  Memory
+                                                                                           Detector      0.004 ms per request 32 bytes per cache entry
+           100                                     100                                     Activator           0.003 ms        16 bytes * len(window)
+               80                                      80                                 Table 3: Time and memory overheads introduced by the sys-
+                                                                                          tem components of PrefixWall.
+
+
+Hit Rate (%)                               TTFT (ms)
+               60                                      60
+               40                                      40
+               20                                      20                                 overhead of only 0.007 ms (0.004 ms due to the detector component
+                                                                                          and 0.003 ms due to the activator component). In terms of memory,
+                01 5        10 15 20                    01 5        10 15 20              the metadata introduced by the detector component amount to 32
+                  Request Index (Attacker)                Request Index (Attacker)        bytes per cache entry, since each KVCache block was extended with
+                                                                                          two metadata fields—owner_id and under_attack—of type int.1
+    Figure 9: Comparison of prefix caching (unprotected system)                           In contrast, the activator component stores 1 floating point value
+    and PrefixWall across requests of a single attacker.                                  per request in the sliding window.2
+   Prefix Caching there is a margin of 2 ms. In conclusion, the perfor-
+   mance of PrefixWall remains close to Prefix Caching across all LLM                     5.3      Sensitivity Analysis
+   models, even under severe memory pressure with large models.                           The selection of the KDE overlap threshold represents a trade-
+   This confirms that PrefixWall enables secure LLM serving without                       off between security and performance. With very low thresholds,
+   unnecessarily reduced performance or unbearable overheads.                             PrefixWall’s selective isolation is active only when the distributions
+   5.2.3 Attacker-perceived Performance. Here, we show how Pre-                           of hits and misses are clearly distinguishable. Conversely, with very
+   fixWall behaves from an attacker’s perspective. For this, we created                   high thresholds, selective isolation is active even when the two
+   a dedicated “attacker workload” consisting of (1) a benign user issu-                  distributions are not distinguishable and the timing side channel is
+   ing a request consisting of an otherwise public prompt containing                      very difficult to exploit.
+   a single piece of secret information in the middle of the prompt,                          To understand the impact of the threshold on the system’s per-
+   and (2) 20 requests made by an attacking user that tries to recover                    formance, we run PrefixWall with varying KDE thresholds (from
+   the secret, i.e., these 20 requests all follow the public prompt while                 0% to 100%) for the LLama2-13B model and Workload 4, which
+   using 20 different values for the candidate secret. Note that the 9-th                 exhibits high reuse, making it suitable for studying the effect of the
+   attacker request is the one guessing the secret correctly.                             threshold. 10 reports the results of our experiments, together with
+      We run this “attacker workload” on the unprotected Prefix Caching                   the values associated with the different baselines: Prefix Caching
+   baseline and on PrefixWall. Figure 9 reports the results of this ex-                   in blue, User Cache Isolation in red, and PrefixWall when the de-
+   periment in terms of hit rate and TTFT for the 20 attacker requests                    tector is always active (i.e., the configuration from 5.2) in green.
+   (after executing the victim’s request first).                                          The results align with expectations. For low threshold values (close
+      For the unprotected Prefix Caching baseline, we observe that                        to 0%), the system performs comparably to Prefix Caching for the
+   both hit rate and TTFT are stable across all requests (reflecting                      same workload since selective-isolation is almost always disabled,
+   that all requests share the same prompt template), except for the                      i.e., PrefixWall behaves as the default insecure system. For high
+   9th request where we see a clear spike in both the hit rate and                        threshold (close to 100%), the system achieves the hit rate and per-
+   TTFT. In particular, hit rate reaches 100%, which means that the                       formance of Selective Cache Isolation. In general, increasing the
+   attacker’s request exactly matches a prompt previously cached,                         KDE threshold increases the security guarantees—because more
+   that correlates with a decrease in TTFT. These spikes in hit rate                      requests are selectively isolated—and introduces more overhead, so
+   and TTFT are expected since the 9th request is the one correctly                       the activator component provides the system administrator with
+   guessing the secret, a fact that the attacker can clearly observe                      a way of effectively balancing performance and security. We also
+   through the timing side-channel.                                                       note that, consistently with results from 5.2, for all KDE values,
+      In contrast, for the system secured by PrefixWall, both hit rate                    PrefixWall outperforms the User Cache Isolation baseline.
+   and TTFT are uniform across all attacker requests. In particular,
+   there is no spike corresponding to the 9th request, i.e., the one where                6     RELATED WORK
+   the secret is guessed correctly. That is, an attacker observing TTFT                   Optimizations of LLM Serving Systems. Recent system-level
+   cannot determine which of the 20 requests is the one matching                          optimizations use approximate techniques, such as modifying the
+   the victim’s prompt,. This empirically confirms that PrefixWall                        attention mechanism [20, 35, 42, 68, 77], reusing [25, 26, 69], or
+   successfully closes the timing leak on our “attacker workload”,                        compressing the KV cache [23, 40, 43, 56, 60, 61]. However, these
+   thereby securing the system.                                                           techniques sacrifice accuracy for faster inference, which may not
+    5.2.4 Overheads. 3 summarizes the operational overheads intro-                        be acceptable for all use cases. On the other hand, exact techniques
+    duced by the two components of PrefixWall in terms of latency and                     aim to reduce the latency by efficiently managing the KV cache [39,
+    memory resources. In terms of per-request latency, PrefixWall’s                       1 Since vLLM is implemented in Python, adding two int fields (as Python objects) to
+    modifications over vanilla vLLM (i.e., the selective isolation scheme                 the KVCache class results in an increase of 32 bytes.
+    and the activator component) introduce an average per-request                         2 Again, a floating point value in Python takes up to 16 bytes.
+
+                                                                                     11
+                          System with Activator                         Prefix Caching                      Collectively, these works establish the feasibility and severity of
+                          System without Activator                      User Cache Isolation
+                                                                                                          prompt-stealing attacks via timing side-channels, underscoring the
+               40                                              52
+                                                                                                          need for robust defenses in LLM serving systems.
+
+
+Hit Rate (%)                                       TTFT (ms)
+                                                               48
+                                                                                                          Further defenses against prompt-stealing attacks We already
+               20
+                                                               44
+                                                                                                          provided a review of existing defenses against prompt-stealing at-
+                                                                                                          tacks that focus on mitigating timing leaks through APC in 2.4. Here,
+                                                               40                                         we analyze further defenses proposed in the literature. To mitigate
+                0 10 20 30 40 50 60 70 80 90 100                    10 20 30 40 50 60 70 80 90 100
+                   KDE Overlapping Threshold (%)                     KDE Overlapping Threshold (%)        prompt-stealing attacks through APC in vLLM, Song et al. [58] pro-
+                                                                                                          posed to increase the number of tokens per cache entry. Although
+Figure 10: Comparison of hit rate and TTFT as a function of                                               this does not prevent the leak, it makes more difficult for attackers
+KDE overlapping threshold.                                                                                to guess correctly the secret, since now they have to guess all tokes
+                                                                                                          in an entry all at once.
+55, 72], sharing prefixes [36, 37, 41, 71], or optimizing scheduling
+decisions [1–3, 15, 33, 73]. Other approaches attempt to mitigate                                         7     SUMMARY
+the impact of long-context processing by disaggregating the prefill
+                                                                                                          This paper builds PrefixWall, a system that secures LLM serving
+and decode phases of inference [53, 76] or rescheduling requests to
+                                                                                                          against timing side-channel attacks introduced by Automatic Prefix
+reduce memory fragmentation [59].
+                                                                                                          Caching (APC) without sacrificing performance. PrefixWall mon-
+Side-channels and performance optimizations. Performance                                                  itors cache access patterns across users, flags suspicious reuse of
+optimizations work by improving resource consumption (e.g., tim-                                          cached prefixes, and isolates later paths of flagged prefixes us-
+ing, memory, energy) on the average case. Thus, they introduce                                            ing minimal extensions to KV cache entries. Evaluation shows
+variations in the resource usage profile that have been shown, time                                       that CacheSentinel achieves real-time protection against prompt-
+and again, to lead to side-channels that malicious attackers can                                          stealing attacks and achieves high performance and scalability,
+exploit to leak sensitive information. At the hardware level, histori-                                    effectively closing the gap between unsecure APC and current
+cally the first side-channel attacks exploited leaks that resulted from                                   heavy-handed mitigations.
+physical side-effects, such as power consumption or electromag-
+netic emanations, which require physical access to the device under                                       REFERENCES
+attack. More recently, however, side channels have been shown to                                           [1] Amey Agrawal, Junda Chen, Íñigo Goiri, Ramachandran Ramjee, Chaojie Zhang,
+exist due to microarchitectural components that are shared between                                             Alexey Tumanov, and Esha Choukse. 2024. Mnemosyne: Parallelization Strategies
+                                                                                                               for Efficiently Serving Multi-Million Context Length LLM Inference Requests
+processes, such as the CPU cache [70], the DRAM [54], branch pre-                                              Without Approximations. arXiv:2409.17264 [cs.LG] https://arxiv.org/abs/2409.
+diction units [22], the TLB [28], execution ports [4], and the ring                                            17264
+interconnect [50]. Side channels are not limited to hardware, though.                                      [2] Amey Agrawal, Nitin Kedia, Ashish Panwar, Jayashree Mohan, Nipun Kwatra,
+                                                                                                               Bhargav S. Gulavani, Alexey Tumanov, and Ramachandran Ramjee. 2025. Taming
+There have been many side-channels arising from optimizations                                                  throughput-latency tradeoff in LLM inference with sarathi-serve. In Proceedings
+in software like browsers [57, 63], operating systems [32], or even                                            of the 18th USENIX Conference on Operating Systems Design and Implementation
+communication protocols [46, 66].                                                                              (Santa Clara, CA, USA) (OSDI’24). USENIX Association, USA, Article 7, 18 pages.
+                                                                                                           [3] Amey Agrawal, Ashish Panwar, Jayashree Mohan, Nipun Kwatra, Bhargav S.
+                                                                                                               Gulavani, and Ramachandran Ramjee. 2023. SARATHI: Efficient LLM Inference
+Timing Side-Channel Attacks in LLM Serving Systems. Recent                                                     by Piggybacking Decodes with Chunked Prefills. arXiv:2308.16369 [cs.LG]
+research has shown that performance optimizations in LLM serving                                               https://arxiv.org/abs/2308.16369
+systems, such as KV caching and prefix reuse, introduce exploitable                                        [4] Alejandro Cabrera Aldaya, Billy Bob Brumley, Sohaib ul Hassan, Cesar Pereida
+                                                                                                               García, and Nicola Tuveri. 2019. Port Contention for Fun and Profit. In Proceedings
+timing side channels. Song et al. [58] were among the first to identify                                        of the 40th IEEE Symposium on Security and Privacy (S&P ’19). IEEE.
+these issues, demonstrating that cache hits and misses produce                                             [5] Alibaba Cloud. 2024. Qwen2-VL 2B Instruct Model. https://huggingface.co/Qwen/
+measurable latency differences that can be leveraged to reconstruct                                            Qwen2-VL-2B-Instruct Available on Hugging Face Hub.
+                                                                                                           [6] Alibaba Cloud. 2024. Qwen2-VL 7B Instruct Model. https://huggingface.co/Qwen/
+user prompts. Building on this insight, Zheng et al. [75] proposed                                             Qwen2-VL-7B-Instruct Available on Hugging Face Hub.
+practical probing strategies that exploit these timing variations                                          [7] Alibaba Cloud. 2024. Qwen2.5-VL 3B Instruct Model. https://huggingface.co/
+                                                                                                               Qwen/Qwen2.5-VL-3B-Instruct Available on Hugging Face Hub.
+to steal sensitive input data in multi-tenant environments. More                                           [8] Alibaba Cloud. 2024. Qwen2.5-VL 7B Instruct Model. https://huggingface.co/
+recently, Gu et al. [31] highlighted privacy risks in commercial APIs,                                         Qwen/Qwen2.5-VL-7B-Instruct Available on Hugging Face Hub.
+revealing that shared caches can leak user prompts even without                                            [9] anon8231489123. 2023. ShareGPT Vicuna unfiltered. https://huggingface.co/
+                                                                                                               datasets/anon8231489123/ShareGPT%20Vicuna%20unfiltered. Dataset on Hug-
+direct memory access.                                                                                          ging Face.
+   Beyond cache-based optimizations, other works have explored                                            [10] F. Bang. 2023. Gptcache: An open-source semantic cache for LLM applications
+timing side-channels introduced by inference optimizations. For                                                enabling faster answers and cost savings. In Proceedings of the 3rd Workshop for
+                                                                                                               Natural Language Processing Open Source Software (NLP-OSS 2023). 212–218.
+example, Carlini and Nasr [14] show that techniques such as spec-                                         [11] BelleGroup. 2023. Multiturn Chat 0.8M. https://huggingface.co/datasets/
+ulative decoding create data-dependent timing variations that can                                              BelleGroup/multiturn%20chat%200.8M. Dataset on Hugging Face.
+                                                                                                          [12] Andrew Bortz and Dan Boneh. 2007. Exposing private information by timing web
+be exploited by a network adversary to infer conversation topics                                               applications. In Proceedings of the 16th International Conference on World Wide
+or sensitive information over encrypted channels. In contrast, Wu                                              Web (Banff, Alberta, Canada) (WWW ’07). Association for Computing Machinery,
+et al. [67] do not rely on timing differences; instead, it reconstructs                                        New York, NY, USA, 621–628. https://doi.org/10.1145/1242572.1242656
+                                                                                                          [13] Tom Brown, Benjamin Mann, Nick Ryder, et al. 2020. Language Models are
+prompts token by token by exploiting scheduling policies (e.g.,                                                Few-Shot Learners. Advances in Neural Information Processing Systems 33 (2020),
+Longest Prefix Match) and observing changes in serving order.                                                  1877–1901.
+                                                                                                     12
+[14] Nicholas Carlini and Milad Nasr. 2024. Remote Timing Attacks on Efficient                  [35] Huiqiang Jiang, Yucheng Li, Chengruidong Zhang, Qianhui Wu, Xufang Luo,
+     Language Model Inference. arXiv:2410.17175 [cs.CR] https://arxiv.org/abs/2410.                  Surin Ahn, Zhenhua Han, Amir H. Abdi, Dongsheng Li, Chin-Yew Lin, Yuqing
+     17175                                                                                           Yang, and Lili Qiu. 2024. MInference 1.0: Accelerating Pre-filling for Long-
+[15] Shaoyuan Chen, Yutong Lin, Mingxing Zhang, and Yongwei Wu. 2024. Effi-                          Context LLMs via Dynamic Sparse Attention. arXiv:2407.02490 [cs.CL] https:
+     cient and Economic Large Language Model Inference with Attention Offloading.                    //arxiv.org/abs/2407.02490
+     arXiv:2405.01814 [cs.LG] https://arxiv.org/abs/2405.01814                                  [36] Chao Jin, Zili Zhang, Xuanlin Jiang, Fangyue Liu, Shufan Liu, Xuanzhe Liu, and
+[16] Kexin Chu, Zecheng Lin, Dawei Xiang, Zixu Shen, Jianchang Su, Cheng                             Xin Jin. 2025. RAGCache: Efficient Knowledge Caching for Retrieval-Augmented
+     Chu, Yiwei Yang, Wenhui Zhang, Wenfei Wu, and Wei Zhang. 2025. Selec-                           Generation. ACM Trans. Comput. Syst. 44, 1, Article 2 (Nov. 2025), 27 pages.
+     tive KV-Cache Sharing to Mitigate Timing Side-Channels in LLM Inference.                        https://doi.org/10.1145/3768628
+     arXiv:2508.08438 [cs.CR] https://arxiv.org/abs/2508.08438                                  [37] Jordan Juravsky, Bradley Brown, Ryan Ehrlich, Daniel Y. Fu, Christopher Ré,
+[17] Rasmus Dahlberg and Tobias Pulls. 2023. Timeless Timing Attacks and Preload                     and Azalia Mirhoseini. 2024. Hydragen: High-Throughput LLM Inference with
+     Defenses in Tor’s DNS Cache. In 32nd USENIX Security Symposium (USENIX                          Shared Prefixes. arXiv:2402.05099 [cs.LG] https://arxiv.org/abs/2402.05099
+     Security 23). USENIX Association, Anaheim, CA, 2635–2652. https://www.usenix.              [38] David Kohlbrenner and Hovav Shacham. 2016. Trusted browsers for uncertain
+     org/conference/usenixsecurity23/presentation/dahlberg                                           times. In Proceedings of the 25th USENIX Conference on Security Symposium
+[18] DeepMind. 2025. Gomini. https://deepmind.google/technologies/gemini/                            (Austin, TX, USA) (SEC’16). USENIX Association, USA, 463–480.
+[19] DeepSeek. 2024. DeepSeek API Docs: DeepSeek API Introduces Context Caching on              [39] W. Kwon, Z. Li, S. Zhuang, Y. Sheng, L. Zheng, C. H. Yu, J. Gonzalez, H. Zhang,
+     Disk, Cutting Prices by an Order of Magnitude. https://api-docs.deepseek.com/                   and I. Stoica. 2023. Efficient Memory Management for Large Language Model
+     news/news0802/ Accessed: 2025-07-17.                                                            Serving with PagedAttention. In Proceedings of the 29th Symposium on Operating
+[20] Aditya Desai, Shuo Yang, Alejandro Cuadron, Ana Klimovic, Matei Zaharia,                        Systems Principles. 611–626.
+     Joseph E. Gonzalez, and Ion Stoica. 2024. HashAttention: Semantic Sparsity for             [40] Wonbeom Lee, Jungi Lee, Junghwan Seo, and Jaewoong Sim. 2024. InfiniGen:
+     Faster Inference. arXiv:2412.14468 [cs.LG] https://arxiv.org/abs/2412.14468                     Efficient Generative Inference of Large Language Models with Dynamic KV
+[21] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2019. BERT:                   Cache Management. In 18th USENIX Symposium on Operating Systems Design
+     Pre-training of Deep Bidirectional Transformers for Language Understanding. In                  and Implementation (OSDI 24). USENIX Association, Santa Clara, CA, 155–172.
+     Proceedings of the 2019 Conference of the North American Chapter of the Association             https://www.usenix.org/conference/osdi24/presentation/lee
+     for Computational Linguistics: Human Language Technologies, Volume 1 (Long and             [41] Jieyu Lin, Sai Qian Zhang, and Alberto Leon-Garcia. 2024. sLLM: Accelerating
+     Short Papers). 4171–4186. https://doi.org/10.48550/arXiv.1810.04805                             LLM Inference using Semantic Load Balancing with Shared Memory Data Struc-
+[22] Dmitry Evtyushkin, Ryan Riley, Nael B. Abu-Ghazaleh, and Dmitry Ponomarev.                      tures. In 2024 25th International Symposium on Quality Electronic Design (ISQED).
+     2018. BranchScope: A New Side-Channel Attack on Directional Branch Predictor.                   1–6. https://doi.org/10.1109/ISQED60706.2024.10528703
+     In Proceedings of the 23rd International Conference on Architectural Support for           [42] Hao Liu, Matei Zaharia, and Pieter Abbeel. 2023. Ring Attention with Blockwise
+     Programming Languages and Operating Systems (ASPLOS ’18). ACM.                                  Transformers for Near-Infinite Context. arXiv:2310.01889 [cs.CL] https://arxiv.
+[23] Qichen Fu, Minsik Cho, Thomas Merth, Sachin Mehta, Mohammad Rastegari,                          org/abs/2310.01889
+     and Mahyar Najibi. 2024. LazyLLM: Dynamic Token Pruning for Efficient Long                 [43] Yuhan Liu, Hanchen Li, Yihua Cheng, Siddhant Ray, Yuyang Huang, Qizheng
+     Context LLM Inference. arXiv:2407.14057 [cs.CL] https://arxiv.org/abs/2407.                     Zhang, Kuntai Du, Jiayi Yao, Shan Lu, Ganesh Ananthanarayanan, Michael
+     14057                                                                                           Maire, Henry Hoffmann, Ari Holtzman, and Junchen Jiang. 2024. CacheGen:
+[24] V. Gallego. 2024. Configurable Safety Tuning of Language Models with Synthetic                  KV Cache Compression and Streaming for Fast Large Language Model Serving.
+     Preference Data. (2024). Preprint.                                                              In Proceedings of the ACM SIGCOMM 2024 Conference (Sydney, NSW, Australia)
+[25] Bin Gao, Zhuomin He, Puru Sharma, Qingxuan Kang, Djordje Jevdjic, Junbo                         (ACM SIGCOMM ’24). Association for Computing Machinery, New York, NY,
+     Deng, Xingkun Yang, Zhou Yu, and Pengfei Zuo. 2025. Cost-efficient large                        USA, 38–56. https://doi.org/10.1145/3651890.3672274
+     language model serving for multi-turn conversations with CachedAttention. In               [44] LLaVA Team. 2024. LLaVA-OneVision Qwen2 0.5B (OV-HF). https://huggingface.
+     Proceedings of the 2024 USENIX Conference on Usenix Annual Technical Conference                 co/llava-onevision-qwen2-0.5b-ov-hf Available on Hugging Face Hub.
+     (Santa Clara, CA, USA) (USENIX ATC’24). USENIX Association, USA, Article 7,                [45] LLaVA Team. 2024. LLaVA-OneVision Qwen2 7B OV-Chat (HF).                  https://
+     16 pages.                                                                                       huggingface.co/llava-onevision-qwen2-7b-ov-chat-hf Available on Hugging
+[26] In Gim, Guojun Chen, Seung seob Lee, Nikhil Sarda, Anurag Khandelwal, and                       Face Hub.
+     Lin Zhong. 2024. Prompt Cache: Modular Attention Reuse for Low-Latency                     [46] Aastha Mehta, Mohamed Alzayat, Roberta De Viti, Björn B. Brandenburg, Peter
+     Inference. arXiv:2311.04934 [cs.CL] https://arxiv.org/abs/2311.04934                            Druschel, and Deepak Garg. 2022. Pacer: Comprehensive Network Side-Channel
+[27] Google DeepMind. 2025. Gemma 3 4B Instruct Model. https://huggingface.co/                       Mitigation in the Cloud. In 31st USENIX Security Symposium (USENIX Security
+     google/gemma-3-4b-it Available on Hugging Face Hub.                                             22). USENIX Association, Boston, MA, 2819–2838. https://www.usenix.org/
+[28] Ben Gras, Kaveh Razavi, Herbert Bos, and Cristiano Giuffrida. 2018. Translation                 conference/usenixsecurity22/presentation/mehta
+     Leak-aside Buffer: Defeating Cache Side-channel Protections with TLB Attacks.              [47] Meta AI. 2023. Llama 2 13B Chat Model. https://huggingface.co/meta-llama/
+     In Proceedings of the 27th USENIX Security Symposium (USENIX Security ’18).                     Llama-2-13b-chat-hf Available on Hugging Face Hub.
+     USENIX Association.                                                                        [48] Meta AI. 2023. Llama 2 7B Chat Model. https://huggingface.co/meta-llama/Llama-
+[29] Ben Gras, Kaveh Razavi, Erik Bosman, Herbert Bos, and Cristiano Giuffrida. 2017.                2-7b-chat-hf Available on Hugging Face Hub.
+     ASLR on the Line: Practical Cache Attacks on the MMU. In NDSS. Paper=https:                [49] OpenAI. 2024. Prompt Caching: Reduce Latency and Cost with Prompt Caching.
+     //download.vusec.net/papers/anc_ndss17.pdfSlides=https://vusec.net/wp-                          https://platform.openai.com/docs/guides/prompt-caching Accessed: 2025-07-17.
+     content/uploads/2016/11/TalkGras.pdfWeb=https://www.vusec.net/projects/                    [50] Riccardo Paccagnella, Licheng Luo, and Christopher W. Fletcher. 2021. Lord of
+     ancCode=https://github.com/vusec/revancPress=https://goo.gl/KL4Bta                              the Ring(s): Side Channel Attacks on the CPU On-Chip Ring Interconnect Are
+[30] Daniel Gruss, Erik Kraft, Trishita Tiwari, Michael Schwarz, Ari Trachtenberg,                   Practical. In Proceedings of the 30th USENIX Security Symposium (USENIX Security
+     Jason Hennessey, Alex Ionescu, and Anders Fogh. 2019. Page Cache Attacks. In                    ’21). USENIX Association.
+     Proceedings of the 2019 ACM SIGSAC Conference on Computer and Communications               [51] Zixuan Pang, Wenhao Wang, and Yong Liao. 2024. Cache Partitioning for Miti-
+     Security (London, United Kingdom) (CCS ’19). Association for Computing Ma-                      gating Timing Side-Channel Attacks in LLM Serving Systems. In 2024 6th Interna-
+     chinery, New York, NY, USA, 167–180. https://doi.org/10.1145/3319535.3339809                    tional Conference on Frontier Technologies of Information and Computer (ICFTIC).
+[31] Chenchen Gu, Xiang Lisa Li, Rohith Kuditipudi, Percy Liang, and Tatsunori                       1238–1245. https://doi.org/10.1109/ICFTIC64248.2024.10913329
+     Hashimoto. 2025.        Auditing Prompt Caching in Language Model APIs.                    [52] Konstantinos Papaioannou and Thaleia Dimitra Doudali. 2024. The Importance
+     arXiv:2502.07776 [cs.CL] https://arxiv.org/abs/2502.07776                                       of Workload Choice in Evaluating LLM Inference Systems. In Proceedings of the
+[32] Marcus Hähnel, Weidong Cui, and Marcus Peinado. 2017. High-resolution side                      4th Workshop on Machine Learning and Systems (Athens, Greece) (EuroMLSys
+     channels for untrusted operating systems. In Proceedings of the 2017 USENIX                     ’24). Association for Computing Machinery, New York, NY, USA, 39–46. https:
+     Conference on Usenix Annual Technical Conference (Santa Clara, CA, USA) (USENIX                 //doi.org/10.1145/3642970.3655823
+     ATC ’17). USENIX Association, USA, 299–312.                                                [53] Pratyush Patel, Esha Choukse, Chaojie Zhang, Aashaka Shah, Íñigo Goiri, Saeed
+[33] Connor Holmes, Masahiro Tanaka, Michael Wyatt, Ammar Ahmad Awan, Jeff                           Maleki, and Ricardo Bianchini. 2024. Splitwise: Efficient Generative LLM Infer-
+     Rasley, Samyam Rajbhandari, Reza Yazdani Aminabadi, Heyang Qin, Arash                           ence Using Phase Splitting. In 2024 ACM/IEEE 51st Annual International Sym-
+     Bakhtiari, Lev Kurilenko, and Yuxiong He. 2024. DeepSpeed-FastGen: High-                        posium on Computer Architecture (ISCA). 118–132. https://doi.org/10.1109/
+     throughput Text Generation for LLMs via MII and DeepSpeed-Inference.                            ISCA59077.2024.00019
+     arXiv:2401.08671 [cs.PF] https://arxiv.org/abs/2401.08671                                  [54] Peter Pessl, Daniel Gruss, Clémentine Maurice, Michael Schwarz, and Stefan
+[34] Henry F. Inman and Edwin L. Bradley. 1989. The overlapping coefficient as a                     Mangard. 2016. DRAMA: Exploiting DRAM Addressing for Cross-CPU Attacks.
+     measure of agreement between probability distributions. Communications in                       In Proceedings of the 25th USENIX Security Symposium (USENIX Security ’16).
+     Statistics-Theory and Methods 18, 10 (1989), 3851–3874. https://doi.org/10.1080/                USENIX Association.
+     03610928908830127
+
+                                                                                           13
+[55] R. Qin, Z. Li, W. He, J. Cui, F. Ren, M. Zhang, Y. Wu, W. Zheng, and X. Xu. 2025.               Side-Channel Attacks. arXiv:2411.18191 [cs.CR] https://arxiv.org/abs/2411.18191
+     Mooncake: Trading More Storage for Less Computation — A KVCache-Centric                    [76] Yinmin Zhong, Shengyu Liu, Junda Chen, Jianbo Hu, Yibo Zhu, Xuanzhe Liu, Xin
+     Architecture for Serving LLM Chatbot. In 23rd USENIX Conference on File and                     Jin, and Hao Zhang. 2024. DistServe: Disaggregating Prefill and Decoding for
+     Storage Technologies (FAST 25). 155–170.                                                        Goodput-optimized Large Language Model Serving. In 18th USENIX Symposium
+[56] Zhenmei Shi, Yifei Ming, Xuan-Phi Nguyen, Yingyu Liang, and Shafiq Joty. 2025.                  on Operating Systems Design and Implementation (OSDI 24). USENIX Associa-
+     Discovering the Gems in Early Layers: Accelerating Long-Context LLMs with                       tion, Santa Clara, CA, 193–210. https://www.usenix.org/conference/osdi24/
+     1000x Input Token Reduction. https://openreview.net/forum?id=9iN8p1Xwtg                         presentation/zhong-yinmin
+[57] Peter Snyder, Soroush Karami, Arthur Edelstein, Benjamin Livshits, and Hamed               [77] Qianchao Zhu, Jiangfei Duan, Chang Chen, Siran Liu, Xiuhong Li, Guanyu Feng,
+     Haddadi. 2023. Pool-party: exploiting browser resource pools for web tracking.                  Xin Lv, Xiao Chuanfu, Dahua Lin, and Chao Yang. 2025. SampleAttention: Near-
+     In Proceedings of the 32nd USENIX Conference on Security Symposium (Anaheim,                    Lossless Acceleration of Long Context LLM Inference with Adaptive Structured
+     CA, USA) (SEC ’23). USENIX Association, USA, Article 397, 15 pages.                             Sparse Attention. In Eighth Conference on Machine Learning and Systems. https:
+[58] Linke Song, Zixuan Pang, Wenhao Wang, Zihao Wang, XiaoFeng Wang, Hongbo                         //openreview.net/forum?id=RuZ80yl71h
+     Chen, Wei Song, Yier Jin, Dan Meng, and Rui Hou. 2025. The Early Bird
+     Catches the Leak: Unveiling Timing Side Channels in LLM Serving Systems.
+     arXiv:2409.20002 [cs.CR] https://arxiv.org/abs/2409.20002
+[59] Biao Sun, Ziming Huang, Hanyu Zhao, Wencong Xiao, Xinyi Zhang, Yong Li, and
+     Wei Lin. 2024. Llumnix: Dynamic Scheduling for Large Language Model Serving.
+     In 18th USENIX Symposium on Operating Systems Design and Implementation
+     (OSDI 24). USENIX Association, Santa Clara, CA, 173–191. https://www.usenix.
+     org/conference/osdi24/presentation/sun-biao
+[60] Hanshi Sun, Li-Wen Chang, Wenlei Bao, Size Zheng, Ningxin Zheng, Xin Liu,
+     Harry Dong, Yuejie Chi, and Beidi Chen. 2024. ShadowKV: KV Cache in Shadows
+     for High-Throughput Long-Context LLM Inference. arXiv:2410.21465 [cs.LG]
+     https://arxiv.org/abs/2410.21465
+[61] Jiaming Tang, Yilong Zhao, Kan Zhu, Guangxuan Xiao, Baris Kasikci, and Song
+     Han. 2024. QUEST: query-aware sparsity for efficient long-context LLM inference.
+     In Proceedings of the 41st International Conference on Machine Learning (Vienna,
+     Austria) (ICML’24). JMLR.org, Article 1955, 11 pages.
+[62] Hugo Touvron et al. 2023. LLaMA: Open and Efficient Foundation Language
+     Models. arXiv preprint arXiv:2302.13971 (2023).
+[63] Pepe Vila and Boris Kopf. 2017. Loophole: Timing Attacks on Shared Event Loops
+     in Chrome. In 26th USENIX Security Symposium (USENIX Security 17). USENIX
+     Association, Vancouver, BC, 849–864. https://www.usenix.org/conference/
+     usenixsecurity17/technical-sessions/presentation/vila
+[64] vLLM Team. 2024. vLLM: High-Throughput Serving for Large Language Models.
+     https://github.com/vllm-project/vllm.
+[65] vLLM Team. 2025. Automatic Prefix Caching in vLLM. https://docs.vllm.ai/en/
+     latest/features/automatic_prefix_caching/.
+[66] Charles V. Wright, Lucas Ballard, Scott E. Coull, Fabian Monrose, and Gerald M.
+     Masson. 2008. Spot Me if You Can: Uncovering Spoken Phrases in Encrypted
+     VoIP Conversations. In 2008 IEEE Symposium on Security and Privacy (sp 2008).
+     35–49. https://doi.org/10.1109/SP.2008.21
+[67] Guanlong Wu, Zheng Zhang, Yao Zhang, Weili Wang, Jianyu Niu, Ye Wu, and
+     Yinqian Zhang. 2025. I Know What You Asked: Prompt Leakage via KV-Cache
+     Sharing in Multi-Tenant LLM Serving. In Proceedings of the 2025 Network and
+     Distributed System Security (NDSS) Symposium. San Diego, CA, USA.
+[68] Guangxuan Xiao, Yuandong Tian, Beidi Chen, Song Han, and Mike
+     Lewis. 2024. Efficient Streaming Language Models with Attention Sinks.
+     arXiv:2309.17453 [cs.CL] https://arxiv.org/abs/2309.17453
+[69] Jiayi Yao, Hanchen Li, Yuhan Liu, Siddhant Ray, Yihua Cheng, Qizheng Zhang,
+     Kuntai Du, Shan Lu, and Junchen Jiang. 2025. CacheBlend: Fast Large Language
+     Model Serving for RAG with Cached Knowledge Fusion. In Proceedings of the
+     Twentieth European Conference on Computer Systems (Rotterdam, Netherlands)
+     (EuroSys ’25). Association for Computing Machinery, New York, NY, USA, 94–109.
+     https://doi.org/10.1145/3689031.3696098
+[70] Yuval Yarom and Katrina Falkner. 2014. FLUSH+RELOAD: A High Resolution,
+     Low Noise, L3 Cache Side-Channel Attack. In Proceedings of the 23rd USENIX
+     Security Symposium (USENIX Security ’14). USENIX Association.
+[71] Lu Ye, Ze Tao, Yong Huang, and Yang Li. 2024. ChunkAttention: Efficient Self-
+     Attention with Prefix-Aware KV Cache and Two-Phase Partition. In Proceedings of
+     the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1:
+     Long Papers), Lun-Wei Ku, Andre Martins, and Vivek Srikumar (Eds.). Association
+     for Computational Linguistics, Bangkok, Thailand, 11608–11620. https://doi.org/
+     10.18653/v1/2024.acl-long.623
+[72] Lingfan Yu, Jinkun Lin, and Jinyang Li. 2025. Stateful Large Language Model
+     Serving with Pensieve. In Proceedings of the Twentieth European Conference on
+     Computer Systems (Rotterdam, Netherlands) (EuroSys ’25). Association for Com-
+     puting Machinery, New York, NY, USA, 144–158. https://doi.org/10.1145/3689031.
+     3696086
+[73] Siyan Zhao, Daniel Israel, Guy Van den Broeck, and Aditya Grover. 2024. Prepack-
+     ing: A Simple Method for Fast Prefilling and Increased Throughput in Large
+     Language Models. arXiv:2404.09529 [cs.LG] https://arxiv.org/abs/2404.09529
+[74] L. Zheng, L. Yin, Z. Xie, C. L. Sun, J. Huang, C. H. Yu, S. Cao, C. Kozyrakis, I.
+     Stoica, J. E. Gonzalez, et al. 2024. SGLang: Efficient Execution of Structured
+     Language Model Programs. Advances in Neural Information Processing Systems
+     37 (2024), 62557–62583.
+[75] Xinyao Zheng, Husheng Han, Shangyi Shi, Qiyan Fang, Zidong Du, Xing Hu,
+     and Qi Guo. 2024. InputSnatch: Stealing Input in LLM Services via Timing
+                                                                                           14
+

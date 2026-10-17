@@ -1,0 +1,51 @@
+{
+  "status": "analytical counterexample only; parameters are constructed, not fitted",
+  "units": "arbitrary milliseconds for illustration",
+  "uniform_parameters": {
+    "delta": 20,
+    "width": 1000,
+    "reference_error_bound": 2
+  },
+  "uniform_result": {
+    "marginal_overlap": 0.98,
+    "marginal_balanced_bayes_accuracy": 0.51,
+    "residual_supports": [
+      [
+        -2,
+        2
+      ],
+      [
+        18,
+        22
+      ]
+    ],
+    "residual_supports_disjoint": true
+  },
+  "gaussian_parameters": {
+    "delta": 20,
+    "sigma": 200,
+    "reference_noise": 2,
+    "private_noise": 2
+  },
+  "gaussian_correlated": {
+    "marginal_overlap": 0.960124380393546,
+    "marginal_balanced_bayes_accuracy": 0.519937809803227,
+    "conditional_balanced_bayes_accuracy": 0.9997965920477717
+  },
+  "gaussian_independent_reference": {
+    "marginal_overlap": 0.960124380393546,
+    "marginal_balanced_bayes_accuracy": 0.519937809803227,
+    "conditional_balanced_bayes_accuracy": 0.519937809803227
+  },
+  "gaussian_reference_uninformative": {
+    "marginal_overlap": 0.960124380393546,
+    "marginal_balanced_bayes_accuracy": 0.519937809803227,
+    "conditional_balanced_bayes_accuracy": 0.519937809803227
+  },
+  "inference": "marginal overlap alone cannot bound inference with a correlated reference",
+  "not_established": [
+    "availability of the assumed reference through an LLM API",
+    "a live defense bypass",
+    "novelty beyond existing timing literature"
+  ]
+}

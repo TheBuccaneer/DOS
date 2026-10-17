@@ -1,0 +1,164 @@
+{
+  "created_utc": "2026-10-10T16:15:39.732600+00:00",
+  "mode": "read_only_metadata",
+  "experiment_ready": false,
+  "readiness_note": "Runtime cache and budget effectiveness require separate measured evidence.",
+  "python_executable": "/home/rock/projects/porto/.venv-py313-repair/bin/python3",
+  "python_version": "3.13.7",
+  "hostname": "rock-tobefilledbyoem",
+  "project_root": "/home/rock/projects/DOS",
+  "project_exists": true,
+  "package_versions": {
+    "vllm": "0.17.1",
+    "torch": "2.10.0",
+    "transformers": "4.57.6",
+    "httpx": "0.28.1",
+    "numpy": "2.2.6",
+    "pandas": "3.0.1",
+    "scipy": "1.17.1"
+  },
+  "gpu_metadata": {
+    "available": true,
+    "result": "NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running.",
+    "exit_code": 9,
+    "stderr": ""
+  },
+  "installed_sources": {
+    "vllm/v1/core/sched/scheduler.py": {
+      "available": true,
+      "path": "/home/rock/projects/porto/.venv-py313-repair/lib/python3.13/site-packages/vllm/v1/core/sched/scheduler.py",
+      "sha256": "8231254faa2d2aaeccff2cff309ff60ea90ce7194a81edaddcf6aa806b9f98f1",
+      "term_line_numbers": {
+        "max_num_batched_tokens": [
+          105
+        ],
+        "max_num_scheduled_tokens": [
+          102,
+          103,
+          104,
+          336,
+          815
+        ],
+        "long_prefill_token_threshold": [
+          378,
+          379,
+          655
+        ],
+        "max_num_partial_prefills": [],
+        "max_long_partial_prefills": [],
+        "cache_salt": []
+      }
+    },
+    "vllm/v1/core/sched/async_scheduler.py": {
+      "available": true,
+      "path": "/home/rock/projects/porto/.venv-py313-repair/lib/python3.13/site-packages/vllm/v1/core/sched/async_scheduler.py",
+      "sha256": "4df37e8842fb06d5cce3bc414e9423a09808e9336a96a25530dd2270f078d093",
+      "term_line_numbers": {
+        "max_num_batched_tokens": [],
+        "max_num_scheduled_tokens": [],
+        "long_prefill_token_threshold": [],
+        "max_num_partial_prefills": [],
+        "max_long_partial_prefills": [],
+        "cache_salt": []
+      }
+    },
+    "vllm/config/scheduler.py": {
+      "available": true,
+      "path": "/home/rock/projects/porto/.venv-py313-repair/lib/python3.13/site-packages/vllm/config/scheduler.py",
+      "sha256": "74451b04e063be354df1796b610bb5ef3c783c1631105f50c85669afccfceb0b",
+      "term_line_numbers": {
+        "max_num_batched_tokens": [
+          48,
+          58,
+          60,
+          85,
+          99,
+          106,
+          196,
+          198,
+          202,
+          205,
+          227,
+          228,
+          232,
+          233,
+          253,
+          257,
+          260,
+          261,
+          265,
+          267,
+          272,
+          274,
+          276
+        ],
+        "max_num_scheduled_tokens": [
+          55
+        ],
+        "long_prefill_token_threshold": [
+          75,
+          79,
+          221,
+          237,
+          238,
+          243,
+          246,
+          287,
+          289,
+          290
+        ],
+        "max_num_partial_prefills": [
+          69,
+          76,
+          236,
+          242,
+          244,
+          280,
+          284,
+          294,
+          297
+        ],
+        "max_long_partial_prefills": [
+          73,
+          242,
+          245,
+          294,
+          296
+        ],
+        "cache_salt": []
+      }
+    },
+    "vllm/entrypoints/openai/completion/protocol.py": {
+      "available": true,
+      "path": "/home/rock/projects/porto/.venv-py313-repair/lib/python3.13/site-packages/vllm/entrypoints/openai/completion/protocol.py",
+      "sha256": "cccbbda6227db345310490ad4112174393590687c384100fc05e703cc34286c2",
+      "term_line_numbers": {
+        "max_num_batched_tokens": [],
+        "max_num_scheduled_tokens": [],
+        "long_prefill_token_threshold": [],
+        "max_num_partial_prefills": [],
+        "max_long_partial_prefills": [],
+        "cache_salt": [
+          145,
+          439,
+          440,
+          443
+        ]
+      }
+    },
+    "vllm/v1/metrics/loggers.py": {
+      "available": true,
+      "path": "/home/rock/projects/porto/.venv-py313-repair/lib/python3.13/site-packages/vllm/v1/metrics/loggers.py",
+      "sha256": "d16c4102239fe1d5ea7c7a2abe67f5d0b0bfacb54c875136a521ffa16f071b50",
+      "term_line_numbers": {
+        "max_num_batched_tokens": [],
+        "max_num_scheduled_tokens": [],
+        "long_prefill_token_threshold": [],
+        "max_num_partial_prefills": [],
+        "max_long_partial_prefills": [],
+        "cache_salt": []
+      }
+    }
+  },
+  "local_model": null
+}

@@ -1,0 +1,439 @@
+    Availability Claims Need an Evidence Contract: Auditing Preﬁx-Cache
+                                  Isolation
+
+                                               Anonymous Submission
+
+
+
+Keywords:      LLM Serving, Availability, Preﬁx Caching, Isolation, Experimental Methodology.
+
+Abstract:      Preﬁx-cache namespace isolation restricts reuse across principals, while the requests can still share a ﬁnite
+               KV block pool and scheduling budget. Existing research already establishes both cache-induced unfairness
+               and resource-exhaustion attacks. The remaining evaluation question is what an experiment can identify when
+               the isolation policy itself changes executed work and memory occupancy. We argue for a claim-speciﬁc
+               evidence contract that separates total deployment-policy cost, a preﬁx-speciﬁc control contrast, and attribution
+               to a resource mechanism. Complete outcome measurements must remain visible when mechanism checks
+               abstain. We instantiate this position through a source audit of vLLM 0.17.1 and an independent reconstruction
+               of 14 existing exploratory episodes containing 25 requests and 1,202 streaming events. Two episodes retain
+               complete victim measurements but fail the original mechanism-attribution checks after preemption. A source-
+               calibrated counterexample also shows why logged generation tokens cannot be equated with newly emitted
+               tokens. These observations motivate the contract; they do not establish a new attack or causal interaction. We
+               specify controls, counterexamples, falsiﬁcation criteria, and a bounded validation study.
+
+
+
+1    INTRODUCTION                                                 attribute the underlying scheduler event. Collapsing
+                                                                  these outcomes into one Boolean “valid run” can ei-
+A serving system may correctly prevent cross-                     ther promote an unproven explanation or discard mea-
+principal preﬁx reuse and still permit one principal’s            surements from precisely the regime being investi-
+requests to affect another’s latency. Namespace iso-              gated.
+lation changes which cached computation a request                     Our position is that evaluations of cache-isolation
+may reuse; resource scheduling decides how requests               availability claims should publish an evidence con-
+compete for ﬁnite execution and memory. Their com-                tract: the estimand, comparison unit, required ob-
+position must be evaluated at the level of an explicit            servations and abstention rule associated with each
+service claim.1                                                   claim. The contract is a reporting and analysis dis-
+    This distinction is established background, not our           cipline, not a new defense or a universal certiﬁcation
+discovery. PreﬁxShield already studies namespace-                 standard. We make three concrete proposals. First,
+scoped lookup over a shared physical replacement do-              separate the total effect of deploying an isolation pol-
+main (Wang and Buyya, 2026). PreﬁxWall, originally                icy from a preﬁx-speciﬁc control contrast. Second,
+named CacheSolidarity, examines the performance of                report outcome completeness, manipulation evidence
+selective protection against preﬁx-cache side chan-               and mechanism attribution separately. Third, retain
+nels (Pennas et al., 2026). Fill and Squeeze targets              complete outcomes when attribution becomes unre-
+global KV saturation and preemption (Wang et al.,                 solved, and report how that unresolved fraction varies
+2026). A new paper cannot reasonably claim novelty                across conditions.
+merely by observing shared-resource contention after                  We ground this proposal in a small existing dataset
+changing a cache salt.                                            and a pinned source audit. The dataset is exploratory
+    A subtler problem remains when interpreting an                and has no independent repeated episode within a
+experiment. Identical submitted token sequences                   condition/conﬁguration cell. It supports a case study
+need not cause identical preﬁll work, block alloca-               about evidence interpretation, not an estimate of at-
+tion or concurrent execution after the isolation pol-             tack effectiveness. Our proposed scientiﬁc increment
+icy changes. Moreover, a test can successfully mea-               is an operational connection between estimands, evi-
+sure a victim’s token-receipt interval while failing to           dence requirements and abstention in a cache-policy
+    1 AI-assisted text: OpenAI Codex (OpenAI, 2026); see
+                                                                  experiment. We do not claim that the general ideas
+                                                                  of controls, trace replay or separating anomalies from
+disclosure.
+conﬁrmed bugs are new.                                       (Gao et al., 2025); FairInference accounts for restora-
+                                                             tion delay in KV reservations (Bali et al., 2026); Cas-
+                                                             cade jointly budgets scheduling and state retrieval
+2     SCOPE AND PRIOR WORK                                   (Adnan et al., 2026). We claim neither the ﬁrst joint
+                                                             cache/scheduler analysis nor a new restoration bound.
+                                                                 The proposed contract is narrower: it states what
+2.1 Security Properties and Principals                       an isolation-policy experiment estimates and how to
+                                                             preserve outcome evidence when a mechanism check
+We consider two authenticated principals using an            cannot decide. It is complementary to those systems
+operator-controlled serving instance. They can sub-          and must not be read as evidence that their evalua-
+mit valid requests, potentially with similar prompt          tions are invalid. Our comparison with FairCache is
+preﬁxes. The operator controls the mapping from an           limited to the publisher abstract and implementation
+authenticated principal to its cache namespace and           description because its full text was inaccessible dur-
+can inspect server telemetry. An external adversary          ing this audit. This is an unresolved priority check,
+need not have this telemetry; it is available to the eval-   and precludes an unconditional novelty claim for this
+uator. If clients can impersonate another principal’s        draft.
+salt, the assumed namespace boundary is not estab-               Additional work bounds the interpretation of our
+lished. We do not evaluate that authentication prob-         proposal. KVGov explicitly separates measured
+lem here.2                                                   channel behavior from a simulated defense (Adda-
+    We distinguish three properties. Reuse separa-           gada, 2026). A recent preﬁx-eviction study shows
+tion restricts whether one principal can resolve an-         why equal uncached-token counts do not, by them-
+other’s cache entries. State retention protection con-       selves, equalize latency cost (Liu et al., 2026). Thus
+cerns which reusable blocks survive pressure. Ser-           our suggested work controls require more than match-
+vice protection concerns progress, latency or an ex-         ing a scalar token count.
+plicit service-level objective. A successful lookup-
+separation test proves neither an absence of timing
+leakage through other resources nor a latency guaran-
+tee. Conversely, observed latency interference alone         3     TWO CONTRASTS AND A
+does not demonstrate retrieval of another principal’s              MECHANISM CLAIM
+data.
+    Our scope is ﬁnite-window, cross-request avail-          3.1   Total Deployment-Policy Cost
+ability evaluation under a shared block pool and
+bounded scheduler budget. We do not claim prompt             Let S ∈ {0, 1} denote common versus separated
+reconstruction, cache-content leakage, malicious in-         namespaces, P ∈ {0, 1} disjoint versus common
+tent from a workload trace, an SLO violation without         prompt preﬁxes, C usable KV capacity and Q the ef-
+an SLO, or a resource-isolation theorem.                     fective scheduler token budget. Let Y be a declared
+                                                             outcome of a ﬁxed offered victim identity. For our
+2.2    Immediate Competition                                 case study it is the interval between receipt of victim
+                                                             tokens 8 and 28. A comparison must also ﬁx or ran-
+Virtual Token Counter formalizes client service ac-          domize the offered request trace X, including prompt
+counting and fairness and discusses tension with             token IDs, output limits and arrival rules.3
+cache-aware scheduling (Sheng et al., 2024). Fair-               For ﬁxed P,C, Q, deﬁne the policy contrast
+Cache addresses cache-related resource attribution;
+its publisher description already includes compute,           T (P,C, Q) = E[Y | do(S = 1)]−E[Y | do(S = 0)]. (1)
+memory and I/O (Bai et al., 2026). GRIEF uses timed          The expectation is over predeclared experimental
+concurrent traces and staged conﬁrmation of serving-         units under the same offered workload distribution.
+layer failures (Zhao et al., 2026). Sarathi-Serve es-        This is the total deployment-policy effect. Lost reuse
+tablishes the importance of chunk-size and decode-           and the resulting execution or memory changes are
+latency trade-offs (Agrawal et al., 2024). These works       part of this effect. They are relevant to an operator
+remove generic service accounting, concurrent testing        deciding whether to deploy isolation, and must not be
+and budget tuning from our novelty claim. HCache             dismissed as an artifact merely because they follow
+already evaluates recovery-related decoding overhead         an established resource mechanism.
+    2 AI-assisted text: OpenAI Codex (OpenAI, 2026); see        3 AI-assisted text: OpenAI Codex (OpenAI, 2026); see
+disclosure.                                                  disclosure.
+    Equation (1) is a deﬁnition, not an identiﬁcation         The essential causal structure is
+result. Our saved one-run-per-cell observations do
+not identify its expectation: order, startup state and    S −→ {reuse, live KV state, work} −→ {schedule,Y }.
+uncontrolled runtime variation remain possible ex-        Capacity, effective budget and runtime state also in-
+planations. Randomization and independent repeated        ﬂuence scheduling and Y . Even an exact count of
+blocks would be required for an estimate with mean-       initial uncached tokens does not measure all atten-
+ingful uncertainty.                                       tion cost, later decode cost, reuse after resumption
+                                                          or client delivery delay. A convincing resource-
+3.2   Preﬁx-Speciﬁc Control Contrast                      mechanism claim needs observations at the relevant
+                                                          transition, aligned to the declared victim outcome
+A second question asks whether a difference depends       window.
+on sharing the input preﬁx, rather than on the names-
+pace label alone. Deﬁne
+         K(C, Q) = T (1,C, Q) − T (0,C, Q).        (2)    4     A CLAIM-SPECIFIC
+The disjoint-preﬁx pair is a negative control for
+                                                                EVIDENCE CONTRACT
+namespace changes when no reuse opportunity
+should exist. A capacity contrast K(Clow , Q) −           4.1    Units, Observations and Abstention
+K(Chigh , Q) describes effect modiﬁcation only if all
+constituent comparisons are identiﬁed.                    The primary comparison unit should be declared be-
+    This contrast is not automatically a direct effect    fore outcomes are inspected. For a two-request pi-
+of salt processing. Changing preﬁx structure can          lot it can be one ﬁxed victim identity in a paired ex-
+alter computational cost or batching independently        perimental block. Request IDs, generation parame-
+of reuse, and the control requires assumptions about      ters, input token hashes, treatment assignment and the
+comparability of those changes. The experiment must       analysis window must persist in the artifact. A dy-
+document prompt construction and resource trajecto-       namically selected “active” subset is a separate esti-
+ries. A nonzero estimate also does not establish evic-    mand: if membership changes with the intervention,
+tion or preemption as its cause. It can remain fully      its mean cannot silently replace the ﬁxed offered pop-
+consistent with ordinary extra preﬁll and decode con-     ulation’s outcome.4
+tention.                                                      Each episode should have at least three sepa-
+    A victim-only arm supplies a third useful baseline:   rately reported ﬁelds: M, completeness of the out-
+the incremental cost of having a competitor at all.       come measurement; A, whether the intended manip-
+Comparing only shared versus isolated arms omits          ulation is observed; and R, whether evidence sup-
+that baseline, while comparing isolated with victim       ports the stated resource attribution. Each ﬁeld takes
+only conﬂates policy changes with adding a second         values supported, contradicted, or unknown. These
+request. These are different questions and should have    are claim-speciﬁc judgments, not calibrated probabil-
+different labels.                                         ities. For example, a missing terminal marker makes
+                                                          stream completion unknown; a warm victim contra-
+                                                          dicts an intended cold-start manipulation; a whole-
+3.3   Mechanism Attribution Is
+                                                          episode preemption count can leave window-speciﬁc
+      Additional Evidence                                 attribution unknown.
+                                                              An episode with M supported and R unknown re-
+Actual uncached computation and block occupancy           mains in the outcome inventory. Its mechanism ex-
+are post-policy quantities. Regressing on their ob-       planation is withheld. It must not become a zero ef-
+served values and naming the remainder a direct           fect, proof of safety, or an omitted row. If M is un-
+causal effect can select different executions or re-      known because the request timed out, the timeout it-
+move part of the intended total policy effect. A          self remains an availability outcome; it is not silently
+work-controlled challenge should instead be designed      removed to calculate latency among survivors.
+prospectively: arrange the relevant work, context             The contract should retain raw streaming events,
+depths, live block trajectories and arrival opportuni-    ﬁnal usage, monotonic receive timestamps, full met-
+ties to be comparable, and state which aspects remain     ric bodies, server identity and the relevant log byte
+unmatched. Such a challenge tests an implementation       range. A conﬁguration value in an unrelated startup
+explanation; it is not obtained by relabeling Equation
+                                                              4 AI-assisted text: OpenAI Codex (OpenAI, 2026); see
+(1).
+                                                          disclosure.
+Table 1: Evidence requirements depend on the claim. Each
+row adds obligations; none is implied by successful execu-   5     PINNED SOURCE AUDIT
+tion alone.
+                                                             We inspected the installed vLLM source and com-
+ Claim            Required observation                       pared seven ﬁles byte-for-byte with upstream tag
+ Reuse sepa-      Cold/warm controls and per-request         v0.17.1 (vLLM Project, 2026). All seven SHA-256
+ ration           cached tokens under authenticated          hashes matched. The claims below are restricted to
+                  namespace assignment.                      those paths and this version.5
+ Total policy     Fixed offered unit; complete outcomes
+ cost             or explicit censoring; paired random-
+                                                                 In v1/core/kv_cache_utils.py, generate_
+                  ized policy intervention.                  block_hash_extra_keys (lines 494–529) includes
+ Preﬁx    con-    Both preﬁx structures under both poli-     the request salt in the ﬁrst block’s extra keys. hash_
+ trast            cies; comparable nuisance conditions       block_tokens (532–558) includes the parent hash,
+                  and uncertainty.                           propagating separation to descendants. This changes
+ Capacity in-     Complete contrasts at each capacity;       lookup identity. It does not allocate a separate physi-
+ teraction        veriﬁed usable block counts and effec-     cal pool.
+                  tive budget.
+ Speciﬁc tran-    Request/window attribution of alloca-          In v1/core/block_pool.py, the constructor
+ sition           tion, reclamation or preemption, be-       (150–176) creates the common block list and free
+                  yond aggregate counter deltas.             queue and reserves a null block. get_new_blocks
+                                                             (320–350) draws from that queue; _maybe_evict_
+                                                             cached_block (352–390) can remove a reclaimed
+log is not proof of the live server’s state. Process start
+                                                             block’s cached hash. get_usage (487–498) excludes
+time, process identity and episode-local log offsets
+                                                             the null block from the denominator. Conﬁgurations
+strengthen that binding, while an independent trace is
+                                                             of 24 and 64 blocks therefore have 23 and 63 usable
+needed to authenticate facts outside the artifact itself.
+                                                             blocks in this pool.
+                                                                 In              v1/core/kv_cache_manager.py,
+4.2 Why a Single Validity Bit Is                             get_computed_blocks (164–204) limits hits to
+    Insufﬁcient                                              full blocks and leaves the ﬁnal prompt token to be
+                                                             computed. For a 128-token prompt at block size 16,
+Consider two executions with the same complete vic-          112 reusable tokens are consistent with that rule.
+tim stream and the same aggregate preemption in-                 In v1/core/sched/scheduler.py, schedule
+crement. In one, the competitor is preempted after           initializes its budget from max_num_scheduled_
+the victim window ends. In the other, the victim is          tokens (336), clips scheduled work to the remain-
+preempted inside the window but immediately reuses           ing budget (380 and 669), and may preempt af-
+most released state. The stream and counter alone do         ter failed allocation (429–486). _preempt_request
+not identify which transition occurred or how much           (914–934) releases state, resets the computed-token
+recomputation it caused. They support a measure-             count and returns the request to waiting. Subsequent
+ment claim but not the proposed explanation.                 reuse can still matter; a preemption count alone is not
+    Now let V be a validator that accepts only episodes      a measurement of full recomputation.
+with an unambiguous no-preemption scheduling re-                 These source observations explain plausible cou-
+construction. If pressure changes the probability of         pling and the necessary controls. They do not estab-
+V = 1, reporting only accepted runs estimates a se-          lish a novel vulnerability, an observed capacity inter-
+lected operating regime. In symbols, E[Y | S,V = 1]          action or a conﬁdentiality breach.
+need not equal E[Y | do(S)]. This is a general selec-
+tion issue, not a new statistical theorem. The opera-
+tional requirement is to publish rejection counts and        6     EXPLORATORY ARTIFACT
+reasons by condition and retain measured outcomes
+from V = 0 whenever available.                                     RECONSTRUCTION
+    Failing closed on a strong mechanism claim is ap-
+propriate. Using that same decision to erase weaker          6.1    Data and Independent Checks
+but complete measurements is unnecessary. An ex-
+plicit evidence proﬁle supports both conservative at-        We reanalyzed 14 saved overlap episodes collected on
+tribution and honest outcome accounting.                     17 October 2026 with vLLM 0.17.1 and Llama-3.1-
+                                                             8B-Instruct. Collection was not observed live in this
+                                                                 5 AI-assisted text: OpenAI Codex (OpenAI, 2026); see
+                                                             disclosure.
+Table 2: Exploratory D8–D28 receive intervals (ms). N is
+conﬁgured blocks and Q effective tokens per iteration. An       D has zero reported cache hits in every episode.
+asterisk marks one whole-episode preemption increment; it   B has 112 in all three common-preﬁx shared episodes
+does not locate that event inside the endpoint window.      and zero in the other concurrent episodes. Thus B’s
+                                                            initial uncached work is 16 versus 128 tokens. Un-
+  Condition            N64, Q512 N64, Q64 N24, Q64
+                                                            der the 64-token budget, the stored no-preemption it-
+  Victim only            419.262   402.789 406.431          eration reconstruction gives B chunks of [16] in the
+  Shared preﬁx           423.739   422.004 425.382          shared condition and [63, 63, 2] when cold: 63 preﬁll
+  Isolated preﬁx         454.940   428.328 431.388*
+                                                            tokens together with one D decode token exhaust an
+  Disjoint, shared       455.015   430.730 432.515*
+  Disjoint, isolated     453.758   430.725       —          iteration’s budget. Under the 512-token budget, the
+                                                            corresponding 16- or 128-token B preﬁlls ﬁt without
+                                                            binding the budget. A conﬁgured small budget and
+audit. The raw artifacts store concurrent request dis-      observed binding are consequently separate facts.
+patch, complete server-sent events (SSE), usage, met-           Two 24-block episodes, isolated/common-preﬁx
+rics and server logs. We used a new ofﬂine parser           and shared/disjoint-preﬁx, each have one preemp-
+that imports no original runner and makes no server         tion counter increment. Their SSE measurements re-
+requests.6                                                  main complete, but the original validator rejects the
+    Each episode has one declared victim D with a           stronger cache/scheduler attribution. All 12 episodes
+192-token prompt and 32 output tokens. Concurrent           without preemption pass that validator. A valid-
+conditions add B with 128 input and 64 output tokens,       episodes-only table would therefore remove both
+dispatched after receipt of D token 8. The endpoint         pressure observations in these ﬁles. We demonstrate
+         D − t D using client monotonic receive times.
+is Y = t28    8                                             that selection fact, not the direction or magnitude of
+It contains 20 token-receipt intervals and is not GPU       an induced causal bias.
+kernel time or request completion latency. Shared and           The sum of logged context tokens equals initial
+isolated conditions either use the same or different        uncached prompt tokens in every episode, includ-
+namespace salts. Disjoint-preﬁx controls remove the         ing the two with preemption. We observe no excess
+common-preﬁx reuse opportunity.                             context-token work in those sums and do not infer a
+    The reconstruction covers 25 requests, 1,152 out-       recomputation penalty from the counters. A disjoint-
+put token IDs and 1,202 wire events. It checks event-       preﬁx condition also exhibits preemption, so ordinary
+copy consistency, usage versus token counts, terminal       shared-capacity pressure remains an immediate alter-
+markers, prompts versus saved plans, exact trigger re-      native to an isolation-speciﬁc explanation. The miss-
+ceipt and the endpoint calculation. No discrepancies        ing disjoint/isolated 24-block cell prevents a complete
+were found. All victim token-bearing events contain         estimate of Equation (2) at that capacity even if other
+one token, so the two endpoint receipts are individu-       identiﬁcation problems were solved.
+ally available. Eleven adversarial ofﬂine tests verify
+detection of selected malformed or inconsistent arti-
+facts and preservation of complete measurements un-         6.3   Calibrating the Meaning of Work
+der unresolved preemption.                                        Counters
+    This is internal consistency checking, not inde-
+pendent attestation that every possible concurrent re-      The existing traces also support a narrower direction:
+quest was recorded. Per-request usage supports the          auditing how scheduler-work labels map to emitted
+manipulation check; aggregate counter deltas do not         tokens. In each preemption episode, a log entry re-
+authenticate principal identities. The absence of a         ports one generation request and 17 generation to-
+cached-token detail in successful usage is interpreted      kens. Across that episode, logged generation tokens
+as zero in this retained schema, consistent with the        sum to 110. The complete streams contain 96 new
+stored original assessments.                                output tokens; after excluding each request’s ﬁrst to-
+                                                            ken, produced during initial preﬁll, the ordinary gen-
+6.2    Observations and Missing Cells                       eration baseline is 94. Each episode therefore has a
+                                                            16-token accounting residual under the generation la-
+Table 2 reports raw observed endpoints, rounded to          bel, while its context-token sum has no excess.
+milliseconds. Every cell contains one episode. There            The implementation explains why this
+is no conﬁdence interval, causal-effect estimate or         comparison needs care.             In v1/utils.py,
+equivalence test.                                           compute_iteration_details (432–476) sums
+                                                            scheduled tokens.         It classiﬁes new requests
+   6 AI-assisted text: OpenAI Codex (OpenAI, 2026); see     and cached requests with no output as context;
+disclosure.                                                 other scheduled work is labeled generation. In
+v1/core/sched/output.py, is_context_phase                  7    FALSIFIABLE
+(161–163) tests the saved output-token count, not               CONSEQUENCES
+whether the present work is recomputation. The log
+in v1/engine/core.py (350–377) exposes those               The position has three consequences that can be tested
+labels.                                                    independently of discovering a new attack.7
+     We extracted only the pure counter function and           C1: Claim escalation requires evidence esca-
+its result dataclass from the pinned source and exe-       lation. An evaluator given only complete SSE and
+cuted four synthetic scheduler-output cases without        an episode-wide preemption delta should abstain on a
+importing vLLM or using a GPU. Scheduling 17 to-           request-speciﬁc, window-speciﬁc preemption claim.
+kens for a positive-output request gives zero context      Constructing paired traces with the event inside ver-
+tokens and 17 generation tokens; the same count for        sus outside the window tests whether a validator over-
+a new or zero-output request is classiﬁed as context.      states its evidence. Request-level scheduler times-
+These are source-semantic tests, not simulated serv-       tamps should distinguish the cases; a counter alone
+ing measurements or a validation of actual GPU exe-        cannot.
+cution.                                                        C2: Measurement and attribution must survive
+     Consequently, no extra logged context tokens can-     different faults. Removing a terminal marker, co-
+not establish no extra scheduled work. Likewise, 17        alescing token-bearing events or corrupting a token
+logged generation tokens do not establish 17 new out-      count should change the measurement ﬁeld. Adding a
+put tokens. The actual residual is compatible with         preemption with no request/window mapping should
+recovery work after preemption, but does not prove         change attribution without erasing an otherwise com-
+which request paid it, its timing relative to the vic-     plete outcome. The artifact tests exercise several in-
+tim window or its GPU-time cost. The logger follows        stances, but do not yet establish robustness across en-
+its implementation; we assert no defect from the label     gines or arbitrary corruptions.
+alone. This concrete calibration strengthens the con-          C3: Unresolved fractions are part of the re-
+tract’s requirement to deﬁne the semantic unit of each     sult. For any capacity comparison, publish the num-
+counter before using it as a mechanism oracle.             ber of complete, censored and unattributable episodes
+                                                           by condition. If the attribution gate rejects a larger
+6.4    What This Case Can and Cannot                       share under pressure, a clean-regime result must be la-
+       Support                                             beled accordingly. This prediction is about reporting
+                                                           behavior and selection, not a prediction that pressure
+The artifacts demonstrate a feasible workload manip-       always increases latency.
+ulation, complete client-side measurement, and an at-          A bounded validation study should reuse the ﬁve
+tribution boundary of the existing validator. They do      conditions in Table 2, at the two existing capaci-
+not demonstrate that namespace separation caused the       ties and budget 64, with randomized paired ordering
+observed latency differences. Fixed run order, shared      and request-level transition timestamps. Three com-
+server lifetime, initialization effects and timing over-   plete paired blocks would be a feasibility check, not a
+head are uncontrolled. The episodes are short syn-         power justiﬁcation or a ﬁnal effectiveness study. Be-
+thetic cases, not a production workload or a sustained     fore collecting them, clear the closest-literature gap
+adversarial campaign. The 50-ms metric scrape ca-          and specify an escalation rule. Keep timeouts, pre-
+dence and full iteration logging can themselves affect     emptions and unknown attribution in the record. A
+execution.                                                 larger campaign is justiﬁed only if the remaining un-
+    Our contract would report these cases as measured      certainty is scientiﬁcally decisive.
+outcomes with unresolved mechanism attribution. It             The mechanism candidate is killed if the appar-
+would not reinterpret the small observed endpoint dif-     ent transition occurs outside the victim window, is
+ferences as evidence against capacity effects: the rel-    equally explained by the disjoint control’s resource
+evant transition might lie outside this receive win-       trajectory, or cannot be attributed. The methodologi-
+dow, and no replication supports equivalence. Sim-         cal contribution is killed if the contract changes no op-
+ilarly, a cold/warm sequential cache test can estab-       erational decision beyond the nearest existing work,
+lish reuse behavior without establishing concurrent        or its evidence ﬁelds cannot be applied consistently by
+decode damage. Measurements from older ofﬂoad              independent auditors. More parameter sweeps cannot
+campaigns are not used as conﬁrmation of the cache-        resolve either kind of failure by themselves.
+isolation hypothesis.                                         7 AI-assisted text: OpenAI Codex (OpenAI, 2026); see
+                                                           disclosure.
+8    LIMITATIONS AND                                        AI Assistance and Accountability
+     PRACTICAL IMPLICATIONS
+                                                            OpenAI Codex (OpenAI, 2026) assisted with litera-
+Our proposal is deliberately modest. The case study         ture discovery, source inspection, reanalysis code and
+covers one model, one serving version and a small ar-       drafting throughout this manuscript. Numerical ob-
+tiﬁcial block pool. Complete artifact consistency does      servations were recomputed from retained artifacts;
+not prove accurate live collection. No independent          no serving measurements were generated by an AI
+replication, treatment randomization, overhead abla-        model. Responsibility for scientiﬁc veriﬁcation and
+tion, external auditor agreement study or power anal-       the decision to submit remains with the human au-
+ysis has been completed. The proposed controlled-           thors. This anonymous disclosure identiﬁes the tool
+work challenge is a design obligation; this paper sup-      and its use without author details; the camera-ready
+plies no fully matched live-resource counterfactual.8       version should place it in acknowledgments as re-
+    The literature comparison is bounded, with a ma-        quired by the venue.
+terial unresolved full-text check for FairCache. We
+cannot assert that the contract is the ﬁrst formulation
+of these requirements. Its plausibility rests on explicit   REFERENCES
+non-implications and its usefulness on whether it pre-
+vents identiﬁable overclaims. A wider literature audit      Addagada, T. C. (2026).          Governing the KV
+and independent application could reject that incre-             cache: Preventing timing side-channel leakage
+mental contribution.                                             in multi-tenant LLM inference. arXiv preprint
+    For operators, two reports should coexist: the to-           arXiv:2608.09225v1. https://arxiv.org/abs/2608.
+tal cost of a privacy policy under a declared work-              09225v1.
+load and the evidence for the mechanism producing           Adnan, M., Mahapatra, R., Nair, P., Berger, D., Zar-
+that cost. A privacy defense can remain correct at its           doshti, P., Fonseca, R., and Choukse, E. (2026).
+intended lookup boundary while its deployment cost               Cascade: Exploiting SLO-aware latency budget
+motivates resource scheduling changes. Separating                for fair and high goodput LLM inference serv-
+these reports makes a performance regression action-             ing. arXiv preprint arXiv:2608.06557v1. https:
+able without labeling it a data leak or claiming a new           //arxiv.org/abs/2608.06557v1.
+attack. It also prevents an instrumentation limitation
+                                                            Agrawal, A., Kedia, N., Panwar, A., Mohan, J., Kwa-
+from turning a measured pressure episode into appar-
+                                                                 tra, N., Gulavani, B., Tumanov, A., and Ramjee,
+ent safety evidence.
+                                                                 R. (2024). Taming throughput-latency tradeoff
+                                                                 in LLM inference with Sarathi-Serve. In 18th
+                                                                 USENIX Symposium on Operating Systems De-
+9    CONCLUSION                                                  sign and Implementation (OSDI 24), pages 117–
+                                                                 134. USENIX Association. https://www.usenix.
+Availability evaluation of preﬁx-cache isolation needs           org/conference/osdi24/presentation/agrawal.
+an explicit connection between the intervention, the        Bai, Z., Gao, B., Xu, F., Zhao, H., Zhou, Z., and
+outcome population and the evidence supporting its               Wong, W.-F. (2026). FairCache: Demystifying
+explanation. We propose separate policy and preﬁx-               cache-induced unfairness in multi-tenant large
+control contrasts and a three-valued evidence proﬁle             language model serving. IEEE Transactions on
+that preserves measurements when attribution is un-              Parallel and Distributed Systems, 37(11):2390–
+known. An ofﬂine reconstruction shows this distinc-              2406. doi:10.1109/TPDS.2026.3729988. Full
+tion in existing pilot artifacts, while leaving the new-         text not inspected.
+mechanism hypothesis unconﬁrmed. The next scien-            Bali, D., Ponnapalli, S., Wang, Y., Crooks, N.,
+tiﬁc step is to validate the reporting contract and clear        Shenker, S., and Zaharia, M. (2026). To-
+its nearest competition, rather than expand an uniden-           ken latency fairness: Performance isolation
+tiﬁable attack campaign.9                                        for multi-tenant LLM serving. arXiv preprint
+   8 AI-assisted text: OpenAI Codex (OpenAI, 2026); see          arXiv:2609.18112v1. https://arxiv.org/abs/2609.
+disclosure.                                                      18112v1.
+   9 AI-assisted text: OpenAI Codex (OpenAI, 2026); see
+                                                            Gao, S., Chen, Y., and Shu, J. (2025). Fast state
+disclosure.                                                      restoration in LLM serving with HCache. In
+                                                                 Proceedings of the Twentieth European Con-
+     ference on Computer Systems, pages 128–143.
+     ACM. doi:10.1145/3689031.3696072.
+Liu, Y., Yu, M., and Yang, J. (2026). When
+     fancy eviction fails: Rethinking cache replace-
+     ment for LLM preﬁx reuse. arXiv preprint
+     arXiv:2609.28870v2. https://arxiv.org/abs/2609.
+     28870v2.
+OpenAI (2026). Codex. https://openai.com/codex/.
+     AI assistance disclosed in the manuscript; ac-
+     cessed 17 October 2026.
+Pennas, P. G., Papaioannou, K., Guarnieri, M., and
+     Doudali, T. D. (2026). PreﬁxWall: Mitigating
+     preﬁx caching side channels in shared LLM sys-
+     tems. arXiv preprint arXiv:2603.10726v2. https:
+     //arxiv.org/abs/2603.10726v2.
+Sheng, Y., Cao, S., Li, D., Zhu, B., Li, Z., Zhuo,
+     D., Gonzalez, J. E., and Stoica, I. (2024). Fair-
+     ness in serving large language models. In 18th
+     USENIX Symposium on Operating Systems De-
+     sign and Implementation (OSDI 24), pages 965–
+     988. USENIX Association. https://www.usenix.
+     org/conference/osdi24/presentation/sheng.
+vLLM Project (2026). vLLM source code, tag
+     v0.17.1. https://github.com/vllm-project/vllm/
+     tree/v0.17.1. Seven audited ﬁles matched locally
+     by SHA-256.
+Wang, T., Fan, H., Shu, Y., Cheng, P., and Wang,
+     C. (2026). Rethinking latency denial-of-service:
+     Attack the LLM serving framework, not the
+     model. arXiv preprint arXiv:2602.07878v2.
+     https://arxiv.org/abs/2602.07878v2.
+Wang, Z. and Buyya, R. (2026). Preserving ad-
+     mission responsibility in multi-tenant large lan-
+     guage model preﬁx caches. arXiv preprint
+     arXiv:2608.01657v1. https://arxiv.org/abs/2608.
+     01657v1.
+Zhao, Y., Zhao, Y., Zhang, Y., Liu, Z., and Mazurek,
+     M. L. (2026). Continuous discovery of vulner-
+     abilities in LLM serving systems with fuzzing.
+     arXiv preprint arXiv:2605.11202v1. https://
+     arxiv.org/abs/2605.11202v1.
+

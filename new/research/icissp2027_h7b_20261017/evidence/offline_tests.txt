@@ -1,0 +1,31 @@
+test_attacker_history_ignores_unfinished_queries (test_h7b.CausalityTests.test_attacker_history_ignores_unfinished_queries) ... ok
+test_future_and_current_samples_do_not_change_gate (test_h7b.CausalityTests.test_future_and_current_samples_do_not_change_gate) ... ok
+test_kde_calibration_same_distribution_and_separated (test_h7b.CausalityTests.test_kde_calibration_same_distribution_and_separated) ... ok
+test_kde_remote_tail_does_not_erase_common_modes (test_h7b.CausalityTests.test_kde_remote_tail_does_not_erase_common_modes) ... ok
+test_single_class_gate_is_unknown (test_h7b.CausalityTests.test_single_class_gate_is_unknown) ... ok
+test_unfinished_past_query_is_excluded (test_h7b.CausalityTests.test_unfinished_past_query_is_excluded) ... ok
+test_block_leakage_rejected (test_h7b.DesignTests.test_block_leakage_rejected) ... ok
+test_calibration_future_rejected (test_h7b.DesignTests.test_calibration_future_rejected) ... ok
+test_duplicate_trial_rejected (test_h7b.DesignTests.test_duplicate_trial_rejected) ... ok
+test_legacy_cannot_be_rebranded (test_h7b.DesignTests.test_legacy_cannot_be_rebranded) ... ok
+test_manipulation_failure_retained (test_h7b.DesignTests.test_manipulation_failure_retained) ... ok
+test_missing_cache_truth_is_not_zero (test_h7b.DesignTests.test_missing_cache_truth_is_not_zero) ... ok
+test_synthetic_requires_opt_in (test_h7b.DesignTests.test_synthetic_requires_opt_in) ... ok
+test_constructed_data_cannot_be_reported_as_confirmation (test_h7b.ModelBoundaryTests.test_constructed_data_cannot_be_reported_as_confirmation) ... ok
+test_future_test_timing_cannot_change_prior_prediction (test_h7b.ModelBoundaryTests.test_future_test_timing_cannot_change_prior_prediction) ... ok
+test_learned_baselines_present_without_privileged_features (test_h7b.ModelBoundaryTests.test_learned_baselines_present_without_privileged_features) ... ok
+test_permutation_changes_selection_without_changing_block_coverage (test_h7b.ModelBoundaryTests.test_permutation_changes_selection_without_changing_block_coverage) ... ok
+test_test_labels_do_not_train_or_select (test_h7b.ModelBoundaryTests.test_test_labels_do_not_train_or_select) ... ok
+test_cache_counters_and_labels_cannot_change_public_features (test_h7b.ProjectionTests.test_cache_counters_and_labels_cannot_change_public_features) ... ok
+test_coalesced_reference_endpoint_rejected (test_h7b.ProjectionTests.test_coalesced_reference_endpoint_rejected) ... ok
+test_early_query_output_rejected (test_h7b.ProjectionTests.test_early_query_output_rejected) ... ok
+test_missing_done_rejected (test_h7b.ProjectionTests.test_missing_done_rejected) ... ok
+test_nonmonotone_sse_rejected (test_h7b.ProjectionTests.test_nonmonotone_sse_rejected) ... ok
+test_post_dispatch_reference_does_not_change_features (test_h7b.ProjectionTests.test_post_dispatch_reference_does_not_change_features) ... ok
+test_public_fields_are_an_explicit_allowlist (test_h7b.ProjectionTests.test_public_fields_are_an_explicit_allowlist) ... ok
+test_wrong_trigger_rejected (test_h7b.ProjectionTests.test_wrong_trigger_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 26 tests in 1.740s
+
+OK

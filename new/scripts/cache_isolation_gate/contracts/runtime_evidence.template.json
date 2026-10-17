@@ -1,0 +1,15 @@
+{
+  "schema_version": "dos-runtime-evidence-v2",
+  "runtime_gate_passed": false,
+  "checks": {
+    "functional_gpu_and_model": {"status": "pending", "evidence_files": []},
+    "effective_prefix_reuse_and_tenant_separation": {"status": "pending", "evidence_files": []},
+    "resolved_scheduler_and_budget_values": {"status": "pending", "evidence_files": []},
+    "distinct_prefill_trajectories_under_controlled_workload": {"status": "pending", "evidence_files": []},
+    "equal_effective_kv_capacity_within_comparisons": {"status": "pending", "evidence_files": []},
+    "predeclared_same_decode_cohort": {"status": "pending", "evidence_files": []},
+    "complete_metrics_capture_and_clock_alignment": {"status": "pending", "evidence_files": []},
+    "logging_overhead_evaluated": {"status": "pending", "evidence_files": []}
+  },
+  "reviewer_decision": null
+}

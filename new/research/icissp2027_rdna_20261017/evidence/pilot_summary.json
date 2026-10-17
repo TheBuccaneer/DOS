@@ -1,0 +1,548 @@
+[
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_isolated_20261017T113228Z.jsonl",
+    "sha256": "4dd356bedc18d78ec01a4fda315dd77b49f97a52bb1bee639cb8cfafa8b4d9ca",
+    "condition": "isolated",
+    "blocks": 64,
+    "budget": 512,
+    "endpoint_ms": 454.940058,
+    "valid": true,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": true,
+      "iteration_accounting": true,
+      "effective_budget": true,
+      "budget_binding_observed": false,
+      "overlap_confirmed": true,
+      "victim_only_capacity_valid": false
+    },
+    "issues": [],
+    "mechanism_status": "no_preemption_observed",
+    "cache": {
+      "D": 0,
+      "B": 0
+    },
+    "prefill": {
+      "D": 192,
+      "B": 128
+    },
+    "chunks": [
+      128
+    ],
+    "preemptions": 0.0,
+    "waiting": 0.0,
+    "active_blocks": 24.0,
+    "steps": 22
+  },
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_isolated_b64_20261017T114654Z.jsonl",
+    "sha256": "fc6f0dfb6f0d55374874f3f79a2426c74f494f653302b9d581614cb312f6083c",
+    "condition": "isolated",
+    "blocks": 64,
+    "budget": 64,
+    "endpoint_ms": 428.328367,
+    "valid": true,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": true,
+      "iteration_accounting": true,
+      "effective_budget": true,
+      "budget_binding_observed": true,
+      "overlap_confirmed": true,
+      "victim_only_capacity_valid": false
+    },
+    "issues": [],
+    "mechanism_status": "no_preemption_observed",
+    "cache": {
+      "D": 0,
+      "B": 0
+    },
+    "prefill": {
+      "D": 192,
+      "B": 128
+    },
+    "chunks": [
+      63,
+      63,
+      2
+    ],
+    "preemptions": 0.0,
+    "waiting": 0.0,
+    "active_blocks": 24.0,
+    "steps": 22
+  },
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_isolated_n24_b64_20261017T121844Z.jsonl",
+    "sha256": "26606f2bb1f17d673e8d99aec93c4239c816d4fa231326a998e33cfa03488249",
+    "condition": "isolated",
+    "blocks": 24,
+    "budget": 64,
+    "endpoint_ms": 431.387658,
+    "valid": false,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": false,
+      "iteration_accounting": false,
+      "effective_budget": false,
+      "budget_binding_observed": false,
+      "overlap_confirmed": false,
+      "victim_only_capacity_valid": false
+    },
+    "issues": [
+      "cache_manipulation: cache attribution under preemption is unresolved",
+      "iteration_accounting: ambiguous request count or non-unit decode",
+      "effective_budget: iteration exceeds budget or work cannot be attributed",
+      "overlap_confirmed: no unambiguous scheduler attribution"
+    ],
+    "mechanism_status": "preemption_candidate_insufficient_attribution",
+    "cache": {
+      "D": 0,
+      "B": 0
+    },
+    "prefill": {
+      "D": 192,
+      "B": 128
+    },
+    "chunks": null,
+    "preemptions": 1.0,
+    "waiting": 1.0,
+    "active_blocks": 23.0,
+    "steps": null
+  },
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_no_prefix_isolated_20261017T113432Z.jsonl",
+    "sha256": "291d05f122464a71c0f554b4357bd3452b62a0e4d1ef07910d7dbc9cec9fc1c4",
+    "condition": "no-prefix-isolated",
+    "blocks": 64,
+    "budget": 512,
+    "endpoint_ms": 453.75782,
+    "valid": true,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": true,
+      "iteration_accounting": true,
+      "effective_budget": true,
+      "budget_binding_observed": false,
+      "overlap_confirmed": true,
+      "victim_only_capacity_valid": false
+    },
+    "issues": [],
+    "mechanism_status": "no_preemption_observed",
+    "cache": {
+      "D": 0,
+      "B": 0
+    },
+    "prefill": {
+      "D": 192,
+      "B": 128
+    },
+    "chunks": [
+      128
+    ],
+    "preemptions": 0.0,
+    "waiting": 0.0,
+    "active_blocks": 24.0,
+    "steps": 22
+  },
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_no_prefix_isolated_b64_20261017T115142Z.jsonl",
+    "sha256": "f1a447beb32a92f91b55c572e4164d9c1b66d2e48a0e7253e2c8d86fdc93d64a",
+    "condition": "no-prefix-isolated",
+    "blocks": 64,
+    "budget": 64,
+    "endpoint_ms": 430.724906,
+    "valid": true,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": true,
+      "iteration_accounting": true,
+      "effective_budget": true,
+      "budget_binding_observed": true,
+      "overlap_confirmed": true,
+      "victim_only_capacity_valid": false
+    },
+    "issues": [],
+    "mechanism_status": "no_preemption_observed",
+    "cache": {
+      "D": 0,
+      "B": 0
+    },
+    "prefill": {
+      "D": 192,
+      "B": 128
+    },
+    "chunks": [
+      63,
+      63,
+      2
+    ],
+    "preemptions": 0.0,
+    "waiting": 0.0,
+    "active_blocks": 24.0,
+    "steps": 22
+  },
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_no_prefix_shared_20261017T113318Z.jsonl",
+    "sha256": "8363ee14070199b42f470323074fc03a821bfd9ad82889c16cf15756c5e1b881",
+    "condition": "no-prefix-shared",
+    "blocks": 64,
+    "budget": 512,
+    "endpoint_ms": 455.014617,
+    "valid": true,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": true,
+      "iteration_accounting": true,
+      "effective_budget": true,
+      "budget_binding_observed": false,
+      "overlap_confirmed": true,
+      "victim_only_capacity_valid": false
+    },
+    "issues": [],
+    "mechanism_status": "no_preemption_observed",
+    "cache": {
+      "D": 0,
+      "B": 0
+    },
+    "prefill": {
+      "D": 192,
+      "B": 128
+    },
+    "chunks": [
+      128
+    ],
+    "preemptions": 0.0,
+    "waiting": 0.0,
+    "active_blocks": 24.0,
+    "steps": 22
+  },
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_no_prefix_shared_b64_20261017T114740Z.jsonl",
+    "sha256": "fed223a2f68f8685a91355df66ec72d7ac043ec0bc4afbf9de8480499eda9eb4",
+    "condition": "no-prefix-shared",
+    "blocks": 64,
+    "budget": 64,
+    "endpoint_ms": 430.730071,
+    "valid": true,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": true,
+      "iteration_accounting": true,
+      "effective_budget": true,
+      "budget_binding_observed": true,
+      "overlap_confirmed": true,
+      "victim_only_capacity_valid": false
+    },
+    "issues": [],
+    "mechanism_status": "no_preemption_observed",
+    "cache": {
+      "D": 0,
+      "B": 0
+    },
+    "prefill": {
+      "D": 192,
+      "B": 128
+    },
+    "chunks": [
+      63,
+      63,
+      2
+    ],
+    "preemptions": 0.0,
+    "waiting": 0.0,
+    "active_blocks": 24.0,
+    "steps": 22
+  },
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_no_prefix_shared_n24_b64_20261017T122050Z.jsonl",
+    "sha256": "f62797af8a588b62c563ad98dc50aa2bc2262e694ebebeb5b7d22d837d1b4ab4",
+    "condition": "no-prefix-shared",
+    "blocks": 24,
+    "budget": 64,
+    "endpoint_ms": 432.514977,
+    "valid": false,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": false,
+      "iteration_accounting": false,
+      "effective_budget": false,
+      "budget_binding_observed": false,
+      "overlap_confirmed": false,
+      "victim_only_capacity_valid": false
+    },
+    "issues": [
+      "cache_manipulation: cache attribution under preemption is unresolved",
+      "iteration_accounting: ambiguous request count or non-unit decode",
+      "effective_budget: iteration exceeds budget or work cannot be attributed",
+      "overlap_confirmed: no unambiguous scheduler attribution"
+    ],
+    "mechanism_status": "preemption_candidate_insufficient_attribution",
+    "cache": {
+      "D": 0,
+      "B": 0
+    },
+    "prefill": {
+      "D": 192,
+      "B": 128
+    },
+    "chunks": null,
+    "preemptions": 1.0,
+    "waiting": 1.0,
+    "active_blocks": 23.0,
+    "steps": null
+  },
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_shared_20261017T113134Z.jsonl",
+    "sha256": "fc03350a07e2ca181f3c9016bc7a3b829d0eabd76a37ea046d034abec7afd5db",
+    "condition": "shared",
+    "blocks": 64,
+    "budget": 512,
+    "endpoint_ms": 423.73936,
+    "valid": true,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": true,
+      "iteration_accounting": true,
+      "effective_budget": true,
+      "budget_binding_observed": false,
+      "overlap_confirmed": true,
+      "victim_only_capacity_valid": false
+    },
+    "issues": [],
+    "mechanism_status": "no_preemption_observed",
+    "cache": {
+      "D": 0,
+      "B": 112
+    },
+    "prefill": {
+      "D": 192,
+      "B": 16
+    },
+    "chunks": [
+      16
+    ],
+    "preemptions": 0.0,
+    "waiting": 0.0,
+    "active_blocks": 17.000000000000004,
+    "steps": 22
+  },
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_shared_b64_20261017T114419Z.jsonl",
+    "sha256": "b2b1b19acb9dfb916c246219653648a80d68d45c4b110dff9c35ec880950da6f",
+    "condition": "shared",
+    "blocks": 64,
+    "budget": 64,
+    "endpoint_ms": 422.003697,
+    "valid": true,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": true,
+      "iteration_accounting": true,
+      "effective_budget": true,
+      "budget_binding_observed": false,
+      "overlap_confirmed": true,
+      "victim_only_capacity_valid": false
+    },
+    "issues": [],
+    "mechanism_status": "no_preemption_observed",
+    "cache": {
+      "D": 0,
+      "B": 112
+    },
+    "prefill": {
+      "D": 192,
+      "B": 16
+    },
+    "chunks": [
+      16
+    ],
+    "preemptions": 0.0,
+    "waiting": 0.0,
+    "active_blocks": 17.000000000000004,
+    "steps": 22
+  },
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_shared_n24_b64_20261017T121702Z.jsonl",
+    "sha256": "0c18cfd15d9af2a5f242c5a510f5a245687316df8c201063d08cee2cd9c64517",
+    "condition": "shared",
+    "blocks": 24,
+    "budget": 64,
+    "endpoint_ms": 425.381792,
+    "valid": true,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": true,
+      "iteration_accounting": true,
+      "effective_budget": true,
+      "budget_binding_observed": false,
+      "overlap_confirmed": true,
+      "victim_only_capacity_valid": false
+    },
+    "issues": [],
+    "mechanism_status": "no_preemption_observed",
+    "cache": {
+      "D": 0,
+      "B": 112
+    },
+    "prefill": {
+      "D": 192,
+      "B": 16
+    },
+    "chunks": [
+      16
+    ],
+    "preemptions": 0.0,
+    "waiting": 0.0,
+    "active_blocks": 17.0,
+    "steps": 22
+  },
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_victim_only_20261017T112942Z.jsonl",
+    "sha256": "99585c538c2cd747614f077c576e3588eaf5e6d55ee8404059a1bf4fddb14b3d",
+    "condition": "victim-only",
+    "blocks": 64,
+    "budget": 512,
+    "endpoint_ms": 419.261718,
+    "valid": true,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": true,
+      "iteration_accounting": true,
+      "effective_budget": true,
+      "budget_binding_observed": false,
+      "overlap_confirmed": null,
+      "victim_only_capacity_valid": true
+    },
+    "issues": [],
+    "mechanism_status": "no_preemption_observed",
+    "cache": {
+      "D": 0
+    },
+    "prefill": {
+      "D": 192
+    },
+    "chunks": [],
+    "preemptions": 0.0,
+    "waiting": 0.0,
+    "active_blocks": 14.0,
+    "steps": null
+  },
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_victim_only_b64_20261017T114303Z.jsonl",
+    "sha256": "0811a20162e674b612323db8994a4c4d1ab24faf533238f6e5367469e9a64712",
+    "condition": "victim-only",
+    "blocks": 64,
+    "budget": 64,
+    "endpoint_ms": 402.788552,
+    "valid": true,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": true,
+      "iteration_accounting": true,
+      "effective_budget": true,
+      "budget_binding_observed": true,
+      "overlap_confirmed": null,
+      "victim_only_capacity_valid": true
+    },
+    "issues": [],
+    "mechanism_status": "no_preemption_observed",
+    "cache": {
+      "D": 0
+    },
+    "prefill": {
+      "D": 192
+    },
+    "chunks": [],
+    "preemptions": 0.0,
+    "waiting": 0.0,
+    "active_blocks": 14.0,
+    "steps": null
+  },
+  {
+    "file": "new/runs/cache_isolation_gate/overlap_victim_only_n24_b64_20261017T121630Z.jsonl",
+    "sha256": "0a1fc0f15212fdb8cd975e78e52e2ac1b6933ec63f14dd7d0f6b88b891c62691",
+    "condition": "victim-only",
+    "blocks": 24,
+    "budget": 64,
+    "endpoint_ms": 406.430811,
+    "valid": true,
+    "gates": {
+      "technical_complete": true,
+      "trigger_exact": true,
+      "server_bound": true,
+      "metrics_complete": true,
+      "traffic_attributed": true,
+      "cache_manipulation": true,
+      "iteration_accounting": true,
+      "effective_budget": true,
+      "budget_binding_observed": true,
+      "overlap_confirmed": null,
+      "victim_only_capacity_valid": true
+    },
+    "issues": [],
+    "mechanism_status": "no_preemption_observed",
+    "cache": {
+      "D": 0
+    },
+    "prefill": {
+      "D": 192
+    },
+    "chunks": [],
+    "preemptions": 0.0,
+    "waiting": 0.0,
+    "active_blocks": 14.0,
+    "steps": null
+  }
+]

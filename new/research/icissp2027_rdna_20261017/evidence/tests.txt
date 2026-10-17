@@ -1,0 +1,19 @@
+test_actual_stream (test_reanalyze.EvidenceTests.test_actual_stream) ... ok
+test_changed_stored_endpoint (test_reanalyze.EvidenceTests.test_changed_stored_endpoint) ... ok
+test_conditional_observer_negative_control (test_reanalyze.EvidenceTests.test_conditional_observer_negative_control) ... ok
+test_counter_labels (test_reanalyze.EvidenceTests.test_counter_labels) ... ok
+test_malformed (test_reanalyze.EvidenceTests.test_malformed) ... ok
+test_missing_done (test_reanalyze.EvidenceTests.test_missing_done) ... ok
+test_missing_metric_is_not_zero (test_reanalyze.EvidenceTests.test_missing_metric_is_not_zero) ... ok
+test_missing_token (test_reanalyze.EvidenceTests.test_missing_token) ... ok
+test_preemption_preserves_measurement_and_abstains (test_reanalyze.EvidenceTests.test_preemption_preserves_measurement_and_abstains) ... ok
+test_raw_generation_residual_retained (test_reanalyze.EvidenceTests.test_raw_generation_residual_retained) ... ok
+test_scheduled_generation_counter_is_not_new_output (test_reanalyze.EvidenceTests.test_scheduled_generation_counter_is_not_new_output) ... ok
+test_uniform_analytical_witness (test_reanalyze.EvidenceTests.test_uniform_analytical_witness) ... ok
+test_warm_victim_rejected (test_reanalyze.EvidenceTests.test_warm_victim_rejected) ... ok
+test_weak_reference_does_not_prove_separation (test_reanalyze.EvidenceTests.test_weak_reference_does_not_prove_separation) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.106s
+
+OK

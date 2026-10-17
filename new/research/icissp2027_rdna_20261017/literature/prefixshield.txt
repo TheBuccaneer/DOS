@@ -1,0 +1,648 @@
+                                               Preserving Admission Responsibility in
+                                         Multi-Tenant Large Language Model Prefix Caches
+                                                                                       Zhiyu Wang and Rajkumar Buyya
+                                                                     Quantum Cloud Computing and Distributed Systems (qCLOUDS) Lab
+                                                                              School of Computing and Information Systems
+                                                                                  The University of Melbourne, Australia
+                                                                                  {zhiyu.wang4, rbuyya}@unimelb.edu.au
+
+
+                                           Abstract—Shared prefix caching turns Graphics Processing           be reclaimed, yet the group that creates the pressure is not
+                                        Unit (GPU) memory into persistent state shared across Large           necessarily the group whose state is evicted. A workload that
+                                        Language Model (LLM) tenants. A group that materializes               repeatedly uses a stable hot prefix can therefore lose useful
+                                        new Key-Value (KV) blocks can force another to lose reusable
+                                        state, yet request-time schedulers account for transient service,     cached state because another group continuously introduces
+                                        replacement policies primarily rank object value, and static          one-shot prefixes. Unlike bandwidth or request-time compute,
+                                        partitioning strands idle capacity. We call this mismatch the         cached KV state remains after the creating request completes
+                                        admission-responsibility gap. To close it, we propose PrefixShield,   and continues to shape later replacement decisions. This
+
+
+
+
+arXiv:2608.01657v1 [cs.DC] 3 Aug 2026
+                                        which meters newly materialized full KV blocks, carries responsi-     persistent-state coupling is distinct from request-time service-
+                                        bility across requests, gates reuse promotion while debt remains,
+                                        and uses projected debt to select the group supplying eviction        fairness mechanisms that account for processed client work
+                                        candidates. We implement PrefixShield in vLLM. In paired runs         while requests are being served [8].
+                                        under one-touch pollution, PrefixShield improves victim cache            We call this mismatch the admission-responsibility gap:
+                                        hit ratio by 9.39 percentage points over the Least Recently           control over shared-state creation is decoupled from responsi-
+                                        Used (LRU) policy and 8.64 points over S3-FIFO, restoring the         bility for the replacement cost that creation later induces. Ex-
+                                        victim from 4.92% to 84.87% at 4096-block scale, and gains
+                                        2.00 points over S3-FIFO under two-pass replay. It preserves          isting controls leave a missing operating point. A global Least
+                                        benign ShareGPT behavior and work-conserving access to idle           Recently Used (LRU) policy preserves work conservation, but
+                                        capacity. Delayed replay yields a 35.16-point advantage while         once state is admitted, replacement ignores which accounting
+                                        debt remains. These results show that object-value signals rank       group created the pressure [7]. Reuse-aware replacement poli-
+                                        what to retain, while persistent responsibility determines which      cies such as S3-FIFO use quick demotion and reuse signals
+                                        group bears reclamation pressure.
+                                           Index Terms—Large language model serving, Prefix caching,
+                                                                                                              to estimate object value, but still decide primarily which
+                                        Cache replacement, Multi-tenant resource management                   cached objects are worth retaining [9]. Static per-group quotas
+                                                                                                              provide a simple hard-isolation endpoint but can strand idle
+                                                               I. I NTRODUCTION                               capacity, reflecting the cache-isolation and resource-limiting
+                                                                                                              design space studied in multi-tenant caching [10], [11]. Cache-
+                                           Networked multi-tenant Large Language Model (LLM)                  admission policies decide whether an object appears valuable
+                                        services increasingly share accelerator-backed state across           enough to enter the cache [12]; they do not determine who
+                                        independent clients. Prefix caching turns Graphics Processing         remains accountable for pressure after admission. What is
+                                        Unit (GPU) memory into a persistent shared resource: when             missing is a globally shared cache that remains freely bor-
+                                        requests reuse system prompts, templates, conversation history,       rowable while preserving the causal relationship between state
+                                        retrieved context, or other common prefixes, retaining their          creation and later reclamation.
+                                        Key-Value (KV) states avoids repeated prefill computation                PrefixShield targets this operating point with a simple prin-
+                                        and can reduce serving cost and latency. Systems such as              ciple: the accounting group that creates new persistent cache
+                                        vLLM and SGLang retain reusable KV state across requests,             pressure should remain responsible for that pressure until the
+                                        while newer systems span stateful conversations, distributed          corresponding admission debt recovers. PrefixShield realizes
+                                        context caches, multi-GPU KV placement, and multi-tier KV             this principle in three steps. First, it meters actual state creation
+                                        hierarchies [1]–[6]. Production-trace characterization further        rather than request activity, charging only newly materialized
+                                        shows that KV-cache reuse and eviction behavior are strongly          full KV blocks. Second, it prevents replay from laundering
+                                        workload dependent [7]. Global sharing is attractive because          outstanding responsibility into higher retention by gating reuse
+                                        an active accounting group can exploit capacity that would            promotion while debt remains. Third, when reclamation is
+                                        otherwise sit idle.                                                   necessary, it separates who should bear reclamation from
+                                           Persistence changes the isolation problem. An accounting           which of that group’s blocks should be removed: responsibility
+                                        group can continuously submit previously unseen long pre-             selects the group, while reuse segmentation protects more
+                                        fixes, causing new KV blocks to enter the shared cache. Once          valuable state within that group. PrefixShield never denies
+                                        capacity is exhausted, these admissions force cached state to         cache admission merely because a group is in debt and
+imposes no fixed per-group occupancy ceiling; responsibility       [13]. Because GPU memory is finite, cached blocks eventually
+matters only when shared capacity becomes contested.               compete for capacity and must be reclaimed before new KV
+   We implement PrefixShield in vLLM’s prefix-cache man-           state can be materialized; production traces confirm that reuse
+agement path [1] without modifying model computation or KV         patterns and eviction-policy effectiveness vary substantially
+tensor contents. Comparisons with S3-FIFO, a strong reuse-         across workloads [7]. A global replacement domain is nat-
+aware replacement policy, isolate the additional protection pro-   urally work-conserving, but it also couples accounting groups
+vided by persistent group responsibility under direct one-touch    through reclamation: state created by one group can determine
+churn and two-pass replay, where object-local reuse evidence       which other group’s reusable state is displaced.
+does not identify the group repeatedly creating reclamation
+pressure. PrefixShield also preserves work conservation: when      B. The Admission-Responsibility Gap
+a peer is idle, an active group occupies 509–510 of the 511           The central problem is a mismatch between who creates
+usable cache blocks. Targeted experiments span an eightfold        cache pressure and who bears its consequences. Consider
+replacement-domain range, sweep measured new-block cre-            a victim that repeatedly accesses a stable hot prefix while
+ation relative to configured refill, and delay replay across       another accounting group continuously submits previously
+debt clearance, testing robustness across capacity scales and      unseen long prefixes. Each such request materializes new
+isolating when responsibility becomes consequential.               KV blocks. Under global LRU, those blocks enter the same
+   This work makes three contributions:                            replacement domain as the victim’s useful state, so sustained
+   • We identify the admission-responsibility gap in multi-        admissions can displace the victim even when the newly
+     tenant LLM prefix caching: persistent cache pressure can      introduced prefixes are never reused. The group generating
+     be created by one accounting group while its replacement      new state controls admission pressure, but the associated
+     cost is externalized to others.                               eviction cost is externalized to the shared cache. This cross-
+   • We design and implement PrefixShield, which preserves         client coupling is related to long-standing multi-tenant cache-
+     state-creation responsibility across admission, reuse, and    sharing concerns, but here the shared objects are expensive-to-
+     reclamation without static cache partitioning or admission    reconstruct KV states created by inference requests [7], [10],
+     denial.                                                       [14].
+   • We show that persistent group responsibility provides            This distinction separates request activity from cache cre-
+     protection beyond reuse-aware replacement under direct        ation. A request that hits a long cached prefix may generate
+     churn and replay. Against S3-FIFO, a strong reuse-aware       almost no new KV state, whereas a similarly sized request
+     replacement policy, PrefixShield improves victim cache-       containing an unseen suffix may materialize many new blocks.
+     hit ratio by 8.64 percentage points under direct one-         Likewise, a group need not generate a conspicuous burst:
+     touch churn and by 2.00 percentage points under two-          continuously rotating unseen prefixes at a lower rate can
+     pass replay, while preserving benign cache-hit behavior       accumulate persistent pressure over time. A mechanism that
+     and work-conserving access to idle capacity. Under one-       targets this gap must therefore account for actual state creation
+     touch churn at 4096-block scale, PrefixShield restores the    rather than infer pressure solely from request rate.
+     victim hit ratio from 4.92% under LRU to 84.87%.                 Two design endpoints illustrate the missing operating
+                                                                   point. Global replacement provides work conservation without
+   The rest of the paper is organized as follows. Section II
+                                                                   accounting-group-aware protection; hard quotas provide struc-
+formulates the admission-responsibility gap and states the
+                                                                   tural isolation but strand capacity when some groups are idle.
+threat model. Section III presents the PrefixShield design and
+                                                                   PrefixShield targets the point between them: a globally shared
+Section IV its vLLM implementation. Section V evaluates
+                                                                   cache in which responsibility for creating pressure remains
+protection, benign behavior, scaling, and overhead. Section VI
+                                                                   relevant when reclamation is required.
+discusses implications, Section VII reviews related work, and
+Section VIII concludes the paper and outlines future work.         C. Threat Model and Design Goals
+             II. BACKGROUND AND P ROBLEM                             We consider a multi-tenant LLM serving system in which
+                                                                   requests from multiple operator-defined accounting groups
+A. Shared Prefix Caching                                           share a finite physical KV-block pool and one replacement
+   Autoregressive LLM serving repeatedly performs the same         domain. The adversary is a legitimate client that can control
+prefix computation when requests share system prompts,             the token sequences and timing of its own requests. It may
+templates, conversation history, retrieved context, or other       generate unseen prefixes, rotate them over time, or replay
+common token sequences. Prefix caching retains the KV states       previously admitted prefixes. It cannot directly modify another
+produced during prefill and reuses them when a later request       group’s requests, cache metadata, or KV contents and does
+matches an existing prefix, as in block-based, radix-tree, and     not compromise the model, runtime, operating system, or
+stateful-conversation serving designs [1]–[3]. Recent systems      authentication layer. Network flooding, compute-only denial
+additionally fuse cached knowledge, distribute context caches,     of service, memory-safety exploits, and unbounded creation
+migrate KV state across GPUs, or hierarchically place KV           of independently entitled accounting groups are outside the
+state to reduce memory and data-movement costs [4]–[6],            scope of this work.
+Fig. 1. PrefixShield’s request-to-reclamation lifecycle. New KV blocks accrue admission responsibility; cache hits provide reuse evidence. Debt gates promotion
+across requests and, under contention, selects who pays, while retention class selects which block is reclaimed.
+   In the prototype and evaluation, native prefix lookup is                      promotion, and when shared capacity becomes contested,
+namespace-scoped by accounting group even though all groups                      projected debt selects the responsible group before retention
+compete for the same physical block pool. Cross-group in-                        class selects the victim block.
+terference therefore arises through shared capacity and re-                         Each       managed       block      has     an      immutable
+placement rather than cross-group content deduplication. A                       accounting owner and retention class κ(b)                      ∈
+managed block is assigned to the accounting group that                           {P ROBATIONARY, N ORMAL, R EUSE}. The logical prefix
+materializes it, and this ownership remains fixed for the                        identifier used for admission and reuse history is policy
+block’s lifetime; requester identity is tracked separately. Cross-               metadata, distinct from vLLM’s native content-hash lookup
+group content reuse would require multi-principal rules for                      key; namespace isolation is carried separately through
+ownership and admission responsibility and is outside the                        the native cache namespace. Newly admitted state is
+current prototype.                                                               P ROBATIONARY on its first successful admission or whenever
+   We exercise three complementary attack patterns grounded                      its admission leaves the responsible group in debt; a funded
+in prior cache and LLM-serving studies. One-touch pollu-                         subsequent admission of an already admitted prefix may
+tion [7] continuously introduces unseen prefixes. Low-and-                       enter N ORMAL. Proven reuse can promote matching state
+slow rotation [15] spreads similar pressure over time. Replay-                   to R EUSE, but only after the responsible accounting group’s
+based pollution [12], [16] revisits previously admitted prefixes                 effective debt has cleared. Touches and promotion update
+in an attempt to manufacture apparent reuse. These workloads                     access state but do not migrate ownership. Reclamation is
+stress direct state creation, temporal evasion, and reuse laun-                  two-stage: debt determines which group bears reclamation,
+dering, respectively.                                                            then the retention class determines which block owned by
+   PrefixShield has four goals: (G1) attribute sustained cache                   that group is reclaimed.
+pressure so that one group cannot freely externalize its replace-                   Two invariants capture the design. I1: Complete pres-
+ment cost; (G2) preserve responsibility across time and prevent                  sure attribution. Every newly materialized full KV-cache
+unresolved pressure from being erased through replay; (G3)                       block is charged exactly once to the accounting group that
+retain work conservation so idle capacity remains globally                       introduced it, whereas pure cache reuse creates no additional
+borrowable; and (G4) limit added overhead on the cache-                          admission responsibility. I2: No debt laundering through
+management path.                                                                 reuse. Reaccessing a prefix may establish reuse evidence,
+                                                                                 but outstanding admission debt prevents that evidence from
+                          III. P REFIX S HIELD                                   immediately promoting state to the R EUSE class.
+   PrefixShield is based on a simple principle: the accounting                      Design rationale. PrefixShield keeps creation responsibil-
+group that introduces new shared-cache pressure should retain                    ity, reuse value, and physical contention as separate signals.
+responsibility for that pressure until its admission debt recov-                 Request rate is not a reliable proxy for new state creation,
+ers. Responsibility does not prevent use of spare capacity; it                   reuse alone can be manufactured through replay, and hard
+becomes consequential only when capacity is contested.                           enforcement of responsibility would sacrifice borrowing when
+                                                                                 capacity is idle. PrefixShield therefore meters creation at mate-
+A. Design Overview                                                               rialization, interprets reuse through the debt gate, and consults
+   Figure 1 summarizes PrefixShield’s three-stage request-to-                    responsibility only when reclamation is actually required.
+reclamation lifecycle and the two persistent signals that con-
+nect them. On the request path, native prefix lookup separates                   B. Fully Metered Admission Responsibility
+reuse of already resident state from creation of new persistent                     PrefixShield meters cache creation rather than request ar-
+state. Cached blocks incur no new admission charge, whereas                      rival. Let nr be the number of full KV-cache blocks newly ma-
+every newly materialized full KV-cache block is charged to                       terialized by request r after native prefix lookup. PrefixShield
+the accounting group that caused its creation. Across requests,                  charges exactly nr blocks to the request’s accounting group
+admission debt preserves creation responsibility while reuse                     and service contract; therefore a pure cache hit has nr = 0
+evidence captures object value: outstanding debt gates reuse                     and creates no new charge. This distinction is essential because
+two requests of similar token length can create very different           C. Debt-Gated Reuse Promotion
+amounts of persistent shared state.                                         Reuse is valuable evidence, but reuse alone is an unsafe
+   For each accounting group g and service contract c, Pre-              protection signal. After introducing substantial state, an adap-
+fixShield maintains a block-denominated balance Bg,c , posi-             tive group could replay those prefixes and attempt to convert
+tive refill rate ρc in blocks per unit accounting time, and burst        self-generated pollution into higher-retention cache entries.
+capacity βc in blocks. We use a monotonic accounting clock t;            PrefixShield therefore separates observing reuse from granting
+lazy refill requires no background timer. If the stored balance          reuse privilege. A cached block is promotion-eligible only
+was last updated at time t0 , its effective value at time t is           when the current request represents proven reuse and the block
+          bg,c (t) = min{βc , Bg,c (t0 ) + ρc (t − t0 )} .
+          B                                                       (1)    metadata matches the same accounting group, contract, and
+                                                                         logical prefix. Even then, promotion to R EUSE is granted only
+When request r creates nr new full blocks, PrefixShield stores           when the responsible group’s effective raw debt has cleared:
+                                bg,c (t) − nr .
+                     Bg,c (t) = B                                 (2)
+                                                                           κ(b) → R EUSE =⇒ ProvenReuse(b, r) ∧ Dg (t) ≤ ϵ. (4)
+A negative balance does not suppress cache admission. It rep-
+resents outstanding admission responsibility while preserving            When Dg (t) > ϵ, PrefixShield still records reuse and updates
+work conservation. The effective raw debt of accounting group            access metadata, but the block remains in its current class.
+g at time t is                                                           Because Dg aggregates debt over all contracts of the same
+                        X       n             o                          accounting group, switching contract labels within that group
+               Dg (t) =    max 0, −B  bg,c (t) .           (3)           cannot bypass unresolved admission responsibility; contract
+                           c                                             weights affect reclamation ranking, not whether outstand-
+Throughout, ϵ ≥ 0 is the implementation tolerance for treating           ing responsibility may be laundered into R EUSE promotion.
+debt as cleared. Because B        bg,c (t) is evaluated lazily, debt     Proposition 1 shows that the gate is not permanent: under
+recovers with accounting time when a group stops creating                quiescence, eligibility returns after outstanding deficits refill.
+new state; eviction itself does not repay the token bucket.                 Algorithm 1 summarizes these request-side updates. It
+The parameters βc and ρc express contract-level responsibility           meters newly materialized full KV blocks, initializes their
+rather than admission control: ρc is the service tier’s sustain-         retention class, records reuse evidence, and applies the debt-
+able new-block creation entitlement, and βc is its short-term            gated promotion rule.
+burst credit. Operators can derive ρc from tier-level state-
+creation budgets and choose βc for a desired burst horizon.              D. Responsibility-Aware Reuse-Segmented Eviction
+Neither parameter imposes a cache-occupancy quota or an                     When shared capacity becomes contested, PrefixShield sep-
+upper bound on request-driven state creation.                            arates two decisions that global replacement collapses into
+    Accounting principal versus service contract. The ac-                one: which accounting group should bear reclamation and
+counting group is the administrative principal to which persis-          which block owned by that group should be evicted. Admission
+tent responsibility attaches, while the service contract specifies       debt answers the first question; reuse segmentation answers the
+that principal’s creation entitlement. Raw debt is aggregated at         second.
+the group level for reuse gating so contract relabeling cannot              Let ρmin = minc′ ρc′ and wc = ρc /ρmin . The normalized
+erase unresolved responsibility; contract-specific refill rates          debt of accounting group g is
+and normalized weights instead determine how heterogeneous                                                 n              o
+entitlements influence reclamation priority.                                                      X max 0, −B     bg,c (t)
+Proposition 1 (Quiescent debt clearance). Assume ρc > 0                                D
+                                                                                       e g (t) =                            .        (5)
+                                                                                                   c
+                                                                                                               wc
+for every active service contract. Fix group g at logical time
+t0 , let dg,c (t0 ) = max{0, −B     bg,c (t0 )}, and define τg (t0 ) =   This normalization measures excess pressure relative to con-
+maxc:dg,c (t0 )>0 dg,c (t0 )/ρc , taking the maximum of the empty        tract entitlement. For equal raw deficits, a contract with larger
+set as zero. If g materializes no new blocks after t0 , then             ρc contributes less normalized debt because its service tier
+Dg (t) = 0 for all t ≥ t0 + τg (t0 ). Proof. Under quiescence,           permits a higher sustained creation rate; the debt remains fully
+contract c’s deficit is max{0, dg,c (t0 ) − ρc (t − t0 )} until it       metered, while reclamation priority reflects pressure relative
+reaches zero. Every contract deficit therefore vanishes by t0 +          to the configured contract. For candidate set C, the indebted
+τg (t0 ), and Eq. (3) proves the claim.                                  candidate-owning groups are
+    The post-charge balance and prefix-admission history de-                            n                                          o
+termine the initial class. A first successful admission is P RO -          G + (C, t) = g : ∃b ∈ C, owner(b) = g, D     e g (t) > ϵ . (6)
+BATIONARY . If Bg,c (t) < −ϵ, newly admitted blocks are
+also P ROBATIONARY regardless of prior history. Otherwise, a             During a multi-block allocation, the selector maintains a
+                                                                                                                                (j)
+funded subsequent admission of a prefix already admitted by              temporary projected normalized responsibility score Pg , ini-
+                                                                                      (0)
+the same accounting group may enter N ORMAL. PrefixShield                tialized as Pg = D e g (t). Let Cj be the candidates remaining
+therefore changes retention exposure rather than denying new             at step j, let Wg (t) be the maximum weight among group
+state.                                                                   g’s currently indebted contracts, and define Gj+ = {g : ∃b ∈
+Algorithm 1 Admission accounting and debt-gated reuse                          Algorithm 2 Responsibility-aware batch reclamation
+hooks                                                                          Require: Free-queue candidates C, requested blocks k, logical time t
+ 1: procedure O N R EQUEST(r, g, p)                                             1: S ← TAKE T RUE F REE(C, k); m ← k − |S|
+ 2:    qr ← P RIOR R EFERENCE C OUNT(g, p)                                      2: if m = 0 then
+ 3:    R ECORD R EQUEST R EFERENCE(r, g, p)                                     3:     return S
+ 4: end procedure                                                               4: end if
+                                                                                5: Q ← S EGMENT Q UEUES B YOWNER(C \ S)
+ 5: procedure O N C ACHE F ULL B LOCKS(r, g, c, p, t, ncached , nfull )             D, W ) ← E FFECTIVE D EBT C ONTEXT(t); P ← D
+                                                                                6: ( e                                             e
+ 6:    nr ← max(0, nfull − ncached )                                            7: while m > 0 do
+ 7:    if nr > 0 then                                                           8:     G + ← {g : Q[g, ·] ̸= ∅ ∧ Pg > ϵ}
+ 8:        Bbg,c (t) ← R EFILL E FFECTIVE BALANCE(g, c, t)                      9:     if G + ̸= ∅ then
+ 9:        Bg,c (t) ← B bg,c (t) − nr                                          10:         g ∗ ← A RG M AX D EBT(G + , P, Q)
+10:        if Bg,c (t) < −ϵ or (g, p) has no prior successful admission then   11:         b ← F IRST S EGMENT Q UEUE(Q[g ∗ , ·])
+11:            κnew ← P ROBATIONARY                                            12:         Pg∗ ← max{0, Pg∗ − 1/Wg∗ (t)}
+12:        else                                                                13:     else
+13:            κnew ← N ORMAL                                                  14:         b ← G LOBAL F IRST S EGMENT Q UEUE(Q)
+14:        end if                                                              15:     end if
+15:    end if                                                                  16:     Append b to S; remove b from Q; m ← m − 1
+16:    NATIVE C ACHE F ULL B LOCKS(r)                                          17: end while
+17:    if nr > 0 then                                                          18: return S
+18:        R ECORD S UCCESSFUL A DMISSION(g, p)
+19:        ATTACH B LOCK M ETADATA(r, g, c, p, κnew )
+20:    end if                                                                     Algorithm 2 summarizes reclamation under contention. It
+21: end procedure                                                              allocates truly free blocks first; if additional space is required,
+                                                                               projected admission debt selects the responsible group, and
+22: procedure O N T OUCH(r, g, c, p, t, H)
+23:    proven ← (qr ≥ 1) ∧ ((g, p) was admitted)                               retention class selects the victim block within that group.
+24:    d ← Dg (t)
+25:    for all b ∈ H with PrefixShield metadata do                             E. Work-Conserving Sharing
+26:        U PDATE ACCESS M ETADATA(b)                                            PrefixShield deliberately avoids hard partitions. Admission
+27:        if proven and b matches (g, c, p) and κ(b) ̸= R EUSE then
+28:            if d ≤ ϵ then                                                   debt does not define a maximum occupancy, and no block is
+29:                κ(b) ← R EUSE                                               rejected merely because its group has exhausted a pressure
+30:            else                                                            budget. When unused capacity exists, any accounting group
+31:                R ECORD D EBT G ATED R EUSE(b)
+32:            end if                                                          may consume it; truly free blocks are allocated before cached
+33:        end if                                                              state is reclaimed. Responsibility-aware replacement activates
+34:    end for                                                                 only when shared capacity becomes contested. Together, these
+35: end procedure
+                                                                               mechanisms preserve native cache admission while modifying
+                             (j)                                               only retention classification, promotion eligibility, and victim
+Cj , owner(b) = g, Pg > ϵ}. At victim-selection step j,                        choice.
+responsibility is assigned to
+                                                                                                     IV. I MPLEMENTATION
+                         gj∗ = arg max+ Pg(j) ,                         (7)
+                                     g∈Gj                                         We implement PrefixShield on top of vLLM’s V1 prefix-
+                                                                               caching path [1]. The prototype preserves native prefix lookup,
+with equal projected debt broken by retention segment and
+                                                                               KV-block allocation, cache insertion, and block-release seman-
+native queue order. After one victim is selected from gj∗ ,
+                                                                               tics and augments the cache-management path with respon-
+                           (                    )
+             (j+1)               (j)      1                                    sibility accounting and replacement metadata. PrefixShield
+            Pg ∗    = max 0, Pg∗ −                .         (8)                does not modify model weights, attention kernels, KV tensor
+              j                   j    Wgj∗ (t)
+                                                                               contents, or request-visible generation semantics.
+Since 1/Wg (t) is the smallest normalized one-block decre-                        Integration points. PrefixShield observes request alloca-
+ment among group g’s currently indebted contracts, this                        tion, block materialization after prefix matching, cache-touch
+contract-agnostic update conservatively reduces projected re-                  events, and cached-block reclamation. The allocation path
+sponsibility without assuming which contract a reclaimed                       associates each request with its accounting group, service
+block should repay. The projection affects only victim selec-                  contract, logical prefix identifier, and accounting time. The
+tion within the current allocation batch; persistent token-bucket              evaluation maps each accounting group to a native cache
+balances evolve solely through new-state metering and refill.                  namespace while all groups continue to compete for the same
+   Within the responsible group, candidate blocks follow                       physical replacement domain. Materialization charges only full
+                                                                               blocks that are actually new; touches update access metadata
+             P ROBATIONARY ≺ N ORMAL ≺ R EUSE,                          (9)
+                                                                               and execute debt-gated promotion; reclamation replaces the
+with native free-queue order as the recency tie-break inside                   default victim choice with responsibility-aware segmented
+each segment. If no candidate-owning group has positive                        selection while retaining native queue order inside each class.
+projected debt, selection falls back to the same segment                          Metadata and selector. Each managed block records an
+ordering globally. Thus, debt determines who pays, while reuse                 immutable accounting owner together with its service contract,
+segmentation determines which block pays.                                      logical prefix identifier, retention class, prefix depth, insertion
+order, recent access order, and access count. Per group/contract           size ghost FIFO queue, and a capped two-bit counter; it
+accounting state consists of a block-denominated balance and               receives no tenant or responsibility metadata.
+last refill time. Prefix-reference and successful-admission his-        • StaticQuota [10], [11]: a fixed equal per-group partition
+tory distinguish first admission from established reuse, while             baseline representing hard isolation; it permits no cross-
+requester fields remain separate from owner fields during recla-           group borrowing.
+mation and touch processing. Metadata is maintained outside          Together, they span native global sharing, reuse-aware object-
+the KV payload and does not alter native KV contents or block        value replacement, and hard isolation. Main attack, benign,
+hashes. The prototype selector scans reclaimable candidates          and borrowing experiments report all four policies; ablations
+in software for auditability. A production implementation can        disable individual PrefixShield components.
+maintain indexed per-group and per-segment queues to reduce             Workloads. We evaluate six primary traces spanning three
+selection work without changing policy semantics; Section V          workload categories:
+therefore measures selector latency and metadata footprint
+                                                                        • Direct and adaptive pollution: The one-touch trace [7]
+rather than assuming negligible overhead.
+                                                                           continuously introduces unseen prefixes, reflecting low-
+              V. P ERFORMANCE E VALUATION                                  reuse admission pressure observed in production KV-
+   We evaluate whether PrefixShield (i) protects victim KV-                cache behavior. The low-and-slow trace [15] spreads sim-
+cache state under direct and adaptive pollution, (ii) preserves            ilar pressure over time. The two-pass replay trace [12],
+benign performance and work-conserving sharing, and (iii) re-              [16] revisits previously admitted prefixes to stress reuse-
+mains effective across cache scale, creation pressure, nominal             aware retention while creation responsibility remains out-
+load, and deployment settings. We then measure its overhead                standing. Each attack trace uses four 1,536-token victim
+and isolate the contributions of reuse segmentation and debt               hot prefixes, corresponding to 96 blocks per prefix and
+gating.                                                                    384 blocks in aggregate under the default 16-token block
+                                                                           size.
+A. Experimental Setup                                                   • Benign traffic: The ShareGPT trace [2] represents con-
+
+   System and platforms. We implement PrefixShield in                      versational prefix reuse. The bursty ShareGPT trace [2],
+vLLM 0.10.2 with Automatic Prefix Caching [1]. The de-                     [15] concentrates benign arrivals into short bursts.
+                                                                        • Work       conservation: The controlled borrowing
+fault platform uses Qwen2.5-1.5B-Instruct on an NVIDIA
+L4. Portability runs use NVIDIA A100 with Qwen2.5-1.5B-                    trace [10], [11] leaves one accounting group idle
+Instruct and Qwen2.5-7B-Instruct.                                          and measures how much of the shared cache an active
+   Cache and policy configuration. Unless otherwise stated,                peer can occupy.
+the default configuration uses 512 configured GPU KV-cache           The three attack traces vary how cache pressure is expressed
+blocks, of which 511 are usable because vLLM reserves                through continuous creation, temporally dispersed creation,
+one block. It uses 16-token blocks, 1,536-token shared pre-          and replay. The two benign traces test compatibility with
+fixes, and the 60% nominal load profile. The replacement             conversational reuse under ordinary and burst-concentrated ar-
+domain is deliberately capped to create controlled, repeatable       rivals. The borrowing trace tests whether protection preserves
+contention within finite traces; the configured block count          access to otherwise idle cache capacity.
+is an experimental cache-capacity parameter rather than an              Methodology. Reported paired comparisons use 10 matched
+estimate of the GPU’s maximum KV capacity. PrefixShield              runs. Within each run pair, compared policies receive identical
+uses refill rates of 64, 40, and 16 blocks/s and burst capacities    request traces and workload parameters. For request r, cache-
+of 256, 192, and 128 blocks for critical, standard, and best-        hit fraction is hr = cached_tokensr /prompt_tokensr ,
+effort contracts, respectively. This policy configuration is fixed   as reported by vLLM after native prefix lookup. We report
+across the reported workloads; the sensitivity experiments           run-level mean cache-hit fractions over measured victim re-
+vary workload pressure and deployment conditions rather than         quests for attack traces and over all measured requests for
+retuning PrefixShield per trace. For each deployment profile,        benign traces. The 95th Percentile (P95) of Time to First
+Cprefill is the LRU unique-prefill throughput calibrated from        Token (TTFT) is computed over the same request population.
+32 distinct-prefix requests. A nominal load factor α sets the        Where reported, a 95% bootstrap Confidence Interval (CI) is
+base arrival rate to αCprefill ; the one-touch pressure phase uses   computed over paired run-level differences.
+min{0.75Cprefill , 1.15αCprefill }.
+   Baselines. We compare PrefixShield against three com-             B. Protection under Direct and Adaptive Pollution
+plementary cache-management baselines representing distinct            Table I summarizes victim-side protection. One-touch pol-
+design points:                                                       lution. PrefixShield raises victim cache hit ratio from 5.54%
+   • LRU [7]: vLLM’s global work-conserving replacement,             under LRU to 14.93%, a paired gain of 9.39 Percentage
+      allowing unrestricted borrowing of idle cache capacity.        Points (pp; 95% CI: 7.94–10.96 pp). S3-FIFO remains at
+   • S3-FIFO [9]: a work-conserving quick-demotion policy            6.29%, leaving PrefixShield 8.64 pp higher (95% CI: 7.23–
+      with equal-size KV objects, a 10% small First-In, First-       9.43 pp). This is the largest absolute protection gap among
+      Out (FIFO) queue, a 90% main FIFO queue, an equal-             the three default attack workloads and most clearly separates
+                           TABLE I                                                                TABLE II
+V ICTIM CACHE PROTECTION UNDER DIRECT AND ADAPTIVE POLLUTION .                             B ENIGN PERFORMANCE .
+Workload           Policy         Hit (%) ↑    P95 TTFT (ms) ↓     Workload       Policy            Cache Hit (%) ↑     P95 TTFT (ms) ↓
+                   LRU                 5.54              1440.0                   LRU                         35.83                106.6
+                   S3-FIFO             6.29              1814.8                   S3-FIFO                     38.85                 96.5
+One-touch          StaticQuota         1.94              1466.1    ShareGPT       StaticQuota                 35.24                110.2
+                   PrefixShield       14.93              1428.2                   PrefixShield                38.92                 97.4
+                   LRU                92.64                66.3                   LRU                         37.17                190.9
+                   S3-FIFO            98.64                34.5                   S3-FIFO                     38.72                185.5
+Low-and-slow       StaticQuota         0.00               155.3    Bursty         StaticQuota                 36.46                205.3
+                   PrefixShield       98.90                34.7                   PrefixShield                38.10                168.1
+                   LRU                92.87               132.9
+                   S3-FIFO            93.96               141.3                                 TABLE III
+Two-pass replay    StaticQuota        26.31               316.4     W ORK - CONSERVING BORROWING . B ORROWER B LOCKS DENOTES THE
+                                                                      OBSERVED BORROWER OCCUPANCY; “–” DENOTES UNAVAILABLE
+                   PrefixShield       95.97               104.8
+                                                                                        PER - GROUP ACCOUNTING .
+
+                                                                   Policy         Cache Hit (%) ↑     P95 TTFT (ms) ↓    Borrower Blocks ↑
+persistent responsibility from quick demotion under direct
+                                                                   LRU                      99.33                38.1                   –
+one-shot churn. Absolute victim hit ratios remain low at           S3-FIFO                  92.78                93.6             509–510
+this scale because the default configuration is deliberately       StaticQuota              18.18               277.1             254–255
+                                                                   PrefixShield             99.33                38.5             509–510
+extreme: the 384-block victim hot set occupies 75% of the
+511 usable blocks, so even protected victims face frequent
+reclamation; under the same attack window at 4096 blocks,          replacement under direct one-touch churn and replay, where
+PrefixShield restores the victim to 84.87% versus 4.92%            object-local reuse evidence does not identify the group repeat-
+for LRU (Fig. 2(a)). StaticQuota reaches 1.94% because its         edly creating reclamation pressure. Object-value estimation
+255-block victim partition is smaller than the 384-block hot       reasons about the observed value of cached state; PrefixShield
+set: fixed isolation does not help when the entitled share is      contributes the complementary signal of persistent group re-
+itself smaller than the working set. Mean P95 TTFT remains         sponsibility.
+comparable, at 1440.0 ms under LRU and 1428.2 ms under
+PrefixShield, indicating that the cache-protection gain does not   C. Benign Performance and Work-Conserving Sharing
+come at the expense of tail latency.
+   Low-and-slow rotation. Without attack, the LRU control             Table II summarizes benign behavior. The paired
+retains 99.19% of the victim prefix; slow rotation lowers          PrefixShield–S3-FIFO cache-hit differences are statistically
+attacked LRU to 92.64%, a 6.56-pp mean residency loss.             indistinguishable on both traces: 38.92% versus 38.85% on
+PrefixShield restores the attacked hit ratio to 98.90%, recov-     ShareGPT and 38.10% versus 38.72% under bursty ShareGPT.
+ering 6.26 pp, or 95.5% of that mean loss. S3-FIFO reaches         Responsibility-aware protection therefore does not require
+98.64%, while PrefixShield retains a paired 0.25-pp advantage      a broad benign cache-hit sacrifice relative to the S3-FIFO
+(95% CI: 0.06–0.51 pp). StaticQuota falls to 0.00% because its     replacement baseline; statistical indistinguishability here is the
+255-block victim partition is smaller than the reuse distance      intended safety result, not evidence that PrefixShield should
+across the four 96-block hot prefixes: the three intervening       dominate every benign trace. On ShareGPT, PrefixShield
+prefixes occupy 288 blocks, causing each prefix to be evicted      records 97.4 ms P95 TTFT versus 96.5 ms for S3-FIFO;
+before its next access. Quick demotion therefore removes           under bursty ShareGPT it records 168.1 ms versus 185.5 ms.
+most low-reuse pressure in this regime, while PrefixShield         In particular, the bursty workload introduces short periods
+retains a statistically positive 0.25-pp advantage and extends     of concentrated admission without causing permanent
+responsibility-aware protection to the direct-churn and replay     classification as harmful: responsibility decays through refill,
+regimes examined next.                                             and legitimate reuse remains eligible for normal protection
+   Two-pass replay. The no-attack LRU control again retains        after debt clears.
+99.19%. Under replay, LRU, S3-FIFO, and PrefixShield reach            Table III isolates asymmetric borrowing. StaticQuota caps
+92.87%, 93.96%, and 95.97%, respectively. PrefixShield gains       the active borrower at 254–255 blocks, approximately one
+3.10 pp over attacked LRU and exceeds S3-FIFO by 2.00              equal share, whereas S3-FIFO and PrefixShield both oc-
+pp (95% CI: 0.93–3.23 pp), while reducing P95 TTFT from            cupy 509–510 of the 511 usable blocks, confirming work-
+141.3 to 104.8 ms relative to S3-FIFO. Revisited attacker          conserving access to idle capacity. Native LRU is globally
+state gains additional reuse evidence, yet outstanding creation    work-conserving but does not expose an equivalent per-group
+responsibility remains useful for reclamation; the delayed-        occupancy counter, so its Borrower Blocks entry is marked “–
+replay ablation in Fig. 3(b) isolates the debt-gating mechanism    ”. PrefixShield also matches LRU’s 99.33% hit ratio. Capacity
+behind this gap, where the advantage reaches 35.16 pp while        work conservation and retention efficiency are therefore dis-
+responsibility remains outstanding.                                tinct, and PrefixShield preserves LRU-level retention without
+   Takeaway. PrefixShield retains clear gains over reuse-aware     a fixed partition. Thus, PrefixShield behaves like a glob-
+                                       (a) Cache capacity             (b) Creation pressure               (c) Offered load       (d) Hardware             (e) Model
+
+
+
+          PrefixShield − LRU
+                                                             79.95
+                             80
+                                                                                               59.07
+                             60                      39.71
+
+
+
+
+           cache-hit gain (pp)
+                             40                                                      24.38
+                                                                                                       20.06
+                             20 9.39         12.01
+                                                                              5.11                              9.39    8.47   9.39                                   8.28
+                                                                                                                                            4.99   4.99
+                                                                     0.00
+                                 0
+                                     512     1024    2048    4096    0.54     1.02   2.14      4.23    40%      60%     80%    L4          A100    1.5B               7B
+                                           KV-cache blocks                  Measured λnew /ρ
+
+Fig. 2. Scaling, operating boundary, and deployment sensitivity. Panels report paired PrefixShield-minus-LRU victim cache-hit gains with 95% bootstrap CIs:
+(a) cache scale, (b) measured new-block creation/refill ratio, (c) nominal load factor, (d) hardware, and (e) model deployment.
+ally shared cache when contention is absent while retaining                                               Prototype overhead. To attribute runtime differences to
+responsibility-aware reclamation when contention appears.                                              PrefixShield’s added tracking and victim-selection logic, we
+                                                                                                       compare against vLLM’s unmodified LRU path under an
+D. Scaling, Operating Boundary, Overhead, and Ablation                                                 identical workload and system configuration. At the default
+                                                                                                       60% nominal load profile, LRU and PrefixShield sustain ap-
+   We use one-touch pollution for scale and deployment                                                 proximately 5.955 and 5.956 requests/s, respectively; this mea-
+sensitivity because it exposes direct cache-creation pressure                                          surement checks incremental policy cost under load and is not
+under a common paired protection metric. These sweeps test                                             a saturation-throughput comparison. At the default-scale 512-
+the effect of enabling PrefixShield as deployment conditions                                           block/8-group setting, victim selection takes 0.483 ms on av-
+vary. We therefore use vLLM’s unmodified LRU path as the                                               erage and 0.511 ms at P95, keeping the measured Central Pro-
+common counterfactual. Figure 2 reports paired PrefixShield-                                           cessing Unit (CPU) selector cost below one millisecond. Scal-
+minus-LRU victim cache-hit differences across cache capac-                                             ing the selector microbenchmark to 4096 blocks and 32 groups
+ity, measured new-block creation pressure relative to refill,                                          raises the corresponding values to 3.080/3.149 ms, showing
+nominal load, hardware, and model deployment. The creation-                                            that the straightforward software scan becomes measurable at
+pressure ratio is an observed workload rate divided by the                                             larger candidate sets and motivating indexed per-group/per-
+configured responsibility refill rate; it is not an admission                                          segment queues. Python metadata occupies 218.2 KiB at 512
+threshold because PrefixShield never rejects cache creation.                                           blocks/8 groups and 1.57 MiB at 4096 blocks/32 groups; these
+   Scale and operating boundary. The victim working set                                                figures include Python object overhead and represent prototype
+scales with capacity, occupying approximately 76.6% of us-                                             footprint.
+able blocks at 1024–4096 blocks, while the one-touch attack                                               Reuse-segmented eviction. Fig. 3(a) isolates the second
+window remains fixed. PrefixShield’s paired gain over LRU                                              stage of victim selection. Full PrefixShield gains 3.38 pp under
+is 9.39, 12.01, 39.71, and 79.95 pp at 512, 1024, 2048, and                                            one-touch (95% CI: 2.99–3.76), 1.84 pp under low-and-slow
+4096 blocks, respectively; at 4096 blocks, the absolute victim                                         (95% CI: 1.21–2.34), and 2.31 pp on ShareGPT (95% CI:
+hit ratios are 4.92% for LRU and 84.87% for PrefixShield.                                              0.43–4.54) relative to the no-segmentation variant. Borrowing
+Relative churn decreases with capacity, yet the 4096-block                                             is unchanged at 0 pp because no eviction differentiation is
+run still materializes 5.64 full-cache turnovers on average, es-                                       needed when idle capacity is available. These results separate
+tablishing protection across an eightfold replacement-domain                                           the two reclamation decisions: responsibility chooses which
+range. Because the debt gate and reclamation priority de-                                              candidate-owning group supplies victims, whereas segmenta-
+pend on measured creation relative to configured refill, the                                           tion chooses which blocks within that group are exposed first.
+creation-pressure sweep equivalently characterizes sensitivity                                            Debt-gated promotion. Fig. 3(b) replaces a purely in-
+to the operator-chosen ρc (halving every refill rate doubles                                           ternal promotion audit with an end-to-end delayed-replay
+the measured ratio). At a ratio of 0.54, mean debt and the                                             ablation. The no-debt-gate variant retains the same accounting,
+PrefixShield-minus-LRU gain are both zero: creation within                                             responsible-group selection, and segmented eviction but allows
+the configured entitlement accrues no responsibility by design.                                        reuse-eligible blocks to promote regardless of outstanding
+At ratios of 1.02, 2.14, and 4.23, the gains rise to 5.11, 24.38,                                      debt. With zero or half of the designed clearance wait, full
+and 59.07 pp as mean pressure debt rises to 5.69, 260.90,                                              PrefixShield promotes none of the 193 replay-eligible blocks
+and 901.91 blocks. The token bucket absorbs short bursts                                               and gates all 193, while the ungated variant promotes all 193.
+through βc , so a trace-averaged ratio near one does not define a                                      Under subsequent neutral pressure, full PrefixShield evicts 74
+discontinuous threshold; sustained creation beyond configured                                          attacker blocks and no victim blocks, whereas the ungated
+refill progressively increases outstanding responsibility. Across                                      variant evicts only 2 attacker blocks and 72 victim blocks;
+nominal load factors of 40%, 60%, and 80%, gains remain                                                the resulting victim cache-hit advantage is 35.16 pp. At
+positive at 20.06, 9.39, and 8.47 pp. The 1.5B deployment                                              the designed clearance-time point, measured replay debt has
+records positive gains on both L4 (9.39 pp) and A100 (4.99                                             reached zero, both variants promote all 193 eligible blocks,
+pp), and the A100/Qwen2.5-7B deployment records an 8.28-                                               and their victim hit ratios converge. Debt gating therefore
+pp gain.                                                                                               delays promotion to the R EUSE class only while admission
+                             (a) Reuse-segmented eviction                                             (b) Debt-gated promotion under delayed replay
+
+
+                                                                               Post-pressure victim
+                                                          3.38                                                        99.3
+                                                                                                      100                                     Full PrefixShield
+           One-touch
+                                                                                                                                              No debt gate
+                                        1.84                                                           90
+        Low-and-slow
+                                               2.31                                                    80
+
+
+
+                                                                                  cache hit (%)
+           ShareGPT
+                             0.00                                                                      70                             64.1
+           Borrowing
+                                                                                                       60
+                         0          1      2          3          4    5                                      0         0.5        1                          2
+                             Full − No reuse segmentation (pp)                                               Replay wait / designed debt-clearance time
+
+Fig. 3. Mechanism isolation. (a) Paired cache-hit gain of full PrefixShield over no reuse segmentation, with 95% bootstrap CIs. (b) Post-pressure victim hit
+under delayed replay for full PrefixShield and no debt gate; the dashed line marks the designed debt-clearance time.
+responsibility remains outstanding: it prevents reuse launder-                                                               TABLE IV
+ing during debt, but it does not permanently penalize a group                                         R EPRESENTATIVE LINES OF WORK BY THEIR PRIMARY SYSTEMS
+                                                                                                                             QUESTION .
+after quiescent recovery.
+                                                                                        Line                     Representative        Primary question
+                                                                                                                 systems
+                             VI. D ISCUSSION
+                                                                                        KV reuse and Online Context                    Where should reusable KV state
+                                                                                        placement     Caching [4],                     reside, move, or be provisioned?
+   When persistent responsibility matters. The comparison                                             Mooncake [6],
+with S3-FIFO separates object-level reuse awareness from                                              MELL [5]
+group-level responsibility. Under direct one-touch churn and                            Replacement S3-FIFO [9],                       Which objects are valuable
+two-pass replay, PrefixShield’s gains show that object-local                            and           TinyLFU [12]                     enough to retain or admit?
+                                                                                        admission
+reuse history does not identify which accounting group re-
+                                                                                        Service and Virtual Token                      How should service and cache
+peatedly creates reclamation pressure. Reuse-aware replace-                             cache sharing Counter [8],                     resources be shared or isolated
+ment and responsibility-aware reclamation therefore address                                           FairRide [10],                   across clients?
+complementary questions: the former estimates which objects                                           NyxCache [11]
+are worth retaining, while the latter determines which group                            PrefixShield This work                         Who remains responsible for
+                                                                                                                                       persistent shared-state pressure
+should supply eviction candidates when shared capacity is                                                                              after admission?
+contested.
+   Responsibility without rigid partitioning. Admission debt
+                                                                                                                       VII. R ELATED W ORK
+records accountability for creating pressure rather than an
+entitlement limit. It neither denies admission nor imposes a                      KV-management systems optimize how reusable state is
+fixed occupancy ceiling, and allocation from true-free blocks                  represented, placed, moved, or provisioned across conversa-
+remains unrestricted; consequently, idle capacity stays bor-                   tions, devices, and memory tiers [1]–[6], [13], [14], [16]–[21].
+rowable, as Table III demonstrates. Responsibility is also                     These mechanisms reduce computation or data movement,
+temporary: once excess creation stops and debt clears, the                     but they do not preserve which accounting group created
+group again becomes eligible for reuse promotion. Because                      later reclamation pressure. S3-FIFO [9] and TinyLFU [12]
+debt accrues independently per accounting group, these prop-                   use object-value evidence for replacement or admission, while
+erties extend beyond two-group traces: concurrent aggressors                   FairRide and NyxCache study how shared cache capacity is di-
+each accumulate their own responsibility, and Eq. (7) directs                  vided, isolated, or limited across clients [10], [11]. As Table IV
+reclamation to the group with the largest projected normalized                 summarizes, PrefixShield contributes a complementary lifecy-
+debt. The prototype associates each materialized block with                    cle property: responsibility for new persistent state survives
+a stable, operator-defined accounting group while retaining a                  admission, gates reuse promotion while debt remains, and
+shared physical block pool, thereby preserving unambiguous                     selects which accounting group bears reclamation pressure.
+responsibility without sacrificing work conservation.
+   Closing the gap between request-time control and                                                         VIII. C ONCLUSIONS AND F UTURE W ORK
+persistent state. Existing serving controls regulate resource                     Shared LLM prefix caches create persistent state whose
+use while requests are active, but they do not account for                     future reclamation cost may fall on groups other than those that
+cache pressure that persists after those requests complete.                    admitted it. PrefixShield closes this admission-responsibility
+PrefixShield fills this gap by carrying responsibility into the                gap by metering newly materialized full KV blocks, gating
+cache-reclamation path, where it determines which account-                     reuse promotion while responsibility remains outstanding,
+ing group should bear the consequences of continued state                      and combining projected responsibility with reuse-segmented
+creation. This role is distinct from value-aware placement and                 victim selection. Our evaluation shows that persistent responsi-
+replacement, which estimate which objects are worth retain-                    bility addresses a failure mode left unresolved by object-value
+ing. Deployments requiring strict guarantees can additionally                  replacement: direct churn and replay can shift reclamation
+reserve a protected region beneath the shared pool while                       cost away from the groups that created the cache pressure.
+allowing the remaining capacity to remain work-conserving.                     PrefixShield improves victim cache-hit rate by 8.64 percentage
+points over reuse-aware replacement under one-touch pollu-                       [14] R. Li, S. Pal, V. N. Pullu, P. Sinha, J. Ryoo, L. K. John, and
+tion and by 2.00 percentage points under two-pass replay,                             N. J. Yadwadkar, “Oneiros: KV cache optimization through parameter
+                                                                                      remapping for multi-tenant LLM serving,” in Proceedings of the ACM
+remains statistically indistinguishable under benign ShareGPT                         Symposium on Cloud Computing (SoCC), 2025, pp. 88–101.
+traffic, and preserves work-conserving access to idle capacity.                  [15] Y. Xiang, X. Li, K. Qian, Y. Zhang, W. Yu, E. Zhai, X. Jin, and J. Zhou,
+Its selector overhead remains below one millisecond at the                            “ServeGen: Workload characterization and generation of large language
+                                                                                      model serving in production,” in Proceedings of the USENIX Symposium
+95th percentile, with no measurable throughput loss. Object                           on Networked Systems Design and Implementation (NSDI), 2026, pp.
+value ranks what to retain; persistent responsibility selects                         1845–1859.
+which group bears reclamation pressure. Future work includes                     [16] Y. Yu, Y. Gan, N. Sarda, L. Tsai, J. Shen, Y. Zhou, A. Krishnamurthy,
+                                                                                      F. Lai, H. M. Levy, and D. E. Culler, “IC-Cache: Efficient large language
+extending responsibility accounting to cross-group content                            model serving via in-context caching,” in Proceedings of the ACM
+deduplication, which requires multi-principal ownership and                           Symposium on Operating Systems Principles (SOSP), 2025, pp. 375–
+admission rules, and replacing the prototype’s software scan                          398.
+                                                                                 [17] Y. Liu, H. Li, Y. Cheng, S. Ray, Y. Huang, Q. Zhang, K. Du, J. Yao,
+with indexed per-group and per-segment queues in a systems-                           S. Lu, G. Ananthanarayanan, M. Maire, H. Hoffmann, A. Holtzman,
+language implementation.                                                              and J. Jiang, “CacheGen: KV cache compression and streaming for fast
+                                                                                      large language model serving,” in Proceedings of the ACM SIGCOMM
+                                                                                      Conference (SIGCOMM), 2024, pp. 38–56.
+                              R EFERENCES                                        [18] Y. Jiang, F. Fu, X. Yao, T. Wang, B. Cui, A. Klimovic, and E. Yoneki,
+                                                                                      “ThunderServe: High-performance and cost-efficient LLM serving in
+ [1] W. Kwon, Z. Li, S. Zhuang, Y. Sheng, L. Zheng, C. H. Yu, J. E.                   cloud environments,” in Proceedings of Machine Learning and Systems
+     Gonzalez, H. Zhang, and I. Stoica, “Efficient memory management for              (MLSys), vol. 7, 2025.
+     large language model serving with PagedAttention,” in Proceedings of        [19] C. Zhang, K. Du, S. Liu, W. Kwon, X. Mo, Y. Wang, X. Liu,
+     the ACM Symposium on Operating Systems Principles (SOSP), 2023,                  K. You, Z. Li, M. Long, J. Zhai, J. E. Gonzalez, and I. Stoica, “Jenga:
+     pp. 611–626.                                                                     Effective memory management for serving LLM with heterogeneity,” in
+ [2] L. Zheng, L. Yin, Z. Xie, C. Sun, J. Huang, C. H. Yu, S. Cao,                    Proceedings of the ACM Symposium on Operating Systems Principles
+     C. Kozyrakis, I. Stoica, J. E. Gonzalez, C. Barrett, and Y. Sheng,               (SOSP), 2025, pp. 446–461.
+     “SGLang: Efficient execution of structured language model programs,”        [20] S. Yang, J. Guo, H. Tang, Q. Hu, G. Xiao, J. Tang, Y. Lin, Z. Liu, Y. Lu,
+     in Advances in Neural Information Processing Systems (NeurIPS),                  and S. Han, “LServe: Efficient long-sequence LLM serving with unified
+     vol. 37, 2024.                                                                   sparse attention,” in Proceedings of Machine Learning and Systems
+ [3] L. Yu, J. Lin, and J. Li, “Stateful large language model serving with            (MLSys), vol. 7, 2025.
+     Pensieve,” in Proceedings of the European Conference on Computer            [21] C. Zhang, H. Tan, H. Pan, Y. Xu, H. Du, L. Zhang, and X. Fu, “Memory-
+     Systems (EuroSys), 2025, pp. 144–158.                                            efficient KV cache optimization for large language model inference
+ [4] B. Gao, Z. He, Y. Yao, Z. Lou, Z. Zhou, and W.-F. Wong, “Online                  at the edge,” in Proceedings of the IEEE Conference on Computer
+     context caching for distributed large language models serving,” in               Communications (INFOCOM), 2026, pp. 1–10.
+     Proceedings of the IEEE Conference on Computer Communications
+     (INFOCOM), 2025, pp. 1–10.
+ [5] Q. Liu, Z. Hong, F. Chen, P. Li, and S. Guo, “MELL: Memory-efficient
+     large language model serving via multi-GPU KV cache management,”
+     in Proceedings of the IEEE Conference on Computer Communications
+     (INFOCOM), 2025, pp. 1–10.
+ [6] R. Qin, Z. Li, W. He, J. Cui, F. Ren, M. Zhang, Y. Wu, W. Zheng,
+     and X. Xu, “Mooncake: Trading more storage for less computation—a
+     KVCache-centric architecture for serving LLM chatbot,” in Proceedings
+     of the USENIX Conference on File and Storage Technologies (FAST),
+     2025, pp. 155–170.
+ [7] J. Wang, J. Han, X. Wei, S. Shen, D. Zhang, C. Fang, R. Chen,
+     W. Yu, and H. Chen, “KVCache cache in the wild: Characterizing and
+     optimizing KVCache cache at a large cloud provider,” in Proceedings
+     of the USENIX Annual Technical Conference (USENIX ATC), 2025, pp.
+     465–482.
+ [8] Y. Sheng, S. Cao, D. Li, B. Zhu, Z. Li, D. Zhuo, J. E. Gonzalez, and
+     I. Stoica, “Fairness in serving large language models,” in Proceedings of
+     the USENIX Symposium on Operating Systems Design and Implemen-
+     tation (OSDI), 2024, pp. 965–988.
+ [9] J. Yang, Y. Zhang, Z. Qiu, Y. Yue, and K. V. Rashmi, “FIFO queues are
+     all you need for cache eviction,” in Proceedings of the ACM Symposium
+     on Operating Systems Principles (SOSP), 2023, pp. 130–149.
+[10] Q. Pu, H. Li, M. Zaharia, A. Ghodsi, and I. Stoica, “FairRide: Near-
+     optimal, fair cache sharing,” in Proceedings of the USENIX Symposium
+     on Networked Systems Design and Implementation (NSDI), 2016, pp.
+     393–406.
+[11] K. Wu, K. Tu, Y. Patel, R. Sen, K. Park, A. Arpaci-Dusseau, and
+     R. Arpaci-Dusseau, “NyxCache: Flexible and efficient multi-tenant
+     persistent memory caching,” in Proceedings of the USENIX Conference
+     on File and Storage Technologies (FAST), 2022, pp. 1–16.
+[12] G. Einziger, R. Friedman, and B. Manes, “TinyLFU: A highly efficient
+     cache admission policy,” ACM Transactions on Storage, vol. 13, no. 4,
+     pp. 1–31, 2017.
+[13] J. Yao, H. Li, Y. Liu, S. Ray, Y. Cheng, Q. Zhang, K. Du, S. Lu, and
+     J. Jiang, “CacheBlend: Fast large language model serving for RAG with
+     cached knowledge fusion,” in Proceedings of the European Conference
+     on Computer Systems (EuroSys), 2025, pp. 94–109.
+

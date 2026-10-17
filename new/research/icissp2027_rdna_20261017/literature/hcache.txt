@@ -1,0 +1,1220 @@
+     Fast State Restoration in LLM Serving with HCache
+                  Shiwei Gao                                       Youmin Chen                                        Jiwu Shu∗
+              Tsinghua University                                 Tsinghua University                           Tsinghua University
+
+Abstract                                                                             Recomputation:
+                                                                                     - vLLM, DeepSpeed
+The growing complexity of LLM usage today, e.g., multi-round
+conversation and retrieval-augmented generation (RAG), makes                         KV Offload:              1/6
+                                                                                     - AttentionStore,
+contextual states (i.e., KV cache) reusable across user requests.                      APIServe, Pensieve;
+Given the capacity constraints of GPU memory, only a limited                                                         1/2
+                                                                                                                                    Computation
+                                                                                     HCache
+number of contexts can be cached on GPU for reusing. Ex-                                                                           IO Transmission
+isting inference systems typically evict part of the KV cache                                                       State Restoration Time
+and restore it by recomputing it from the original tokens or                     Figure 1. State Restoration Method Comparison. Recomputa-
+offloading it to host storage for later retrieval, both of which                 tion: compute KV cache from history tokens when reused; KV cache
+introduce substantial computational or I/O overheads.                            offload: save KV cache at host storage and fetch them to GPU memory
+   We propose HCache, a novel LLM state restoration method.                      when reused; HCache saves 6× computational and 2× IO resources.
+Its key idea is to restore LLM states from intermediate ac-
+                                                                                 such as content generation [11, 66], code comprehension [13,
+tivations and thus utilize computational and I/O resources
+                                                                                 35], and the development of intelligent agents [51, 53]. LLMs
+with low overhead. We enhance HCache with two techniques,
+                                                                                 commonly serve user queries in two phases, including a prefill
+including i) a bubble-free restoration scheduler that integrates
+                                                                                 phase to process a user’s prompt and a generation phase that
+resource-complementary methods to optimize the balance
+                                                                                 sequentially generates new tokens autoregressively. During
+between computation and IO tasks; and ii) a chunk-based
+                                                                                 both phases, intermediate states (a.k.a., KV cache) are gener-
+storage manager to address the layout mismatch issue (i.e.,
+                                                                                 ated and cached for each token to avoid their recomputation.
+layer-before-token saving versus token-before-layer restora-
+                                                                                    Many existing LLM serving systems are stateless among
+tion). Our evaluations, conducted using real-world tasks, show
+                                                                                 user requests; the KV cache is discarded once the request is
+that HCache reduces the TTFT by up to 1.93× compared to
+                                                                                 finished. Some recent techniques aim at optimizing individ-
+KV offload while consuming 1.92-2.40× less storage space;
+                                                                                 ual requests, such as request batching [61], GPU memory
+compared to token recomputation, HCache achieves up to
+                                                                                 management [28], and request scheduling [3, 22, 52], among
+5.73× reduction in TTFT.
+                                                                                 others. However, the increasing complexity of LLM usage
+CCS Concepts: • Information systems → Storage manage-                            today makes user requests depend on historical contexts. For
+ment.                                                                            example, in multi-round conversational chatbots, the historical
+                                                                                 dialogue, including a user’s prompts and the LLM’s outputs,
+Keywords: LLM, machine learning system, state management
+                                                                                 is accumulated as contextual states to enhance the LLM’s un-
+ACM Reference Format:                                                            derstanding of the conversation background. In typical LLM
+Shiwei Gao, Youmin Chen, and Jiwu Shu. 2025. Fast State Restoration              chatbots such as Claude [6], the length of history dialogues
+in LLM Serving with HCache. In Twentieth European Conference on
+                                                                                 can reach 200K [38]. There are also long-context applications,
+Computer Systems (EuroSys ’25), March 30–April 3, 2025, Rotterdam,
+                                                                                 such as Retrieval-Augmented Generation (RAG). RAG ap-
+Netherlands. ACM, New York, NY, USA, 16 pages. https://doi.org/
+10.1145/3689031.3696072                                                          plications search domain-specific knowledge related to user
+                                                                                 requests and use it to help LLMs generate more accurate
+1    Introduction                                                                answers and alleviate the hallucination problem [24, 48]. We
+                                                                                 call these applications as stateful LLMs.
+Large Language Models (LLMs) [25, 40, 47, 49] have demon-
+                                                                                    Yet, stateful LLMs raise new challenges for managing the
+strated substantial potential across a wide array of applications,
+                                                                                 states of their historical contexts. When serving new user
+∗ Jiwu Shu is the corresponding author (shujw@tsinghua.edu.cn).
+                                                                                 requests, simply prefilling the prompt with historical contexts
+                                                                                 (i.e., token recomputation) will significantly increase comput-
+                                                                                 ing overhead, potentially causing response time to multiply
+                                                                                 by tens of times. Recent work proposes directly reusing the
+This work is licensed under a Creative Commons Attribution International         KV cache among user requests [20, 60, 67]. Nevertheless, our
+4.0 License.                                                                     analysis of two popular LLM traces, i.e., ShareGPT4 [1] and
+EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands
+                                                                                 L-Eval [5], shows that a single A100-40GB GPU can keep up
+© 2025 Copyright held by the owner/author(s).
+ACM ISBN 979-8-4007-1196-1/25/03 https://                                        to 7-20 multi-round conversations or 1-3 long contexts. As a
+doi.org/10.1145/3689031.3696072                                                  result, large-volume KV caches of historical contexts must be
+                                                                                 offloaded to host storage (i.e., KV offload [2, 19, 62]), which
+
+
+
+                                                                           128
+EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands                                               Shiwei Gao, Youmin Chen, and Jiwu Shu
+
+
+again introduces high latencies when loading KV caches from              Transformer
+                                                                          Layer xN
+host storage to GPU memory.
+   We observe that both token recomputation and KV offload                             Hidden State i+1                Out Projection
+adhere to the standard LLM inference process, maintaining the                          FFN
+LLM forward pass or KV cache as is to manage and restore                                                              Weight Average
+                                                                                             FC 2
+historical contextual states. Consequently, these approaches
+                                                                                                                       SoftMax
+occupy the extreme ends of the design spectrum, solely uti-                                  FC 1
+lizing GPU computational or I/O capabilities, thus leaving                                                             MatMul             KV
+system resources underutilized. In this paper, we introduce                                                                              cache
+                                                                         HCache        Attention Module
+HCache, a novel LLM state restoration method to break this                                                            Q      K      V
+conventional wisdom by using GPU computational and IO
+resources simultaneously in a low overhead manner compared                              Hidden State i
+                                                                                                                      QKV Projection
+with existing methods (see Figure 1).
+   At the core of HCache is to exploit LLM’s intrinsic struc-                           Figure 2. Transformer Architecture.
+ture characteristic – regaining the KV cache by computing it
+                                                                         design goal. To mitigate the performance impact on the gener-
+from rather smaller intermediate activations – for fast state
+                                                                         ation phase, we use a two-stage saving strategy to store newly
+restoration. Fortunately, the hidden states between adjacent
+                                                                         generated hidden states.
+LLM layers have such good properties and can be used as
+                                                                            We implement HCache by integrating it into an LLM
+an alternative to the KV cache. Specifically, the hidden states
+                                                                         serving system and evaluating it with varying models and
+are half the size of the KV cache, thus reducing the IO trans-
+                                                                         real-world LLM traces. Evaluation results show that HCache
+mission time by 2× compared to KV offload. Furthermore,
+                                                                         reduces the TTFT (Time To First Token) by up to 1.93× against
+recomputing KV cache from hidden states instead of original
+                                                                         KV offload, adding less than 4% overhead on TBT (Time
+tokens eliminates two computationally intensive modules in
+                                                                         Between Token). Compared to token recomputation, HCache
+LLM, including the quadratic complexity attention mecha-
+                                                                         reduces TTFT by up to 5.73×. We also evaluated HCache on
+nism and the feed-forward network (FFN); hence, HCache
+                                                                         platforms with various computing and transmission speeds.
+reduces the computation cost by at least 6×.
+                                                                         With different hardware configurations, HCache improves
+   Restoring the contextual states with HCache involves two
+                                                                         the restoration speed by 1.33-2.66× against KV offload.
+parts – transmitting the hidden states to GPU memory and
+                                                                            In summary, we make the following contributions:
+recomputing it into KV cache via common GEMM operations.
+                                                                         • We propose HCache, a novel method to restore historical
+By applying pipeline techniques, the above two steps can be
+                                                                           LLM states utilizing intermediate activations.
+performed concurrently to utilize both the IO and computa-
+                                                                         • We introduce the bubble-free restoration scheduler and
+tional resources, further reducing state restoration time. As
+                                                                           chunk-based storage management to enhance HCache.
+a whole, HCache significantly reduces the computation and
+                                                                         • We evaluate HCache on various hardware setups and show
+IO overhead and is faster than existing approaches on main-
+                                                                           that it outperforms the state-of-the-art solutions such as
+stream platforms. However, fully leveraging the capabilities
+                                                                           AttentionStore [19] and DeepSpeed-MII [15].
+of HCache presents two technical challenges and we design
+techniques tailored to each issue.
+                                                                         2     Background and Motivation
+   First, state restoration with HCache involves both recom-
+putation and IO transmission, whose completion times are not             2.1   Transformer Architecture
+always the same under varying hardware setups, producing                 In this section, we first provide the background on the trans-
+pipeline bubbles. The actual restoration speed is bounded                former architecture (§2.1) and LLM serving systems (§2.2).
+by the slower one of the two steps. To address this problem,             Then, we show the examples, characteristics, and overhead of
+we introduce the bubble-free restoration scheduler, which                stateful LLM applications in §2.3 and §2.4.
+incorporates a resource-complementary restoration method to                 Most LLMs today adopt the transformer architecture as their
+eliminate pipeline bubbles. Second, hidden states are gener-             building block. As shown in Figure 2, LLM has N repetitive
+ated and saved autoregressively in a layer-before-token order,           transformer layers, each comprising two major components:
+but are fetched as a whole batch in a token-before-layer order           the attention module and the FFN (feed-forward network).
+in restoration. This incurs mismatched storage visiting orders              An LLM forward pass is conducted with a batch of to-
+in saving and restoration, presenting a hard design trade-off            kens. At the start of each layer, each token has a high-
+in the storage format to manage hidden states effectively. A             dimension representation, we call it the hidden states. The
+storage format optimized for one stage inevitably results in             first layer’s hidden states come from the embedding table. The
+small and random IOs for the other stage. In HCache, we                  hidden states in other layers are the output of the previous
+introduce a chunk-based storage format tailored for fast state           transformer layer. The attention module projects each token’s
+restoration since reducing state restoration time is our primary         hidden states to three different tensors: K, Q, and V. The
+
+
+
+                                                                   129
+Fast State Restoration in LLM Serving with HCache                                                 EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands
+
+
+model then uses the muti-head-attention (MHA) [50] to inter-                             15               Prompt Length            1.0
+act information between tokens. Every token first computes                                                Output Length
+
+                                                                             Count (K)
+                                                                                                                             CDF
+its attention score by getting the softmaxed inner product                               10
+                                                                                                                                   0.5
+of their 𝑄 with the 𝐾 of other tokens. Next, the token com-                               5
+putes the weighted average of 𝑉 of other tokens using their
+                                                                                          0                                         0
+corresponding attention score. The weighted average is then                                   0        400      800   1200               0   5,000 10,000 15,000
+multiplied by the out projection to get the final attention result.                                    # of Tokens                              # of Tokens
+                                                                                                            (a)                                      (b)
+The attention module in one layer can be summarized by the
+following equations:                                                                 Figure 3. Charactreistic of Multi-Round Conversation.
+                                      𝑞,𝑘,𝑣
+                𝑄 𝐿𝑖 , 𝐾𝐿𝑖 , 𝑉𝐿𝑖 = 𝑊𝐿       ∗ 𝐻𝐿𝑖                           LLM serving quality. TTFT is the time it takes to generate
+                                   Õ
+                                   𝑖 −1         𝑖
+                                            𝑒 𝑄 𝐿 ∗𝐾𝑚                       the first token; TBT represents the average time to generate a
+        Attention𝑖𝐿 (𝑞, 𝑘, 𝑣) =         Í𝑖 −1 𝑄 𝑖 ∗𝐾𝑛 ∗ 𝑉𝑖                  token for each request except for the first token.
+                                   𝑚=1 𝑛=1 𝑒 𝐿
+                        𝑂𝑢𝑡𝐿𝑖 = 𝑊𝐿𝑜 ∗ Attention𝑖𝐿 (𝑞, 𝑘, 𝑣)                 2.3 Stateful LLM Applications
+   FFN module consists of two linear projections with an                    The basic usage of LLM assumes that LLM inference is
+activation function in between. The output of the FFN module                stateless – user requests are independent and irrelevant to
+(i.e., hidden states) is the input of the next transformer layer.           previous ones, and the KV cache is discarded when the gen-
+                      𝑖
+                   𝐻𝐿+1   = FC2 (FC1 (𝑂𝑢𝑡𝐿𝑖 ))                              eration is finished. However, the increasing complexity of
+                                                                            LLM usage today provides user requests with rich contextual
+   The above equations ignore less compute-intensive mod-
+                                                                            contents, such as chat history and auxiliary documents, to help
+ules, including residual connection, layer norm, input em-
+                                                                            LLMs provide context-dependent, accurate, and informative
+bedding, and position embeddings. The internal architectures
+                                                                            responses. Hence, a request may rely on the context previously
+vary between different LLMs. We only discuss the common
+                                                                            assimilated by the engine, making LLM inference a stateful
+transformer structure in LLMs without loss of generality.
+                                                                            task. Below, we characterize different stateful LLM tasks.
+   KV cache is an important design to speed up existing
+LLM inference engines. In the attention module, the attention               Multi-round conversations. Taking ChatGPT [40] as an
+computation of a token depends on all previous KV values                    example, a user starts a conversation by creating a “New
+in the sequence. To avoid redundant KV recomputation, once                  Chat” session. In this session, the user keys in an instruction
+a token’s key and value are generated, they are stored in                   and waits for the response from ChatGPT; based on the
+a dedicated storage area on GPU, i.e., the KV cache. The                    response, the user can further send new questions to start
+generation for the latter tokens of the sequence can visit                  a next-round conversation. To produce better answers in a
+KV cache instead of recomputing KV values of history tokens.                multi-round conversation, the LLM generates a new response
+                                                                            by considering both the tokens from all previous conversation
+2.2   LLM Serving                                                           rounds and the tokens from the current input.
+                                                                               A representative dataset of multi-round conversation is
+Once trained, LLMs can be deployed as a service to respond to
+                                                                            ShareGPT4 [1], a trace of human conversations with GPT-4.
+user requests. LLM inference systems process a user request
+                                                                            Figure 3a shows the average length of new prompt tokens
+in two phases – prompt prefilling and response generation.
+                                                                            and output tokens in one round. The average input length of
+During the prompt prefilling phase, LLM performs a trans-
+                                                                            each round is 66.8 tokens, and the output is 358.8 tokens.
+former forward pass with input prompt tokens, generating the
+                                                                            Though one round’s input and output length is relatively short,
+KV cache for them. In the response generation phase, LLM
+                                                                            they gradually accumulate in the conversation’s history as the
+generates new tokens autoregressively and puts the key-value
+                                                                            dialogue progresses. Figure 3b depicts the CDF of the length
+tensors of the newly generated token into the KV cache. One
+                                                                            of history tokens (truncated at 16K), and we can see that the
+sequence’s generation process continues until reaching an
+                                                                            length of half of the conversations is over 2.5K.
+end-of-sequence (EOS) token or a maximum token budget.
+   Inference systems typically process user requests in batch to            Long-context applications. Many LLM applications (e.g.,
+improve LLM serving efficiency. Instead of a stop-wait batch-               LangChain [12]) also supplement user prompts with additional
+ing mechanism, which may incur high latency for early-arrived               contexts to help LLM react better.
+requests, most current LLMs use continuous batching [61].                   • In contextual question and answer (Q&A) applications,
+Specifically, the inference engine batches multiple requests in               LLMs receive a long context text, such as an academic
+the generation phase at a fine-grained iteration level, where                 paper, law document, or textbook, and answer related user
+new requests can be added (exited) to (from) a batch dynami-                  questions. For example, a user can upload a PDF of a
+cally at each iteration. TTFT (Time To First Token) and TBT                   language programming guide; after processing it, the LLM
+(Time Between Token) are important metrics describing the                     can answer the demo usage of different APIs.
+
+
+
+                                                                      130
+EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands                                                      Shiwei Gao, Youmin Chen, and Jiwu Shu
+
+
+      Tasktype                 Context        Input      Output
+    Paper Assistant            10603.5        142.7       404.8
+                                                                          KV         Re            23.6×            26.0 ×              20.0×
+    GSM-100 [14]               5451.7          77.4         4.3                         co
+                                                                             Of
+                                                                               flo Ide mpu
+                                                                                                 6.5×             6.4×                     13.0×
+    QuALITY [41]                7053.9         92.4        19.2
+  AVG. (20 sub-tasks)          16340.2         44.7       50.2                    ad     al
+                                                                                           0
+                                                                                            te
+                                                                                                   0.3 0.6 0.9 0   0.5 1.0 1.5    0    0.4 0.8 1.2
+                                                                                                    TTFT (s)         TTFT (s)           TTFT (s)
+         Table 1. Statistics of the L-Eval [5] Dataset.                                          (a) Llama2-7B   (b) Llama2-13B       (c) OPT-30B
+
+                                                                          Figure 4. Comparison of State Restoration Overhead. We use
+                                                                          the L-Eval trace; Opt-30B runs on 4× A100-40G GPUs with tensor
+• Retrieval-Augmented Generation (RAG) application is also
+                                                                          parallelism, while the rest two run on one A100; 4× PM9A3 SSDs
+  a popular workflow of LLMs [10, 29, 31]. In response to
+                                                                          are used as the storage backend to save offloaded KV caches.
+  user requests, RAG applications first search question-related
+  content in their inner databases or on the Internet. Then, the             Both state restoration methods result in substantial per-
+  retried documents and the user question are supplemented                formance degradation compared to the ideal case where no
+  to the LLM. LLM uses the retrieved auxiliary knowledge to               restoration is needed. Our evaluation in Figure 4 shows that
+  generate more accurate results for user questions.                      the TTFT for recomputation is 20.0-26.0× slower than the
+   L-Eval [5] is an open-sourced dataset tailored for long-               ideal case, while KV offloading is 6.5-13.0× slower.
+context LLM evaluation. It contains 20 sub-tasks, including                  A key point of the inefficiency of current state restoration
+long context Q&A, few-shot examples helped reasoning, and                 methods relates to how they utilize the hardware resources.
+deducing the output of a piece of code. In Table 1, we present            At one extreme, recomputation solely relies on GPU’s compu-
+the statistics of three representative sub-tasks in L-Eval. These         tation capability to restore the KV cache from tokens, whose
+traces exhibit bimodal characteristics – the average length of            computational complexity increases quadratically [42] with
+context contents can extend up to 16K. In contrast, the lengths           the sequence’s length. As the contrasting approach, KV offload
+of instructions and outputs typically remain below 100.                   solely relies on host storage and PCIe bus to load large-volume
+                                                                          KV cache, whose size is 105 larger than that of history tokens
+2.4 State Restoration and Its Overhead                                    in typical LLM models [32]. As a result, both approaches
+In stateful LLM inference, the KV cache of shared tokens can              incur non-negligible overhead for KV cache restoration.
+be reused across different requests. Recent studies [8, 20, 60]
+have explored caching and reusing the KV cache between                    3             HCache: Caching the Hidden States
+different requests on GPU to reduce the TTFT of user requests.            To accelerate the state restoration speed, we aim to seek a
+However, the limited memory capacity of GPUs poses a                      new approach that simultaneously utilizes the computation
+significant challenge in retaining all necessary KV cache. For            capability and transmission bandwidth, while reducing unnec-
+instance, PagedAttention [28], a state-of-the-art KV cache                essary data transfers and recomputations. Our initial attempt
+management technique, enables an A100-40G GPU to store                    is a simple combination of recomputation and KV offload.
+up to 17K tokens with Llama2-13B and 48K tokens with                      Specifically, the contextual tokens are divided into two parts,
+Llama2-7B, which equates to only 1–3 extended contexts or                 and we use recomputation and KV offload to restore them
+7–20 conversation sessions.                                               concurrently; hence, the computation and transmission re-
+   Due to the GPU memory limitation [57], current inference               sources can be utilized in parallel. However, this naive hybrid
+systems often evict less frequently accessed KV cache to free             approach still keeps the LLM forward pass or KV cache as is,
+up space for more immediate contexts [28, 67]. When evicted               which does not fundamentally reduce the computation and IO
+KV cache is needed again, it must be restored. We refer to                overhead, resulting in suboptimal performance (see §6.3.1).
+this process as state restoration in stateful LLM serving. Prior             To this end, we introduce HCache, a novel state restoration
+work has demonstrated that state restoration is a prevalent               method that efficiently utilizes both computational and I/O
+issue in inference systems. In multi-turn conversations, the              resources with reduced computing and transferring overhead.
+interval between interactions often leads to a low GPU cache
+hit ratio [19], and in long context applications, the same                3.1               HCache Overview
+context may be reused hours apart [32].                                   Instead of directly restoring the KV cache, the core idea behind
+   Two primary approaches exist for restoring LLM state. The              HCache is to utilize the LLM’s intermediate activations (i.e.,
+first method is recomputation, which involves re-executing                hidden states) at each transformer layer for state restoration.
+the prefill phase to regenerate the KV cache from the original               Recall from Figure 2 that the hidden states represent the
+tokens [7, 15, 28, 39]. The second method is offloading the               input to each transformer layer. Within each transformer layer,
+KV cache to host memory or storage devices [2, 19, 26, 32],               the KV tensor pairs of each token are derived directly from
+with it being transmitted back to GPU memory when needed                  the hidden states by performing the projection operation in
+for subsequent requests.                                                  the attention module. Specifically, we can use the following
+
+
+
+                                                                    131
+Fast State Restoration in LLM Serving with HCache                                         EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands
+
+
+             Hidden Transmission                   KV Recompute                  𝐶ℎ𝑖𝑑𝑑𝑒𝑛 . Hence, the state restoration time of HCache is:
+      Ln         Ln+1       Ln+2             Ln        Ln+1         Ln+2                       𝑇ℎ𝑖𝑑𝑑𝑒𝑛 = 𝑚𝑎𝑥 (𝐼𝑂ℎ𝑖𝑑𝑑𝑒𝑛 , 𝐶ℎ𝑖𝑑𝑑𝑒𝑛 ).
+      Ln+1      Ln+2        Ln+3            Ln+1       Ln+2         Ln+3
+                                                                                 Restoration time with KV offload. The restoration process
+                 (a)                                    (b)                      of KV offload only involves transferring the KV cache from
+Figure 5. Example of Pipelined Restoration with HCache.                          the host to GPU memory, whose time is:
+                                                                                                            2 ∗ 𝑁𝑠𝑒𝑞 ∗ 𝐷ℎ𝑖𝑑𝑑𝑒𝑛
+equations to restore the KV cache for token 𝑖:                                                𝑇𝑘𝑣 = 𝐼𝑂 𝐾𝑉 =                    .
+                                                                                                                    𝐵𝑊
+                             𝐾𝐿𝑖 = 𝑊𝐿𝑘 · 𝐻𝐿𝑖
+                                                                                 Restoration time with recomputation. The restoration pro-
+                             𝑉𝐿𝑖 = 𝑊𝐿𝑣 · 𝐻𝐿𝑖                                     cess of recomputation involves a full computation from history
+where 𝐻𝐿𝑖 is the hidden state for a token 𝑖 at layer 𝐿, 𝐾𝐿𝑖 and 𝑉𝐿𝑖              tokens to their KV caches. We ignore the time required to
+represents the key and value tensors for token 𝑖 at that layer,                  transfer tokens to GPU since their size is small.
+and 𝑊𝐿𝑘 and 𝑊𝐿𝑣 are the linear projection parameters.                                                          2
+                                                                                                 8 ∗ 𝑁𝑠𝑒𝑞 ∗ 𝐷ℎ𝑖𝑑𝑑𝑒𝑛     2 ∗𝐷
+                                                                                                                     + 𝑁𝑠𝑒𝑞   ℎ𝑖𝑑𝑑𝑒𝑛
+   An LLM serving system working with HCache makes                                     𝐶𝑎𝑡𝑡𝑛 =
+                                                                                                                 𝐹 𝐿𝑂𝑃𝑆
+the following changes to reuse contextual contents. First,                                                       2
+                                                                                                 16 ∗ 𝑁𝑠𝑒𝑞 ∗ 𝐷ℎ𝑖𝑑𝑑𝑒𝑛
+hidden states should be saved for future reuse. Specifically, in                        𝐶𝑓 𝑓 𝑛 =
+multi-round conversations, whenever a layer’s hidden states                                            𝐹 𝐿𝑂𝑃𝑆
+                                                                                         𝑇𝑟𝑒𝑐 = 𝐶𝑎𝑡𝑡𝑛 + 𝐶 𝑓 𝑓 𝑛 + 𝜖
+is generated in a LLM forward pass, it is dumped to the
+                                                                                                              2
+                                                                                                 24 ∗ 𝑁𝑠𝑒𝑞 ∗ 𝐷ℎ𝑖𝑑𝑑𝑒𝑛    2 ∗𝐷
+                                                                                                                     + 𝑁𝑠𝑒𝑞
+host storage concurrently with this layer’s computation; in                                                                  ℎ𝑖𝑑𝑑𝑒𝑛
+RAG applications, hidden states can be generated and saved                                   =                                       +𝜖
+                                                                                                              𝐹 𝐿𝑂𝑃𝑆
+offline. Upon new user requests arrive, the related HCache is                    Here 𝜖 indicates the remaining computation overhead, includ-
+retrieved from the host storage into the GPU memory, then,                       ing normalization and residual connection, which are bounded
+we can use the GEMM operator to restore the KV cache from                        by 𝑂 (𝑁𝑠𝑒𝑞 ∗ 𝐷ℎ𝑖𝑑𝑑𝑒𝑛 ) and can be negligible.
+hidden states with the above equation.
+   Importantly, transmission and computation can be pipelined
+                                                                                 Comparison. For the I/O transmission part, the hidden state
+to utilize both the computation capability and transmission
+                                                                                 tensors have the same shape as keys and values in the KV cache.
+bandwidth at the same time. As shown in Figure 5, the
+                                                                                 Hence, the I/O time of transmitting hidden states is half that
+transmission of 𝐿𝑛+1 and recomputation from the hidden states
+                                                                                 of directly transmitting the KV cache. For the computation
+to KV cache of 𝐿𝑛 can be done concurrently.
+                                                                                 part. The relative speedup of HCache compared with recom-
+   Next, We theoretically analyze how caching hidden states
+                                                                                 putation is:
+can reduce both computational and data transfer volumes.
+                                                                                                   2
+                                                                                    24 ∗ 𝑁𝑠𝑒𝑞 ∗ 𝐷ℎ𝑖𝑑𝑑𝑒𝑛      2 ∗𝐷
+                                                                                                         + 𝑁𝑠𝑒𝑞    ℎ𝑖𝑑𝑑𝑒𝑛            𝑁𝑠𝑒𝑞
+3.2    Restoration Cost Analysis                                                                          2
+                                                                                                                          =6+                .
+                                                                                              4 ∗ 𝑁𝑠𝑒𝑞 ∗ 𝐷ℎ𝑖𝑑𝑑𝑒𝑛                 4 ∗ 𝐷ℎ𝑖𝑑𝑑𝑒𝑛
+We compare HCache with the two aforementioned methods:                           Hence, the lower bound for the speed up is 6×. The computa-
+KV offload and recomputation. We analyze the restoration for                     tional speedup is attributed to two factors. First, the FFN and
+one transformer layer that uses muti-head-attention (MHA).                       attention modules are highly compute-intensive, reflected by
+Restoration time with HCache. Restoration from hidden states                     the constant 24 in the above equation. In contrast, the projec-
+involves two parts: hidden states transmission and recom-                        tion of hidden states to the KV cache is relatively lightweight,
+putation from the hidden states to KV cache. The time for                        corresponding to a constant of 4. This ensures a minimum 6×
+transmitting hidden states is:                                                   speed-up. Second, the quadratic complexity attention compu-
+                              𝑁𝑠𝑒𝑞 ∗ 𝐷ℎ𝑖𝑑𝑑𝑒𝑛                                     tation is the dominant component for long sequences but is
+                 𝐼𝑂ℎ𝑖𝑑𝑑𝑒𝑛 =                  ,                                   unnecessary in restoring the hidden state. So HCache scales
+                                    𝐵𝑊
+where 𝑁𝑠𝑒𝑞 indicates the number of tokens in the sequence,                       linearly with history length.
+𝐷𝑑𝑖𝑑𝑑𝑒𝑛 is the LLM hidden dimension, and 𝐵𝑊 is the band-                         Conclusion. As a whole, the transmission size of HCache is
+width between hidden states’ GPU and storage backend. The                        always 2× less than that of transmitting the KV cache, while
+computation time1 from hidden states to KV cache is:                             the recomputation of KV cache from hidden states is at least
+                      4 ∗ 𝑁𝑠𝑒𝑞 ∗ 𝐷ℎ𝑖𝑑𝑑𝑒𝑛 ∗ 𝐷ℎ𝑖𝑑𝑑𝑒𝑛                               6× faster than token recomputation. This theoretical support
+           𝐶ℎ𝑖𝑑𝑑𝑒𝑛 =                               ,
+                                 𝐹 𝐿𝑂𝑃𝑆                                          makes HCache beneficial on mainstream platforms (see §6.2).
+where 𝐹 𝐿𝑂𝑃𝑆 is the FLOPS of the GPU. With the computation-                      Nevertheless, when employing HCache to existing LLM
+transmission pipeline implemented in Figure 5, the end-to-end                    serving systems, we still face two main challenges:
+restore time is dominated by the maximum of 𝑇ℎ𝑖𝑑𝑑𝑒𝑛 and
+                                                                                 C1: Pipeline bubbles. As shown in Figure 5, the computation
+1A multiply-add operator is regarded as 2 float point operations.                and transmission of HCache restoration do not always take
+
+
+
+                                                                           132
+EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands                                                     Shiwei Gao, Youmin Chen, and Jiwu Shu
+
+
+         Autoregressively Generated          Batched Restored                         Hidden State        KV Cache     Restoration Path   Saving Path
+                                                                                         Host CPU                          GPU
+                                                                                                                           KV cache
+                                                                                              LLM Engine
+ LLM                                                                                   Request             Scheme
+Layers                                                                                                                     Temp Buffer
+                                                                                              Restoration
+                                                                                            Scheduler (§4.1)
+
+               (a) Generation                  (b) Restoration                                                             Host Storage
+                                                                                           Storage
+                                                                                         Manager (§4.2)
+Figure 6. State Generation and Restoration Order. The high-
+lighted red block: the hidden states of the 2𝑛𝑑 token at the 2𝑛𝑑 layer.
+
+the same time. Hence, the actual restoration speed is bounded                                        Figure 7. HCache Overview.
+by the slower one, which creates pipeline bubbles and wastes                    Previous research has suggested using a hierarchical storage
+system resources. In extreme hardware configurations, where                     backend that combines host DRAM and SSDs [19]. They
+the IO speed far exceeds computation speeds, or vice versa,                     also integrate prefetching and caching strategies, allowing
+HCache may not offer any benefits.                                              frequently accessed contextual states to reside in the host
+C2: Storage format. Unlike KV cache that owns dedicated                         DRAM. Contextual state caching is orthogonal to our work
+GPU memory space, hidden states are intermediate activations                    and can be incorporated to enhance performance further.
+in temporary buffers repeatedly reused among transformer
+                                                                                4.1    Bubble-Free Restoration Scheduler
+layers. Therefore, these hidden states should be dumped to
+host storage immediately once they are generated. However,                      The bubble-free restoration scheduler combines different
+hidden states’ generation and restoration order are inconsistent,               restoration methods dynamically to eliminate pipeline bub-
+making it hard to design an efficient storage format to manage                  bles. Specifically, the scheduler partitions a model’s state
+hidden states. As shown in Figure 6a, the HCache is generated                   across layers, with most states be managed via hidden states,
+autoregressively, exhibiting a layer-before-token order. In state               while using a resource-complementary method (token recom-
+restoration, instead, the hidden states of multiple tokens are                  putation or KV offload) for other states to fill in the bubble.
+restored as a batch at each layer (i.e., token-before-layer,                    For example, bubbles exist in transmission when the compu-
+Figure 6b). As a result, a storage format optimized for state                   tation speed is slow, so we offload part of the model’s state
+saving (i.e., placing a token’s hidden states at different layers               as KV cache to prevent the need for computation. HCache
+in a continuous place) incurs random, small-sized IOs at                        determines an optimal partition scheme via offline profiling
+restoration, or vice versa.                                                     of the hardware characteristics. We further illustrate how a
+                                                                                model’s state should be partitioned (§4.1.1) and the detailed
+4    HCache Design                                                              partition algorithm (§4.1.2).
+To address the above challenges, we further enhance HCache                      4.1.1 State Partition Method. When employing different
+with bubble-free restoration and efficient storage management.                  restoration methods to eliminate pipeline bubbles, model
+Figure 7 depicts the overall architecture of HCache and how it                  states are partitioned like prior work [17, 36], with each using
+interacts with an LLM inference engine. When a user request                     a different restoration method. There are two approaches to
+arrives, the inference engine first decides whether the request’s               partitioning the model state: token-wise partition and layer-
+history states should be restored. If so, the inference engine                  wise partition.
+utilizes the bubble-free restoration scheduler (§4.1) to generate                  Figure 8a shows a LLM model with 6 layers and a history
+an optimal restoration scheme to restore its KV cache (to solve                 context containing 3 tokens. With a token-wise partition
+C1). With the restored KV cache, the user request is further                    scheme, these states are vertically split into two parts, where
+processed with prompt prefilling and token generation to                        the first two tokens are managed via HCache and the rest
+generate an answer. During the prefilling and token generation                  one is managed using a complementary method (e.g., KV
+phase, the storage manager (§4.2) efficiently saves the newly                   offload). State restoration with token-wise partition is shown in
+computed hidden states to host storage (to solve C2). Since                     Figure 8c. At layer 𝑖, KV recomputation from hidden states of
+HCache focuses on state restoration speed, we do not cache                      the first two tokens is done concurrently with the transmission
+and reuse KV cache in GPU.                                                      of layer 𝑖+1 (hidden states of the first two tokens and KV cache
+   By default, our storage manager utilizes SSDs as the back-                   of the 3rd token). In layer-wise partition, model states are
+end storage devices. SSDs are cost-effective, offer substantial                 horizontally partitioned. As shown in Figure 8b, the first 4
+capacity, and deliver high I/O bandwidth, making them ideal                     layers of an LLM are managed with HCache while the KV
+for storing large volumes of hidden states. In environments                     cache of the last two layers is offloaded to the host. State
+lacking SSDs, host DRAM can be used as an alternative.                          restoration with token-wise partition is shown in Figure 8d,
+
+
+
+                                                                          133
+Fast State Restoration in LLM Serving with HCache                                                                     EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands
+
+
+                                  HCache                                           KV cache                  started to continue the computation. On a platform with faster
+  Layer 6                L6Ta-c                 L6Tc                              L6                         I/O transmission speed, HCache is combined with KV of-
+                                                                                                             fload. For the first 𝐿𝐻 layers, we copy their hidden states and
+                             …                                                  …                            recompute them to restore the KV cache. Since the I/O trans-
+  Layer 2                L4Ta-c                 L4Tc                              L2
+                                                                                                             mission of hidden states is faster, it will finish earlier than the
+  Layer 1                L4Ta-c                 L1Tc                              L1                         computation, so we copy the KV cache of the rest 𝐿𝑂 layers
+                  (a) Token-wise Partition                           (b) Layer-wise Partition                in the remaining time.
+                    HCache IO                   KV cache IO                    HCache Recompute                 Our state partition algorithm sets 𝐿𝐻 and 𝐿𝑂 such that data
+                  L1Ta-b          L2Ta-b         L3Ta-b            L4Ta-b        L5Ta-b       L6Ta-b         transmission and computation finish almost simultaneously,
+   L1Ta-b L1Tc L2Ta-b L2Tc L3Ta-b L3Tc L4Ta-b L1Tc L4Ta-b L1Tc L6Ta-b L6Tc                                   thus eliminating bubbles. To solve 𝐿𝐻 and 𝐿𝑂 , we profile the
+                                      (c) Token-wise Restore                                                 transmission and computation speed of a specific hardware
+                     L1Ta-c                 L1Ta-c                    L3Ta-c              L4Ta-c             platform offline, where the transmission time of hidden states
+       L1Ta-c   L2Ta-c      L3Ta-c     L4Ta-c             L5Ta-c                 L6Ta-c                      is 𝐼𝑂 𝐻 , transmission time of KV cache is 𝐼𝑂 𝐾𝑉 , computation
+                                       (d) Layer-wise Restore                                                time from token is 𝐶𝑇 𝑜𝑘𝑒𝑛 , from hidden states to KV cache
+                                                                                                             is 𝐶𝐻 . We formulate the bubble-free target as a min-max
+Figure 8. Two Ways to Combine HCache with KV cache. Li                                                       optimization problem. Below is an example of combining
+and Tj indicate layer i and token j, respectively.                                                           HCache with KV cache:
+                                .                                                                                     argmin max (𝐶𝐻 ∗ 𝐿𝐻 , 𝐼𝑂 𝐻 ∗ 𝐿𝐻 + 𝐼𝑂 𝐾𝑉 ∗ 𝐿𝑂 )
+                                                                                                                     𝐿𝐻 ,𝐿𝑂
+where the transmission of hidden states can occur continuously
+without requiring synchronization at each layer, provided it is                                                       subject to 𝐿𝐻 + 𝐿𝑂 = 𝑁𝐿𝑎𝑦𝑒𝑟
+faster than recomputation. Once complete, the KV cache of                                                    Given a hardware configuration, 𝐿𝐻 and 𝐿𝑂 are derived via:
+the last two layers is fetched into GPU memory.                                                                               𝑁𝐿𝑎𝑦𝑒𝑟 ∗ 𝐼𝑂 𝐾𝑉
+                                                                                                                     𝐿𝐻 = ⌈                    ⌉, if 𝐶𝐻 > 𝐼𝑂 𝐻
+Performance considerations. In practice, token-wise par-                                                                    𝐼𝑂 𝐾𝑉 + 𝐶𝐻 − 𝐼𝑂 𝐻
+tition does not always fully eliminate the bubbles in state                                                                   𝑁𝐿𝑎𝑦𝑒𝑟 ∗ 𝐶𝑇 𝑜𝑘𝑒𝑛
+                                                                                                                     𝐿𝐻 = ⌈                     ⌉, if 𝐶𝐻 ≤ 𝐼𝑂 𝐻
+restoration. We observe that the execution time of GEMM                                                                     𝐶𝑇 𝑜𝑘𝑒𝑛 + 𝐼𝑂 𝐻 − 𝐶𝐻
+operations does not vary proportionally with the number of                                                           𝐿𝑂 = 𝑁𝑙𝑎𝑦𝑒𝑟 − 𝐿𝐻
+tokens involved. The GEMM kernel in the cuBLAS library
+is well-optimized for standard matrix sizes. However, the
+token-wise partition can generate a scheme that forms an                                                     4.2   HCache Storage Manager
+irregular matrix and is less optimized by cuBLAS. As a result,                                               The storage manager is tasked with managing contextual states
+executing a GEMM kernel with fewer tokens may consume                                                        in host storage. We have adopted a storage format optimized
+a similar amount of time as one with more tokens. Even                                                       for state restoration, as reducing TTFT is our primary design
+if we round the partition scheme to the nearest optimized                                                    goal. Additionally, we introduce a two-stage state-saving
+size, bubbles still exist in the computation and transmission,                                               mechanism to mitigate the overhead associated with saving
+resulting in suboptimal performance.                                                                         newly generated states. Note that with our state partition
+    Such a performance issue does not exist in layer-wise                                                    algorithm in §4.1.2, the contextual states at each model layer
+partition since all tokens at a layer are recomputed together.                                               are stored either in hidden states, KV cache, or original tokens.
+Furthermore, current LLM engines typically set a fixed mini-                                                 Here, we focus on the management of hidden states since the
+batch length to limit the intermediate buffer size and sequences                                             KV cache can be managed similarly.
+larger than a mini-batch will be split and processed sequentially.
+Hence, We use the layer-wise partition and set the mini-batch
+                                                                                                             4.2.1 Storage Format. We introduce a storage format de-
+length to be an optimized size in cuBLAS.
+                                                                                                             signed for fast restoration. Since we adopt a layer-wise
+4.1.2 State Partition Algorithm. We introduce the state par-                                                 approach to restore the states for the history context, the
+tition algorithm to generate a bubble-free restoration scheme                                                hidden states of all tokens from the same layer are copied
+according to the hardware setups. We introduce two variables                                                 together. Conceptually, the hidden states of tokens in the same
+– 𝐿𝐻 and 𝐿𝑂 – to indicate the number of model layers managed                                                 layer is colocated in a continuous large data block to maximize
+with HCache and other methods, respectively.                                                                 transferring bandwidth. In practice, we split the tokens of
+    Specifically, on a platform with faster computation speed,                                               one layer into multiple fix-sized (64 tokens) chunks. The
+HCache is combined with token recomputation, where the first                                                 chunks of a layer are distributed on multiple SSDs following
+𝐿𝑂 layers are restored with token recomputation, and the re-                                                 the round-robin manner. The chunk-based storage format is
+maining 𝐿𝐻 layers with HCache. When recompute of the first                                                   designed for the following reasons: First, when multiple SSDs
+𝐿𝑂 layers. The hidden states of the latter layers are prefetched.                                            are present in the system, we should distribute the data of a
+When token recomputation finishes, HCache restoration is                                                     layer across all SSDs instead of a large continuous block on a
+
+
+
+                                                                                                       134
+EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands                                         Shiwei Gao, Youmin Chen, and Jiwu Shu
+
+
+single SSD. This can facilitate parallel I/O operations and en-          scheduling algorithm to opportunistically fuse prefill with
+hance the transmission speed of one layer through bandwidth              decoding generation to mitigate the interference between
+aggregation. Second, LLM generates tokens autoregressively,              prefilling and decoding.
+whose output length is unpredictable [28, 61]. This forbids us
+                                                                         Pipelined state transmission. On the GPU side, we use
+from reserving the storage space for a layer’s hidden states as
+                                                                         dedicated streams for state transmission – one for the upstream
+an entire buffer – reserving space according to its maximum
+                                                                         state transmission and the other for the downstream state
+length would result in serious internal fragmentation.
+                                                                         snapshot. We use cudaEvent to coordinate the ordering of
+4.2.2 Two-Stage State Saving. Next, we explore how the                   operations among different streams. For example, the snapshot
+storage manager saves newly generated hidden states using a              of one layer’s hidden states is followed by an event, which is
+chunk-based storage format. As we mentioned before, hidden               waited by the first compute operator of the next layer so as to
+states are intermediate activations generated at each layer, if          keep the buffer a consistent version when accessed.
+they are not saved in a timely manner, computation tasks will            Storage management. To save hidden states, we use 8 back-
+be blocked. In the token generation phase with continuous                ground threads on the host side to collect dumped hidden states
+batching enabled, a batch generates hidden states of different           and append them to corresponding data chunks. Once a chunk
+sequences, which should be organized into separate chunks                is fully populated, it is promptly written to the NVMe de-
+before being saved. Directly transferring these hidden states            vice. To restore hidden states, similar to FlashNeuron [9], we
+to different chunks at host storage can lead to numerous small           co-use SPDK [59] and GDRCopy [37] to realize GPUDirect
+write operations, potentially compromising the efficiency of             Storage, which transfers data between the GPU and SSD
+the generation task.                                                     directly. Specifically, we pin several memory buffers on the
+   We adopt a two-stage strategy to address this problem. First,         GPU’s BAR (Base Address Register) space in advance; when
+the hidden states of the batch, encompassing tokens from                 the GPU reads data from the SSD, we set the NVMe read
+various sequences, are collectively copied to the host memory            command’s destination address as the exposed GPU BAR
+using a single cudaMemcpy call. This method effectively                  address, thus achieving a direct P2P copy, which eliminates
+snapshots the hidden states to the host, allowing the GPU                redundant memory copies with minimized I/O latencies.
+memory buffer to be properly reused for subsequent layers.
+Second, a host daemon running on the CPU orchestrates chunk              Multi-GPU support. We also add support for HCache to
+management. It copies HCache to appropriate chunk buffers                serve large models that run on multiple GPUs. With tensor
+and flushes them to storage devices.                                     parallelism, each GPU node should have a full version of
+   In this way, the overhead of saving hidden states to host             hidden states to compute the KV cache. To avoid redundant
+storage is moved off the critical path of LLM processing;                read of the hidden states from different GPUs, we let all
+meanwhile, small-sized writes are reorganized into large                 GPUs read disjoint shards (split by token) of hidden states
+chunks, which host storage (e.g., SSDs) favors.                          concurrently. This operation can aggregate the read bandwidth
+                                                                         of all GPUs with no read amplification. Then, GPUs run an all-
+5    Implementation                                                      gather communication operator to reconstruct the full hidden
+We implement HCache with 5731 lines of code in Cuda, C++,                state from shards. Since the GPU is connected via the fast
+and Python. Our implementation is based on DeepSpeed-                    NVlink interconnect, the all-gather operation will only incur
+MII v0.2.0 [15], a state-of-the-art LLM serving system that              a small overhead compared with the transmission part. With
+supports the SplitFuse [3] scheduling algorithm. We add sup-             pipeline parallelism. The restoration of each layer’s HCache
+port restoring from hidden states to KV cache in DeepSpeed-              is independent of each other. So, each GPU node can fetch
+MII. Specifically, we use the cuBLAS library to project                  the hidden states of its responsible layers concurrently and
+the hidden states to primeval KV values. Following prior                 recompute it to attain the KV cache of corresponding layers.
+work [19], we write a custom kernel to apply the ROPE posi-
+tion embedding [46] to the recomputed KV values and copy                 6   Evaluation
+the result to the KV cache.                                              We evaluate HCache to answer the following questions:
+                                                                         • How does HCache perform in terms of TTFT and TBT
+Request scheduling. The scheduler of HCache derives from
+                                                                           compared to state-of-the-art state restoration methods?
+the continuous batching [22] method. There are two main
+                                                                         • How does HCache perform on platforms with various GPUs,
+phases in continuous batching, namely prefilling and decoding.
+                                                                           storage devices, and context length?
+HCache adds an extra restoration phase. The request arrived
+                                                                         • How do HCache’s individual techniques affect HCache’s
+in the system with evited history KV cache will first execute
+                                                                           performance?
+this phase with bubble-free restoration. When the restoration
+phase is finished, The prefill phase is then conducted using             Testbed. Unless otherwise stated, all our experiments are
+the request’s newly arrived prompt. Finally, the request is              conducted on a server equipped with 4× A100-40G SXM4
+added to the decoding batch. We also apply the SplitFuse [3]             connected via NVLink. The host has 2× AMD EPYC 7642
+
+
+
+                                                                   135
+Fast State Restoration in LLM Serving with HCache                                     EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands
+
+
+                                  Recomputation              KV Offload                       HCache                            Ideal
+
+            0.3       Llama2-7B                       0.3    Llama2-13B                                    OPT-30B
+                                                                                                     0.4
+
+
+ TTFT (s)
+            0.2                                       0.2
+                                                                                                     0.2
+            0.1                                       0.1
+
+             0                                          0                                              0
+                  0         0.5          1.0                0.05    0.10 0.15 0.20 0.25                           0.5         1.0            1.5
+                        Load rate (sessions/s)                     Load rate (sessions/s)                       Load rate (sessions/s)
+                                  (a)                                        (b)                                          (c)
+        0.03                                        0.028                                           0.05
+                      Llama2-7B                              Llama2-13B                                    OPT-30B
+
+                                                                                                    0.04
+
+ TBT (s)
+        0.02                                        0.026
+                                                                                                    0.03
+
+        0.01                                        0.024                                           0.02
+                  0          0.5          1.0               0.05     0.10 0.15 0.20 0.25                           0.5          1.0
+                        Load rate (sessions/s)                     Load rate (sessions/s)                       Load rate (sessions/s)
+                                  (d)                                        (e)                                          (f)
+
+                                          Figure 9. Overall Performance Results On ShareGPT4 Trace.
+
+CPUs, 256G DDR4 memory, and 4× Samsung PM9A3 4TB                             for each request except for the first token. TTFT is highly
+enterprise SSDs. In our sensitivity experiments, we change                   related to user experiences, and we mainly report TTFT to
+the hardware configuration by using cloud servers equipped                   show HCache’s performance improvements. We report TBT
+with different GPUs. For these cloud servers, we directly                    to prove that HCache poses negligible impact on decoding
+use the host DRAM as the storage backend. The hardware                       requests. In other case studies, we run restoration requests
+characteristics of these GPUs are shown in Table 2.                          with a batch size equal to 1, so we report the restoration speed
+                                                                             instead, which is defined as the number of restored historical
+Models: We use Llama2-7B, Llama2-13B, OPT-30B as our
+                                                                             tokens divided by the restoration time.
+test models. We expand the maximum context length of these
+models to 16K to accommodate L-Eval benchmarks and long                      Baselines. We compare HCache to the following baselines.
+conversation history. For Llama2-7B/13B, we use a single                     Recomputation: DeepSpeed-MII[15] is an LLM serving sys-
+A100 GPU to serve them. For OPT-30B, we run it on 4 A100                     tem that supports the SplitFuse scheduling algorithm and uses
+GPUs with tensor parallelism unless otherwise stated. We use                 PagedAttention to manage KV cache. We use it as the base-
+the ShareGPT4 and L-Eval described in §2.3 as our test traces                line for token recomputation. KV offload: AttentionStore [19]
+to imitate the real-world LLM use cases like multi-round                     offloads KV cache to multi-tiered secondary storage. We im-
+conversation chatbot or RAG application.                                     plement it on top of DeepSpeed-MII to serve as the KV
+Metrics. When evaluating the overall performance, we report                  offload baseline. We do not implement the decoupled position
+TTFT (Time to First Token), which is the duration of the                     embedding because we already expand the context length for
+restoration and prefill phase, and TBT (Time between Token),                 models. Ideal: We also implement an ideal system without the
+which represents the average time taken to generate a token                  restoration overhead. Here, we do not keep all KV caches in
+                                                                             GPU memory; instead, we allocate the placeholder KV values
+                                                                             in GPU, which are used repeatedly across all user requests.
+ GPU HBM Size FLOPS★ Transmission Speed                                      This achieves the theoretical lower bounds for the TTFT and
+ A100       40G       312T              32GB/s                               TBT metrics, assuming all the history KV cache is cached on
+  A30       24G       165T              32GB/s                               GPU and reused.
+ 4090       24G       330T              32GB/s
+  L20       48G       120T              32GB/s                               6.1 Overall Performance
+ H800       80G       990T              64GB/s
+                                                                             6.1.1 Multi-Round Conversation. We evaluate the over-
+Table 2. Hardware Characteristics of Different Platforms.                    all performance of HCache against baseline methods in the
+Note that ★ indicates the FLOPS of FP16 operations.
+                                                                             multi-round conversation setting with ShareGPT4. In this
+
+
+
+                                                                       136
+EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands                                                     Shiwei Gao, Youmin Chen, and Jiwu Shu
+
+
+                       Recomputation                     HCache                                                    Per Token Storage Cost
+                       KV Offload                        Ideal                        Model          Schedule
+                                                                                                                  HCache        KV Offload
+           1.5          (a) Paper Assistant                   (b) GSM-100
+                                                                                       7B        31 H + 1 KV       132 KiB        256 KiB
+
+TTFT (s)
+           1.0                                                                         13B       36 H + 4 KV       210 KiB        400 KiB
+                                                                                       30B       40 H + 8 RE       280 KiB        672 KiB
+           0.5
+                                                                                    Table 3. Scheduling Results and Storage Cost. H, KV, and RE
+             0                                                                      indicate hidden states, KV cache, and recomputation, respectively.
+           1.0                (c) QuALITY                         (d) Mixed
+                                                                                    Figure 10 shows the TTFT of three representative subtasks
+
+TTFT (s)
+                                                                                    and the sampled 200 requests from the trace (i.e., mixed).
+           0.5                                                                      HCache can achieve 1.62-1.93× speed up for TTFT compared
+                                                                                    over KV offload and 2.66-5.73× over token recomputation. It
+            0                                                                       is worth noticing that these tasks’ history length spans within
+                 a-7B ma-13B Opt-30B              a-7B ma-13B Opt-30B               a large range from 4K to 16K, demonstrating HCache’s
+            Llam    Lla                       Llam   Lla
+                                                                                    excellent scalability.
+       Figure 10. Performance of Long-Context Applications.
+                                                                                    6.1.3 In-Depth Analysis. In Table 3, we report the schedule
+experiment, we use 4 SSDs as the storage backend. Follow-                           results of HCache, in terms of how model layers are managed
+ing prior work [19, 28], we set the arrival time of different                       and the per-token storage space consumption. We also report
+sessions with the Poisson distribution. The interval between                        the storage cost of KV offload as a comparison. Specifically, the
+conversation rounds in one session is set to 30s. All restora-                      7B model on one A100 has balanced speed for recomputation
+tion methods do not reuse the KV cache on GPU for a fair                            from hidden states into KV cache and the transmission of
+comparison. The KV cache are evicted when one round of                              hidden states, so we use hidden states for 31 layers and only
+conversation ends.                                                                  transmit the KV cache for one layer to fill in the bubble. For
+TTFT and throughput. Figures 9a-c show the TTFT under                               the 13B and 30B model, HCache use hidden states for more
+different request rates in the multi-round conversation. Overall,                   than 80% layers, while the rest of the layers are managed via
+HCache can provide 1.27-1.90× TTFT speedup compared                                 different resource-complementary methods. Regarding space
+with the KV offload and 2.21-3.57× better than token recom-                         consumption, the size of hidden states for one token is half
+putation. For 7B/13B models, the one running GPU has 4                              that of KV cache. Combined with the zero-bubble scheduler,
+SSDs, providing sufficient IO bandwidth for state restoration.                      some layers may not even need to be stored because they can
+Hence, the KV offload method is fast, but our methods can                           be recomputed from tokens. As a result, HCache’s per token
+still be 1.27-1.60× faster than it. Instead, OPT-30B runs on 4                      storage space is 1.92-2.40× lower than KV offload. To achieve
+GPUs, each with one SSD, so the restoration time of OPT-30B                         a balanced speed between computation and transmission
+is longer, and HCache can achieve up to 1.90× TTFT speedup                          using only hidden states, approximately 24GB/s, 21GB/s, and
+compared with KV offload.                                                           37GB/s of storage bandwidth are needed for the 7B, 13B, and
+    The 13B model has a lower peak throughput compared to                           30B models, respectively.
+7B/30B models. This is bounded by the limited GPU memory                            6.2   Sensitivity Analysis
+for the KV cache. The throughput of different restoration
+methods is nearly the same in this case. For the 7B/30B                             The state restoration speed of an LLM is highly relevant to the
+model, HCache can sustain up to 11% more requests than                              model size, IO transmission bandwidth, computation power,
+KV offloading since the restoration cost for HCache is lower.                       and historical context length. We vary them to analyze the
+                                                                                    sensitivity of HCache against baseline methods.
+TBT. Figures 9d-f show the TBT of different models in the
+multi-round conversation setting. Compared with the ideal                           6.2.1 Varying GPU Devices. The restoration phase of
+case, in which no restoration is needed, HCache’s TBT is                            HCache includes the projection of hidden states to KV cache,
+at most 4% higher, almost the same as the ideal case. The                           so its performance is sensitive to the computation power
+low TBT overhead benefits from the high restoration speed of                        of GPU. We evaluate the restoration speed of HCache and
+HCache , which reduces GPU time spent on the restoration,                           baselines on various GPU platforms. We use host DRAM as
+so the token generation is stalled long.                                            the storage backend so that the transmission speed is not the
+                                                                                    bottleneck. Figures 11a-c shows that HCache outperforms
+6.1.2 Long-Context Applications. We evaluate the overall                            KV offload by 1.33–1.81× and Recomputation by 5.04–9.05×
+performance of HCache against baseline methods in the                               in restoration speed across different platforms. Platforms with
+long-context applications setting with the L-Eval trace. Since                      low computation capability are unfriendly to HCache, such
+the GPU HBM can only serve 1-3 long-context requests,                               as running a 7B model on an A30 GPU. In this case, HCache
+we evaluate different models with a batch size equal to 1.                          computation is longer than transmission and makes the speed
+
+
+
+                                                                              137
+Fast State Restoration in LLM Serving with HCache                                                  EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands
+
+
+                                   Recomputation                        KV Offload                                    HCache
+
+ Recovery Speed
+                   90
+                                             Llama2-7B                                        Llama2-13B                                        OPT-30B
+                   60                                          90                                                     90
+                                                               60                                                     60
+                   30
+   (K tokens/s)
+                                                               30                                                     30
+                    0                                           0                                                      0
+                            A100    4090          A30                   H800        A100           L20                         H800    4×A100 2×H800
+                                     (a)                                             (b)                                                 (c)
+
+ Recovery Speed    90                        Llama2-7B                                        Llama2-13B              90                        OPT-30B
+                                                               60
+                   60                                                                                                 60
+                                                               30
+
+   (K tokens/s)
+                   30                                                                                                 30
+                    0                                           0                                                      0
+                            1      2         3          4               1           2          3         4                     4      8         12       16
+                                       (d)       (# of SSDs)                            (e)     (# of SSDs)                               (f)        (# of SSDs)
+
+                                    Recomputation                        KV Offload                                     HCache
+
+ Recovery Speed
+                  120                        Llama2-7B                                        Llama2-13B              40                        OPT-30B
+                                                               60
+                   80
+                                                               30                                                     20
+
+   (K tokens/s)
+                   40
+                    0                                           0                                                      0
+                        0    4K    8K   12K 16K                     0    4K         8K   12K 16K                           0    8K     16K       24k        32K
+                                    (g)   (ctx length)                               (h)   (ctx length)                                  (i)         (ctx length)
+
+
+
+Figure 11. Sensitivity Analysis by Various Factors. (a-c): Varying GPU computation capability and using DRAM as the storage backend.
+(d-f): Varying number of SSDs in the default testbed. (g-i): Varying context length with the default testbed.
+
+up less than 2×. Even so, HCache still restores 1.33× faster                         HCache over KV offload is 2.09-2.66×. For platforms with
+than KV offload. On platforms with faster computation speeds,                        more disks, instead, the recomputation operation in HCache
+HCache shows improved performance, achieving a 1.66×                                 can be longer than the transmission in this setting, so the speed
+increase on A100 GPU and a 1.77× increase on the H800                                up can be less than 2×. However, the recomputation overhead
+GPU for 13B models compared to KV offload. Compared                                  is much lower than token recomputation. The overall speedup
+to token recomputation, HCache achieves 5.04-9.05× speed                             is 1.33-1.81× on 7B-30B models compared with KV offload
+up on different GPUs. This is attributed to the 6× theoretical                       and 5.46-6.08× compared with recomputation from the token.
+speedup against token recomputation by skipping the attention
+and FFN modules.
+                                                                                     6.2.3 Varying Sequence Length. We further investigate
+6.2.2 Varying Storage Bandwidth. LLM state restoration                               the impact of sequence length on HCache’s restoration speed.
+is sensitive to the transmission speed. We evaluate the restora-                     Following the same configuration as the overall experiment, we
+tion speed of HCache and baselines with different numbers                            test different models’ restoration speeds on A100 GPUs with 4
+of disks. One PM9A3 SSD provides a read bandwidth of                                 SSDs by varying the history length. As shown in Figures 11g-i,
+6.9 GB/s, and using 4 disks can saturate the upstream PCIe                           token recomputation can not scale well with the increasing
+bandwidth of the A100 GPU. For the 30B model, we use                                 history length; the restoration speed of a 7B model drops by
+DRAM to simulate 8-16 disks since our platform does not                              28% as the history length increases from 1K to 16K. Token
+have enough PCIe slots. The history length is set to 1024.                           recomputation’s quadratic complexity attention mechanism
+   Figures 11d-f present the sensitivity evaluation results re-                      incurs a high overhead in contexts with a long history. The
+lated to transmission speed. In terms of the restoration speed                       KV cache can scale well with different history lengths because
+across various disk configurations, HCache significantly out-                        its transmission size is proportional to the number of tokens.
+performs KV offload, delivering a 1.7 to 2.6× improvement                            HCache also scales well with different history lengths for
+and surpasses recomputation with a 2.3-6.1× enhancement.                             two reasons. First, the transmission size of hidden states and
+For platforms with fewer disks, IO transmission can be slower                        recomputation cost from it to KV cache are all proportional
+than computation tasks; based on our theoretical analysis,                           to the number of tokens (see §3.2). Second, HCache has the
+HCache can perform at least 2× better, and the bubble-free                           bubble-free restoration scheduler and may opportunistically
+scheduler can bring extra speed up. For example, on the plat-                        combine the usage of the token recomputation to fill in the
+form with one SSD per GPU, the overall improvement of                                bubble in the short context. With long historical contexts, the
+
+
+
+                                                                              138
+EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands                                                                                             Shiwei Gao, Youmin Chen, and Jiwu Shu
+
+
+                                    Recomputation             HCache-O                   HCache                                           DirectIO             HCache          Ideal
+                                    KV Offload                Naive Hybrid                                             0.06
+                                                                                                                                   Llama2-7B                          Llama2-13B
+
+   Recovery Speed
+                         60                                                                                            0.04
+                         40                                                                                      TBT (s)
+                                                                                                                       0.02
+     (K tokens/s)
+                         20
+
+                          0                                                                                                0
+                               IO-Sufficient   Compute-Sufficient                      Balanced                                0      5      10    15     20      0       10     20     30
+                              A30+7B+4SSD       A100+7B+1SSD                        A100+13B+4SSD                                         Batch Size                       Batch Size
+                                                                                                                                              (a)                              (b)
+            Figure 12. Ablation Study on Bubble-Free Scheduler.                                                  Figure 14. Ablation Study on Two-Stage HCache Saving.
+                                                                                                                uses hidden states for 31 layers and token recomputation for
+
+Restoration Speed
+                                                                       400
+
+                                                    Restoration Time
+                                                                                                                the remaining 9 layers. Instead, a naive token-wise partition
+                    25
+                                                                       350                   Token-wise         uses hidden states for 794 tokens and token recomputation
+                                                                                                                for the remaining 230 tokens. A round-up optimization over
+                                                                       300
+
+                                                          (µs)
+                    20
+
+  (K tokens/s)
+                                                                                   Token-wise+round
+                                                                                                                the token-wise partition uses the nearest optimal size (i.e.,
+                                                                       250                                      768) to manage tokens with HCache. As Figure 13 shows,
+                    15
+                               Toke Toke Laye                                500         800      1100          the restoration speed with the naive token-wise partition is
+                                   n-Wis n-Wis r-Wis                               # of Tokens
+                                         e    e+Ro e                                                            12% slower. While the round-up optimization can improve
+                                     (a)          und                                   (b)
+                                                                                                                performance by issuing a more performant cuBLAS kernel,
+          Figure 13. Ablation Study on State Partition Methods.                                                 it is still 7% slower than layer-wise partition because of the
+scheduler detects that token computation is very expensive                                                      unbalanced workload in computation and transmission. As
+and falls back to the HCache-only approach.                                                                     auxiliary information, we also report the restoration time of
+                                                                                                                GEMM operation in one layer with varying numbers of tokens
+6.3 Ablation Study                                                                                              (see Figure 13b).
+6.3.1 Bubble-Free Scheduler. We first compare different                                                         6.3.3 Two-stage State Saving. To evaluate the effectiveness
+scheduling methods for state restoration. We implement two                                                      of the two-stage hidden states saving strategy. We implement
+variants of HCache, including HCache-O and Naive hybrid.                                                        a variant of HCache, which directly saves hidden states to
+HCache-O only uses hidden states for state restoration without                                                  SSDs (i.e., DirectIO in Figure 14). We test the TBT with
+the bubble-free scheduler. Naive Hybrid uses the bubble-free                                                    different numbers of sequences in the decoding batch and set
+restoration scheduler to mix token recomputation and KV                                                         the history length of each to 512.
+offload without using hidden states. We compare them under                                                          As shown in the figure, HCache’s TBT is consistent with the
+three hardware settings: balanced, compute-, and IO-sufficient.                                                 ideal case. This is because cudaMemcpy can efficiently copy
+   The results are shown in Figure 12. Without hidden states,                                                   the hidden states to host DRAM. DirectIO achieves a similar
+Naive hybrid is the best method that uses both compute and                                                      effect when the batch size is small because the I/O time is less
+transmission resources. HCache outperforms this approach                                                        than one layer’s decoding time. However, when the batch size
+by 1.28-1.42×. Both methods have no bubbles, so the perfor-                                                     is large, DirectIO can not store one batch’s hidden states to the
+mance gain of HCache comes from the hidden states as it has                                                     device on time and will stall the decoding phase. DirectIO’s
+theoretically lower computational and IO overhead.                                                              TBT can be 34% higher with the 7B model when the batch
+   The bubble-free scheduler plays a key role on resource-                                                      size reaches 16. With the 13B model, DirectIO’s TBT is
+skewed platforms. HCache-O incurs pipeline bubbles and                                                          less significant because each layer’s decoding time becomes
+waste resources. For example, in the IO-sufficient setting, the                                                 longer. However, as the batch size increases to 32, DirectIO
+bubble in the HCache-O lets it be 13% slower than KV offload                                                    still increases TBT by 13%.
+because the recomputation in HCache is slow and IO resources                                                        It is important to note that no stalling occurred during hidden
+are wasted. The bubble-free scheduler can integrate HCache-                                                     state snapshots in our experiments. For example, prefilling
+O with resource-complementary methods, thus improving                                                           1,024 tokens in a single layer of the Llama2-13B model
+the speed of HCache-O by 1.35-1.64× in skewed hardware                                                          generates approximately 10MB of hidden states in 3ms. This
+configuration and making HCache consistently perform better                                                     results in an equivalent bandwidth of 3GB/s, which is lower
+than KV offload by 1.45-2.66×.                                                                                  than the PCIe bandwidth. The hidden state generation speed
+6.3.2 State Partition Methods. We compare different meth-                                                       during the decoding phase is even slower.
+ods to partition the state of the model. We measure the restora-
+tion speed of the 13B model using history contexts with 1024                                                    6.4 Performace with on GPU KV Reusing
+tokens. We run the model on one A100 with one SSD. With                                                         Real-world LLM serving systems [20, 67] typically reuse the
+the layer-wise partition, our algorithm produces a scheme that                                                  KV cache on GPU. We evaluate the TTFT of HCache against
+
+
+
+                                                                                                          139
+Fast State Restoration in LLM Serving with HCache                                                        EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands
+
+
+                     Recomputation          KV Offload     HCache                                LLM state compression. One alternative to reducing LLM’s
+            200                                                     100
+                                                                                                 state restoration time is to compress the KV cache, but at the
+
+
+                                                                         Cache Hit Ratio
+                        484         270
+                                                                    80
+
+
+TTFT (ms)
+                                                                                                 cost of compromised model accuracy. Instead, HCache is a
+            100                                                     60                           lossless method for state restoration.
+                                                                    40                           Quantization [16, 21, 23, 27, 33, 58, 63] is the represen-
+                                                                    20                           tative methods for KV cache compression. These methods
+             0
+                  Uniform     1.2         1.4     1.6    1.8    2                                compress the KV cache from 16-bit into 4-bit or even lower.
+                                          Skewness (α)                                           CacheGen [32] is the most relevant work that combines KV
+              Figure 15. Performace with on GPU KV Reusing                                       offload with quantization. CacheGen mitigates the KV trans-
+                                                                                                 ferring overhead by reducing its size with quantization-based
+                                                                                                 compression algorithms. These quantization-based methods
+baseline state restoration methods, along with a GPU-resident                                    can be applied in HCache to reduce the size of hidden states.
+KV cache.                                                                                        Moreover, LLM weight quantization methods [18, 30, 54, 65]
+   In this experiment, we use the L-Eval dataset and reuse                                       are also applicable to reduce computing overhead and can be
+the KV cache for long-context tasks on the GPU, employing                                        combined with HCache to improve state restoration speed.
+an LRU-based cache, as done in prior work [67]. When a                                           Token drop methods. Some recent work [34, 64] drops the
+cache miss occurs on the GPU, the KV cache is restored
+                                                                                                 KV cache of less important tokens directly based on attention
+using different state restoration methods. Following prior
+                                                                                                 scores. These methods reduce the KV cache size by reducing
+work [45, 55, 56], we synthetic the arrival pattern of contexts
+                                                                                                 the number of tokens that need to be stored. They can also
+in the L-Eval dataset with varying Zipfian skewness values
+                                                                                                 be integrated into HCache to reduce the transmission and
+(𝛼). We evaluate the 7B model with 4 SSDs, and we report
+                                                                                                 computation overhead.
+both the cache hit ratio and TTFT under different skewness
+                                                                                                 MQA and GQA. Algorithm improvements like MQA [43] and
+levels.
+                                                                                                 GQA [4] have been designed to reduce the sizes of KV cache
+   The results are shown in Figure 15. With a uniform arrival
+                                                                                                 by using low-rank KV representation. These methods can
+pattern, the cache hit ratio is 15%, and the TTFT is similar to
+                                                                                                 apply to HCache by first projecting the hidden states into
+the overall experiment, which does not incorporate caching.
+                                                                                                 a low-rank representation and then storing it. This involves
+In the uniform setting, HCache is 1.67× faster than KV
+                                                                                                 changing the model structure, which is beyond the scope of
+offloading. As the skewness increases from uniform to 𝛼 = 2.0,
+                                                                                                 this paper. HCache can currently support LLMs using the
+the cache hit ratio rises to 94%, allowing the GPU cache
+                                                                                                 MHA mechanisms without any change of the model structure,
+to significantly reduce TTFT by 3.76× to 10.03×. A high
+                                                                                                 including 20,000 famous LLM models on Hugging Face like
+cache hit ratio diminishes the performance gains of HCache
+                                                                                                 Llama2 [49], Gemma [47], Phi2 [25], and Qwen1.5.
+due to fewer state restoration events. Nevertheless, HCache
+remains 1.15× faster than KV offloading and 1.98× faster than                                    8   Conclusion
+recomputation in high-skewness workloads.
+                                                                                                 We present HCache, a novel method for LLM state restora-
+                                                                                                 tion. HCache stores the intermediate activation of LLM and
+7            Related Work                                                                        combines the transmission and computation resources to re-
+                                                                                                 store the LLM state with low overhead. To further improve
+Stateful LLM optimizations. Recent work optimized for                                            HCache’s performance, we propose bubble-free restoration to
+stateful LLMs all maintain the KV cache as is. Prompt-                                           use resource-complementary methods to improve the restora-
+Cache [20], SGLang [67] and ChunkAttention [60] proposes to                                      tion speed, and introduce a chunk-based storage layout for
+cache and reuse the on-chip KV cache for shared tokens across                                    HCache and save the HCache using a two-stage strategy.
+different requests. They optimize the GPU cache hit path and                                     We evaluate HCache with a range of models and hardware
+are complementary to HCache which optimize the cache miss                                        platforms. The experimental results show that HCache can
+path. For larger than GPU memory KV cache management, At-                                        reduce TTFT by up to 1.93× compared with KV offload
+tenionStore [19] offloads the KV cache to tiered host storage,                                   and 5.73× compared with token recomputation. Moreover,
+including DRAM and SSDs. RAGCache[26], Pensieve[62],                                             HCache can also reduce the storage cost by 1.92-2.4×.
+and APIServe [2] maintain a multi-tier KV cache storage sys-
+tem across GPU memory and host DRAM based on hotness                                             Acknowledgements
+and restoration overhead. FlexGen [44] is an offline inference
+                                                                                                 We sincerely thank our shepherd Rong Chen and anonymous
+system that offloads both KV cache and output activations of
+                                                                                                 reviewers for their feedback and suggestions. This work is
+each layer to facilitate batched inference. Our work is distin-
+                                                                                                 supported by the National Key R&D Program of China (Grant
+guished from them by exploiting hidden states, and the above
+                                                                                                 No. 2022YFB4500302) and the National Natural Science
+caching mechanisms can be further applied in our system to
+                                                                                                 Foundation of China (Grant No. U22B2023, 62202255).
+boost performance.
+
+
+
+                                                                                           140
+EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands                                                          Shiwei Gao, Youmin Chen, and Jiwu Shu
+
+
+References                                                                           [14] Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Hee-
+ [1] 2024. Sharegpt4 Dataset. https://huggingface.co/datasets/openchat/                   woo Jun, Lukasz Kaiser, Matthias Plappert, Jerry Tworek, Jacob Hilton,
+     openchat_sharegpt4_dataset. [Computer software].                                     Reiichiro Nakano, et al. 2021. Training verifiers to solve math word
+ [2] Reyna Abhyankar, Zĳian He, Vikranth Srivatsa, Hao Zhang, and Yiying                  problems. arXiv preprint arXiv:2110.14168 (2021).
+     Zhang. 2024. APIServe: Efficient API Support for Large-Language                 [15] DeepSpeed. 2024. DeepSpeed-MII. https://github.com/microsoft/
+     Model Inferencing. arXiv:2402.01869 [cs.LG]                                          DeepSpeed-MII. [Computer software].
+ [3] Amey Agrawal, Nitin Kedia, Ashish Panwar, Jayashree Mohan, Nipun                [16] Shichen Dong, Wen Cheng, Jiayu Qin, and Wei Wang. 2024. QAQ:
+     Kwatra, Bhargav Gulavani, Alexey Tumanov, and Ramachandran Ram-                      Quality Adaptive Quantization for LLM KV Cache. arXiv preprint
+     jee. 2024. Taming Throughput-Latency Tradeoff in LLM Inference                       arXiv:2403.04643 (2024).
+     with Sarathi-Serve. In 18th USENIX Symposium on Operating Systems               [17] Yangyang Feng, Minhui Xie, Zĳie Tian, Shuo Wang, Youyou Lu,
+     Design and Implementation (OSDI 24). USENIX Association, Santa                       and Jiwu Shu. 2023. Mobius: Fine Tuning Large-Scale Models on
+     Clara, CA, 117–134. https://www.usenix.org/conference/osdi24/                        Commodity GPU Servers. In Proceedings of the 28th ACM International
+     presentation/agrawal                                                                 Conference on Architectural Support for Programming Languages and
+ [4] Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy,                  Operating Systems, Volume 2 (Vancouver, BC, Canada) (ASPLOS 2023).
+     Federico Lebron, and Sumit Sanghai. 2023. GQA: Training Generalized                  Association for Computing Machinery, New York, NY, USA, 489–501.
+     Multi-Query Transformer Models from Multi-Head Checkpoints. In                       https://doi.org/10.1145/3575693.3575703
+     Proceedings of the 2023 Conference on Empirical Methods in Natural              [18] Elias Frantar, Saleh Ashkboos, Torsten Hoefler, and Dan Alistarh. 2022.
+     Language Processing. 4895–4901.                                                      OPTQ: Accurate quantization for generative pre-trained transformers. In
+ [5] Chenxin An, Shansan Gong, Ming Zhong, Mukai Li, Jun Zhang, Ling-                     The Eleventh International Conference on Learning Representations.
+     peng Kong, and Xipeng Qiu. 2023. L-Eval: Instituting Standardized Eval-         [19] Bin Gao, Zhuomin He, Puru Sharma, Qingxuan Kang, Djordje Jevdjic,
+     uation for Long Context Language Models. arXiv:2307.11088 [cs.CL]                    Junbo Deng, Xingkun Yang, Zhou Yu, and Pengfei Zuo. 2024. Cost-
+ [6] anthropic. 2024. Claude. https://claude.ai/ . [Computer software].                   Efficient Large Language Model Serving for Multi-turn Conversations
+ [7] LightLLM authors. 2024. LightLLM. https://github.com/ModelTC/                        with CachedAttention. In 2024 USENIX Annual Technical Confer-
+     lightllm. [Computer software].                                                       ence (USENIX ATC 24). USENIX Association, Santa Clara, CA, 111–
+ [8] RTP-LLM authors. 2024. RTP-LLM. https://github.com/alibaba/rtp-                      126. https://www.usenix.org/conference/atc24/presentation/gao-bin-
+     llm. [Computer software].                                                            cost
+ [9] Jonghyun Bae, Jongsung Lee, Yunho Jin, Sam Son, Shine Kim, Hak-                 [20] In Gim, Guojun Chen, Seung-seob Lee, Nikhil Sarda, Anurag Khandel-
+     beom Jang, Tae Jun Ham, and Jae W. Lee. 2021. FlashNeuron: SSD-                      wal, and Lin Zhong. 2024. Prompt Cache: Modular Attention Reuse
+     Enabled Large-Batch Training of Very Deep Neural Networks. In 19th                   for Low-Latency Inference. In Proceedings of Machine Learning and
+     USENIX Conference on File and Storage Technologies (FAST 21).                        Systems, P. Gibbons, G. Pekhimenko, and C. De Sa (Eds.), Vol. 6.
+     USENIX Association, 387–401. https://www.usenix.org/conference/                      325–338. https://proceedings.mlsys.org/paper_files/paper/2024/file/
+     fast21/presentation/bae                                                              a66caa1703fe34705a4368c3014c1966-Paper-Conference.pdf
+[10] Sebastian Borgeaud, Arthur Mensch, Jordan Hoffmann, Trevor Cai, Eliza           [21] Robert M. Gray and David L. Neuhoff. 1998. Quantization. IEEE
+     Rutherford, Katie Millican, George van den Driessche, Jean-Baptiste                  transactions on information theory 44, 6 (1998), 2325–2383.
+     Lespiau, Bogdan Damoc, Aidan Clark, Diego de Las Casas, Aurelia Guy,            [22] Connor Holmes, Masahiro Tanaka, Michael Wyatt, Ammar Ahmad
+     Jacob Menick, Roman Ring, T. W. Hennigan, Saffron Huang, Lorenzo                     Awan, Jeff Rasley, Samyam Rajbhandari, Reza Yazdani Aminabadi,
+     Maggiore, Chris Jones, Albin Cassirer, Andy Brock, Michela Paganini,                 Heyang Qin, Arash Bakhtiari, Lev Kurilenko, and Yuxiong He. 2024.
+     Geoffrey Irving, Oriol Vinyals, Simon Osindero, Karen Simonyan,                      DeepSpeed-FastGen: High-throughput Text Generation for LLMs via
+     Jack W. Rae, Erich Elsen, and L. Sifre. 2021. Improving language models              MII and DeepSpeed-Inference. arXiv:2401.08671 [cs.PF]
+     by retrieving from trillions of tokens. In International Conference             [23] Coleman Hooper, Sehoon Kim, Hiva Mohammadzadeh, Michael W
+     on Machine Learning. https://api.semanticscholar.org/CorpusID:                       Mahoney, Yakun Sophia Shao, Kurt Keutzer, and Amir Gholami. 2024.
+     244954723                                                                            KVQuant: Towards 10 Million Context Length LLM Inference with
+[11] Yihan Cao, Siyu Li, Yixin Liu, Zhiling Yan, Yutong Dai, Philip S Yu,                 KV Cache Quantization. arXiv preprint arXiv:2401.18079 (2024).
+     and Lichao Sun. 2023. A comprehensive survey of ai-generated content            [24] Lei Huang, Weĳiang Yu, Weitao Ma, Weihong Zhong, Zhangyin Feng,
+     (aigc): A history of generative ai from gan to chatgpt. arXiv preprint               Haotian Wang, Qianglong Chen, Weihua Peng, Xiaocheng Feng, Bing
+     arXiv:2303.04226 (2023).                                                             Qin, and Ting Liu. 2023. A Survey on Hallucination in Large Lan-
+[12] Harrison Chase. 2022. LangChain. https://github.com/langchain-                       guage Models: Principles, Taxonomy, Challenges, and Open Questions.
+     ai/langchain                                                                         arXiv:2311.05232 [cs.CL]
+[13] Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Ponde                [25] Mojan Javaheripi, Sébastien Bubeck, Marah Abdin, Jyoti Aneja, Se-
+     de Oliveira Pinto, Jared Kaplan, Harri Edwards, Yuri Burda, Nicholas                 bastien Bubeck, Caio César Teodoro Mendes, Weizhu Chen, Allie
+     Joseph, Greg Brockman, Alex Ray, Raul Puri, Gretchen Krueger,                        Del Giorno, Ronen Eldan, Sivakanth Gopi, et al. 2023. Phi-2: The
+     Michael Petrov, Heidy Khlaaf, Girish Sastry, Pamela Mishkin, Brooke                  surprising power of small language models. Microsoft Research Blog
+     Chan, Scott Gray, Nick Ryder, Mikhail Pavlov, Alethea Power, Lukasz                  (2023).
+     Kaiser, Mohammad Bavarian, Clemens Winter, Philippe Tillet, Fe-                 [26] Chao Jin, Zili Zhang, Xuanlin Jiang, Fangyue Liu, Xin Liu, Xuanzhe
+     lipe Petroski Such, Dave Cummings, Matthias Plappert, Fotios Chantzis,               Liu, and Xin Jin. 2024. RAGCache: Efficient Knowledge Caching for
+     Elizabeth Barnes, Ariel Herbert-Voss, William Hebgen Guss, Alex                      Retrieval-Augmented Generation. arXiv:2404.12457 [cs.DC]
+     Nichol, Alex Paino, Nikolas Tezak, Jie Tang, Igor Babuschkin, Suchir            [27] Hao Kang, Qingru Zhang, Souvik Kundu, Geonhwa Jeong, Zaoxing
+     Balaji, Shantanu Jain, William Saunders, Christopher Hesse, Andrew N.                Liu, Tushar Krishna, and Tuo Zhao. 2024. GEAR: An Efficient KV
+     Carr, Jan Leike, Josh Achiam, Vedant Misra, Evan Morikawa, Alec                      Cache Compression Recipe for Near-Lossless Generative Inference of
+     Radford, Matthew Knight, Miles Brundage, Mira Murati, Katie Mayer,                   LLM. arXiv:2403.05527 [cs.LG]
+     Peter Welinder, Bob McGrew, Dario Amodei, Sam McCandlish, Ilya                  [28] Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin
+     Sutskever, and Wojciech Zaremba. 2021. Evaluating Large Language                     Zheng, Cody Hao Yu, Joseph Gonzalez, Hao Zhang, and Ion Stoica.
+     Models Trained on Code. arXiv:2107.03374 [cs.LG]                                     2023. Efficient Memory Management for Large Language Model
+                                                                                          Serving with PagedAttention. In Proceedings of the 29th Symposium
+
+
+
+
+                                                                               141
+Fast State Restoration in LLM Serving with HCache                                             EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands
+
+
+     on Operating Systems Principles (, Koblenz, Germany,) (SOSP ’23).                   models with a single GPU. In Proceedings of the 40th International
+     Association for Computing Machinery, New York, NY, USA, 611–626.                    Conference on Machine Learning (, Honolulu, Hawaii, USA,) (ICML’23).
+     https://doi.org/10.1145/3600006.3613165                                             JMLR.org, Article 1288, 23 pages.
+[29] Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir         [45] Xiaoniu Song, Yiwen Zhang, Rong Chen, and Haibo Chen. 2023.
+     Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau                       UGACHE: A Unified GPU Cache for Embedding-based Deep Learning.
+     Yih, Tim Rocktäschel, et al. 2020. Retrieval-augmented generation                   In Proceedings of the 29th Symposium on Operating Systems Principles
+     for knowledge-intensive nlp tasks. Advances in Neural Information                   (Koblenz, Germany) (SOSP ’23). Association for Computing Machinery,
+     Processing Systems 33 (2020), 9459–9474.                                            New York, NY, USA, 627–641. https://doi.org/10.1145/3600006.
+[30] Ji Lin, Jiaming Tang, Haotian Tang, Shang Yang, Xingyu Dang, and                    3613169
+     Song Han. 2023. Awq: Activation-aware weight quantization for llm              [46] Jianlin Su, Murtadha Ahmed, Yu Lu, Shengfeng Pan, Wen Bo, and
+     compression and acceleration. arXiv preprint arXiv:2306.00978 (2023).               Yunfeng Liu. 2024. Roformer: Enhanced transformer with rotary
+[31] Jerry Liu. 2022. LlamaIndex. https://doi.org/10.5281/zenodo.1234                    position embedding. Neurocomputing 568 (2024), 127063.
+[32] Yuhan Liu, Hanchen Li, Yihua Cheng, Siddhant Ray, Yuyang Huang,                [47] Gemma Team, Thomas Mesnard, Cassidy Hardin, Robert Dadashi,
+     Qizheng Zhang, Kuntai Du, Jiayi Yao, Shan Lu, Ganesh Anantha-                       Surya Bhupatiraju, Shreya Pathak, Laurent Sifre, Morgane Rivière,
+     narayanan, Michael Maire, Henry Hoffmann, Ari Holtzman, and Junchen                 Mihir Sanjay Kale, Juliette Love, Pouya Tafti, Léonard Hussenot,
+     Jiang. 2024. CacheGen: KV Cache Compression and Streaming for Fast                  Pier Giuseppe Sessa, Aakanksha Chowdhery, Adam Roberts, Aditya
+     Large Language Model Serving. In Proceedings of the ACM SIGCOMM                     Barua, Alex Botev, Alex Castro-Ros, Ambrose Slone, Amélie Héliou,
+     2024 Conference (Sydney, NSW, Australia) (ACM SIGCOMM ’24).                         Andrea Tacchetti, Anna Bulanova, Antonia Paterson, Beth Tsai, Bobak
+     Association for Computing Machinery, New York, NY, USA, 38–56.                      Shahriari, Charline Le Lan, Christopher A. Choquette-Choo, Clément
+     https://doi.org/10.1145/3651890.3672274                                             Crepy, Daniel Cer, Daphne Ippolito, David Reid, Elena Buchatskaya,
+[33] Zirui Liu, Jiayi Yuan, Hongye Jin, Shaochen Zhong, Zhaozhuo Xu,                     Eric Ni, Eric Noland, Geng Yan, George Tucker, George-Christian
+     Vladimir Braverman, Beidi Chen, and Xia Hu. 2024. KIVI: A Tuning-                   Muraru, Grigory Rozhdestvenskiy, Henryk Michalewski, Ian Tenney,
+     Free Asymmetric 2bit Quantization for KV Cache. arXiv preprint                      Ivan Grishchenko, Jacob Austin, James Keeling, Jane Labanowski,
+     arXiv:2402.02750 (2024).                                                            Jean-Baptiste Lespiau, Jeff Stanway, Jenny Brennan, Jeremy Chen,
+[34] Jesse Mu, Xiang Lisa Li, and Noah Goodman. 2023. Learning to                        Johan Ferret, Justin Chiu, Justin Mao-Jones, Katherine Lee, Kathy
+     Compress Prompts with Gist Tokens. In Thirty-seventh Conference                     Yu, Katie Millican, Lars Lowe Sjoesund, Lisa Lee, Lucas Dixon,
+     on Neural Information Processing Systems. https://openreview.net/                   Machel Reid, Maciej Mikuła, Mateo Wirth, Michael Sharman, Nikolai
+     forum?id=2DtxPCL3T5                                                                 Chinaev, Nithum Thain, Olivier Bachem, Oscar Chang, Oscar Wahltinez,
+[35] Daye Nam, Andrew Macvean, Vincent Hellendoorn, Bogdan Vasilescu,                    Paige Bailey, Paul Michel, Petko Yotov, Rahma Chaabouni, Ramona
+     and Brad Myers. 2024. Using an llm to help with code understanding.                 Comanescu, Reena Jana, Rohan Anil, Ross McIlroy, Ruibo Liu, Ryan
+     In Proceedings of the IEEE/ACM 46th International Conference on                     Mullins, Samuel L Smith, Sebastian Borgeaud, Sertan Girgin, Sholto
+     Software Engineering. 1–13.                                                         Douglas, Shree Pandya, Siamak Shakeri, Soham De, Ted Klimenko, Tom
+[36] Deepak Narayanan, Aaron Harlap, Amar Phanishayee, Vivek Seshadri,                   Hennigan, Vlad Feinberg, Wojciech Stokowiec, Yu hui Chen, Zafarali
+     Nikhil R. Devanur, Gregory R. Ganger, Phillip B. Gibbons, and Matei                 Ahmed, Zhitao Gong, Tris Warkentin, Ludovic Peran, Minh Giang,
+     Zaharia. 2019. PipeDream: generalized pipeline parallelism for DNN                  Clément Farabet, Oriol Vinyals, Jeff Dean, Koray Kavukcuoglu, Demis
+     training. In Proceedings of the 27th ACM Symposium on Operat-                       Hassabis, Zoubin Ghahramani, Douglas Eck, Joelle Barral, Fernando
+     ing Systems Principles (Huntsville, Ontario, Canada) (SOSP ’19).                    Pereira, Eli Collins, Armand Joulin, Noah Fiedel, Evan Senter, Alek
+     Association for Computing Machinery, New York, NY, USA, 1–15.                       Andreev, and Kathleen Kenealy. 2024. Gemma: Open Models Based
+     https://doi.org/10.1145/3341301.3359646                                             on Gemini Research and Technology. arXiv:2403.08295 [cs.CL]
+[37] NVIDIA. 2024. gdrcopy. https://github.com/NVIDIA/gdrcopy. [Com-                [48] SM Tonmoy, SM Zaman, Vinĳa Jain, Anku Rani, Vipula Rawte,
+     puter software].                                                                    Aman Chadha, and Amitava Das. 2024. A comprehensive survey of
+[38] NVIDIA. 2024. Long context prompting for Claude 2.1. https://www.                   hallucination mitigation techniques in large language models. arXiv
+     anthropic.com/news/claude-2-1-prompting. [Website].                                 preprint arXiv:2401.01313 (2024).
+[39] NVIDIA. 2024.       TensorRT-LLM.         https://github.com/NVIDIA/           [49] Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Alma-
+     TensorRT-LLM. [Computer software].                                                  hairi, Yasmine Babaei, Nikolay Bashlykov, Soumya Batra, Prajjwal
+[40] OpenAI. 2024. ChatGPT. https://chat.openai.com/ . [Computer                         Bhargava, Shruti Bhosale, Dan Bikel, Lukas Blecher, Cristian Canton
+     software].                                                                          Ferrer, Moya Chen, Guillem Cucurull, David Esiobu, Jude Fernandes,
+[41] Richard Yuanzhe Pang, Alicia Parrish, Nitish Joshi, Nikita Nangia,                  Jeremy Fu, Wenyin Fu, Brian Fuller, Cynthia Gao, Vedanuj Goswami,
+     Jason Phang, Angelica Chen, Vishakh Padmakumar, Johnny Ma, Jana                     Naman Goyal, Anthony Hartshorn, Saghar Hosseini, Rui Hou, Hakan
+     Thompson, He He, and Samuel Bowman. 2022. QuALITY: Ques-                            Inan, Marcin Kardas, Viktor Kerkez, Madian Khabsa, Isabel Kloumann,
+     tion Answering with Long Input Texts, Yes!. In Proceedings of the                   Artem Korenev, Punit Singh Koura, Marie-Anne Lachaux, Thibaut
+     2022 Conference of the North American Chapter of the Association for                Lavril, Jenya Lee, Diana Liskovich, Yinghai Lu, Yuning Mao, Xavier
+     Computational Linguistics: Human Language Technologies. Associa-                    Martinet, Todor Mihaylov, Pushkar Mishra, Igor Molybog, Yixin Nie,
+     tion for Computational Linguistics, Seattle, United States, 5336–5358.              Andrew Poulton, Jeremy Reizenstein, Rashi Rungta, Kalyan Saladi,
+     https://aclanthology.org/2022.naacl-main.391                                        Alan Schelten, Ruan Silva, Eric Michael Smith, Ranjan Subramanian,
+[42] Bo Peng, Eric Alcaide, Quentin Anthony, Alon Albalak, Samuel Ar-                    Xiaoqing Ellen Tan, Binh Tang, Ross Taylor, Adina Williams, Jian Xi-
+     cadinho, Huanqi Cao, Xin Cheng, Michael Chung, Matteo Grella,                       ang Kuan, Puxin Xu, Zheng Yan, Iliyan Zarov, Yuchen Zhang, Angela
+     Kranthi Kiran GV, et al. 2023. Rwkv: Reinventing rnns for the trans-                Fan, Melanie Kambadur, Sharan Narang, Aurelien Rodriguez, Robert
+     former era. arXiv preprint arXiv:2305.13048 (2023).                                 Stojnic, Sergey Edunov, and Thomas Scialom. 2023. Llama 2: Open
+[43] Noam Shazeer. 2019. Fast transformer decoding: One write-head is all                Foundation and Fine-Tuned Chat Models. arXiv:2307.09288 [cs.CL]
+     you need. arXiv preprint arXiv:1911.02150 (2019).                              [50] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion
+[44] Ying Sheng, Lianmin Zheng, Binhang Yuan, Zhuohan Li, Max Ryabinin,                  Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. 2017.
+     Beidi Chen, Percy Liang, Christopher Ré, Ion Stoica, and Ce Zhang.                  Attention is all you need. Advances in neural information processing
+     2023. FlexGen: high-throughput generative inference of large language               systems 30 (2017).
+
+
+
+
+                                                                              142
+EuroSys ’25, March 30–April 3, 2025, Rotterdam, Netherlands                                                           Shiwei Gao, Youmin Chen, and Jiwu Shu
+
+
+[51] Lei Wang, Chen Ma, Xueyang Feng, Zeyu Zhang, Hao Yang, Jingsen                   [64] Zhenyu Zhang, Ying Sheng, Tianyi Zhou, Tianlong Chen, Lianmin
+     Zhang, Zhiyuan Chen, Jiakai Tang, Xu Chen, Yankai Lin, Wayne Xin                      Zheng, Ruisi Cai, Zhao Song, Yuandong Tian, Christopher Ré, Clark
+     Zhao, Zhewei Wei, and Jirong Wen. 2024. A survey on large language                    Barrett, et al. 2024. H2o: Heavy-hitter oracle for efficient generative
+     model based autonomous agents. Frontiers of Computer Science 18, 6                    inference of large language models. Advances in Neural Information
+     (March 2024). https://doi.org/10.1007/s11704-024-40231-1                              Processing Systems 36 (2024).
+[52] Bingyang Wu, Yinmin Zhong, Zili Zhang, Gang Huang, Xuanzhe Liu,                  [65] Yilong Zhao, Chien-Yu Lin, Kan Zhu, Zihao Ye, Lequn Chen, Size
+     and Xin Jin. 2023. Fast distributed inference serving for large language              Zheng, Luis Ceze, Arvind Krishnamurthy, Tianqi Chen, and Baris
+     models. arXiv preprint arXiv:2305.05920 (2023).                                       Kasikci. 2023. Atom: Low-bit quantization for efficient and accurate
+[53] Zhiheng Xi, Wenxiang Chen, Xin Guo, Wei He, Yiwen Ding, Boyang                        llm serving. arXiv preprint arXiv:2310.19102 (2023).
+     Hong, Ming Zhang, Junzhe Wang, Senjie Jin, Enyu Zhou, Rui Zheng,                 [66] Zoie Zhao, Sophie Song, Bridget Duah, Jamie Macbeth, Scott Carter,
+     Xiaoran Fan, Xiao Wang, Limao Xiong, Yuhao Zhou, Weiran Wang,                         Monica P Van, Nayeli Suseth Bravo, Matthew Klenk, Kate Sick, and
+     Changhao Jiang, Yicheng Zou, Xiangyang Liu, Zhangyue Yin, Shihan                      Alexandre LS Filipowicz. 2023. More human than human: LLM-
+     Dou, Rongxiang Weng, Wensen Cheng, Qi Zhang, Wenjuan Qin,                             generated narratives outperform human-LLM interleaved narratives.
+     Yongyan Zheng, Xipeng Qiu, Xuanjing Huang, and Tao Gui. 2023. The                     In Proceedings of the 15th Conference on Creativity and Cognition.
+     Rise and Potential of Large Language Model Based Agents: A Survey.                    368–370.
+     arXiv:2309.07864 [cs.AI]                                                         [67] Lianmin Zheng, Liangsheng Yin, Zhiqiang Xie, Jeff Huang, Chuyue
+[54] Guangxuan Xiao, Ji Lin, Mickael Seznec, Hao Wu, Julien Demouth,                       Sun, Cody Hao Yu, Shiyi Cao, Christos Kozyrakis, Ion Stoica, Joseph E.
+     and Song Han. 2023. SmoothQuant: Accurate and Efficient Post-                         Gonzalez, Clark Barrett, and Ying Sheng. 2023. Efficiently Program-
+     Training Quantization for Large Language Models. In Proceedings of                    ming Large Language Models using SGLang. arXiv:2312.07104 [cs.AI]
+     the 40th International Conference on Machine Learning (Proceedings
+     of Machine Learning Research, Vol. 202), Andreas Krause, Emma
+     Brunskill, Kyunghyun Cho, Barbara Engelhardt, Sivan Sabato, and
+     Jonathan Scarlett (Eds.). PMLR, 38087–38099. https://proceedings.
+     mlr.press/v202/xiao23c.html
+[55] Minhui Xie, Youyou Lu, Jiazhen Lin, Qing Wang, Jian Gao, Kai Ren,
+     and Jiwu Shu. 2022. Fleche: an efficient GPU embedding cache for
+     personalized recommendations. In Proceedings of the Seventeenth
+     European Conference on Computer Systems (Rennes, France) (EuroSys
+    ’22). Association for Computing Machinery, New York, NY, USA,
+     402–416. https://doi.org/10.1145/3492321.3519554
+[56] Minhui Xie, Youyou Lu, Qing Wang, Yangyang Feng, Jiaqiang Liu, Kai
+     Ren, and Jiwu Shu. 2023. PetPS: Supporting huge embedding models
+     with persistent memory. Proceedings of the VLDB Endowment 16, 5
+     (2023), 1013–1022.
+[57] Minhui Xie, Kai Ren, Youyou Lu, Guangxu Yang, Qingxing Xu,
+     Bihai Wu, Jiazhen Lin, Hongbo Ao, Wanhong Xu, and Jiwu Shu.
+     2020. Kraken: memory-efficient continual learning for large-scale
+     real-time recommendations. In SC20: International Conference for
+     High Performance Computing, Networking, Storage and Analysis. IEEE,
+     1–17.
+[58] June Yong Yang, Byeongwook Kim, Jeongin Bae, Beomseok Kwon,
+     Gunho Park, Eunho Yang, Se Jung Kwon, and Dongsoo Lee. 2024. No
+     Token Left Behind: Reliable KV Cache Compression via Importance-
+     Aware Mixed Precision Quantization. arXiv preprint arXiv:2402.18096
+     (2024).
+[59] Ziye Yang, James R Harris, Benjamin Walker, Daniel Verkamp, Chang-
+     peng Liu, Cunyin Chang, Gang Cao, Jonathan Stern, Vishal Verma, and
+     Luse E Paul. 2017. SPDK: A development kit to build high performance
+     storage applications. In 2017 IEEE International Conference on Cloud
+     Computing Technology and Science (CloudCom). IEEE, 154–161.
+[60] Lu Ye, Ze Tao, Yong Huang, and Yang Li. 2024. ChunkAttention:
+     Efficient Attention on KV Cache with Chunking Sharing and Batching.
+     https://openreview.net/forum?id=9k27IITeAZ
+[61] Gyeong-In Yu, Joo Seong Jeong, Geon-Woo Kim, Soojeong Kim,
+     and Byung-Gon Chun. 2022. Orca: A distributed serving system for
+     {Transformer-Based} generative models. In 16th USENIX Symposium
+     on Operating Systems Design and Implementation (OSDI 22). 521–538.
+[62] Lingfan Yu and Jinyang Li. 2023. Stateful Large Language Model
+     Serving with Pensieve. arXiv:2312.05516 [cs.LG]
+[63] Tianyi Zhang, Jonah Yi, Zhaozhuo Xu, and Anshumali Shrivastava.
+     2024. KV Cache is 1 Bit Per Channel: Efficient Large Language Model
+     Inference with Coupled Quantization. arXiv preprint arXiv:2405.03917
+     (2024).
+
+
+
+
+                                                                                143
+

@@ -1,0 +1,127 @@
+[
+  {
+    "key": "vtc",
+    "url": "https://www.usenix.org/system/files/osdi24-sheng.pdf",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "key": "sarathi",
+    "url": "https://www.usenix.org/system/files/osdi24-agrawal.pdf",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "key": "fill_squeeze",
+    "url": "https://arxiv.org/pdf/2602.07878v2",
+    "bytes": 12083294,
+    "sha256": "cd534b13a2cad6d2e3df0c580d4c546fd70f5cba4a0d00d1f21b1a7f932d5bb8",
+    "status": "downloaded"
+  },
+  {
+    "key": "grief",
+    "url": "https://arxiv.org/pdf/2605.11202",
+    "bytes": 3841606,
+    "sha256": "d6fecdb425892bba930774a029f02db73e50a69b245bf566ec00d8afc42bcd0d",
+    "status": "downloaded"
+  },
+  {
+    "key": "kvgov",
+    "url": "https://arxiv.org/pdf/2608.09225",
+    "bytes": 278235,
+    "sha256": "6743c519d28513a57182aca6115af8f935241baea7bd3e709cf0a6e5177c1372",
+    "status": "downloaded"
+  },
+  {
+    "key": "vtc",
+    "url": "https://arxiv.org/pdf/2401.00588",
+    "sha256": "2fa74f1e7ff787bdf4ce7702ac0c28be0a4d627ecd08dab19df5b65f530060da",
+    "bytes": 974583,
+    "status": "downloaded"
+  },
+  {
+    "key": "sarathi",
+    "url": "https://arxiv.org/pdf/2403.02310",
+    "sha256": "45f59f4474de29baf4d315c785b850625548b69a9bc7be2e036d6fc59f54b54a",
+    "bytes": 1945812,
+    "status": "downloaded"
+  },
+  {
+    "key": "cachesolidarity",
+    "url": "https://arxiv.org/pdf/2603.10726",
+    "sha256": "1813fcf1c3e0fe2f7325994f9c821762889b9dfba6551222fdf62a2b42749395",
+    "bytes": 1034587,
+    "status": "downloaded"
+  },
+  {
+    "key": "prefixshield",
+    "url": "https://arxiv.org/pdf/2608.01657",
+    "sha256": "692df0e2a3784711b70dc698349d5ce2c5fae13210210a81d6439994538497b1",
+    "bytes": 535855,
+    "status": "downloaded"
+  },
+  {
+    "key": "eviction",
+    "url": "https://arxiv.org/pdf/2609.28870",
+    "sha256": "4eb7eec4c5e61be40e4f0688f5518d2d4663d862a3d96b79d049a3636af4712f",
+    "bytes": 1193854,
+    "status": "downloaded"
+  },
+  {
+    "key": "remote_timing",
+    "url": "https://arxiv.org/pdf/2410.17175",
+    "sha256": "12249c19d75be42882baebd3a4f2051231c5d3e6a5f888cf0347673ea95cce6c",
+    "status": "downloaded"
+  },
+  {
+    "key": "safekv",
+    "url": "https://arxiv.org/pdf/2508.08438",
+    "sha256": "3e7c3406d613bbf80a4b05ca8eee5026222eedfa57abcc028ac0d82d8a76bbb7",
+    "status": "downloaded"
+  },
+  {
+    "key": "promptpeek",
+    "url": "https://dev.ndss-symposium.org/wp-content/uploads/2025-1772-paper.pdf",
+    "error": "<urlopen error [Errno -5] No address associated with hostname>"
+  },
+  {
+    "key": "auditing",
+    "url": "https://arxiv.org/pdf/2502.07776",
+    "sha256": "2212495b4ebd4cac1770256075eed284e5c67ca59f852a3aa9cc5ee66f30e8b7",
+    "status": "downloaded"
+  },
+  {
+    "key": "icissp_132747",
+    "url": "https://www.scitepress.org/Papers/2025/132747/132747.pdf",
+    "sha256": "5adb6ee43569368432b4cb4dc906f1b0a2d82bc3a494ac1641a0f6153ea1f876",
+    "status": "downloaded; format comparison only"
+  },
+  {
+    "key": "icissp_131300",
+    "url": "https://www.scitepress.org/Papers/2025/131300/131300.pdf",
+    "sha256": "1bcf47110e0efe7b47feb0661e7ced89c9d85e2d96a310b7fb5fac7333eed0ba",
+    "status": "downloaded; format comparison only"
+  },
+  {
+    "key": "hcache",
+    "url": "user-supplied /home/rock/Downloads/3689031.3696072.pdf",
+    "version": "EuroSys 2025; DOI 10.1145/3689031.3696072",
+    "bytes": 691472,
+    "sha256": "0492cc094dfc401bec3a0727b56f70e144ccd3c8f19601498a565edd03107529",
+    "status": "full text retained; targeted inspection documented in HCACHE_AUDIT.md"
+  },
+  {
+    "key": "fairinference",
+    "url": "https://arxiv.org/pdf/2609.18112v1",
+    "version": "v1; 16 September 2026",
+    "bytes": 1902742,
+    "sha256": "77356387bd25a14fc29560e4b0f254d05ae90d1a01da3efacbfb3606141b4d5c",
+    "status": "full text retained; targeted inspection documented in HCACHE_AUDIT.md"
+  },
+  {
+    "key": "cascade",
+    "url": "https://arxiv.org/pdf/2608.06557v1",
+    "version": "v1; 6 August 2026",
+    "bytes": 4567496,
+    "sha256": "90ed053a5336b3cc93aa76f0366826e8d26dfc1aa4573554254ac583dcb309e2",
+    "status": "full text retained; targeted inspection documented in HCACHE_AUDIT.md"
+  }
+]

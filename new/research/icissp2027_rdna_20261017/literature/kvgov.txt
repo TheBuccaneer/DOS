@@ -1,0 +1,725 @@
+                                                                                Governing the KV Cache:
+                                                                        Preventing Timing Side-Channel Leakage
+                                                                            in Multi-Tenant LLM Inference
+
+                                                                                               Tejasvi C. Addagada
+
+
+                                                                Abstract                                     1     Introduction
+                                                                                                             Modern LLM inference engines—vLLM (Kwon et al., 2023),
+                                                                                                             SGLang (Zheng et al., 2024a), and LMCache (Liu et al.,
+                                         The key-value (KV) cache is the primary throughput op-              2024)—cache the key-value (KV) attention states of previ-
+                                         timization in modern large language model (LLM) in-                 ously computed token prefixes. When a new request shares
+                                         ference, enabling prefix reuse across requests. In multi-           a prefix with a cached one, the engine skips recomputation,
+                                         tenant deployments, this cache is shared across tenants,
+
+
+
+
+arXiv:2608.09225v1 [cs.CR] 10 Aug 2026
+                                                                                                             reducing the time-to-first-token (TTFT) from hundreds of mil-
+                                         creating a timing side channel: an adversarial tenant can
+                                                                                                             liseconds to tens. On an NVIDIA A100 with Qwen2.5-7B-
+                                         reconstruct another tenant’s private prompt by probing
+                                         cache-hit latency patterns. Three independent attacks ex-           Instruct and a 2119-token shared prefix, we measure a cold
+                                         ploit this channel—PROMPTPEEK (Wu et al., 2025),                    TTFT of 149.6 ms versus a cached TTFT of 32.8 ms—a ratio
+                                         EarlyBird (Song et al., 2024), and InputSnatch (Zheng               of 0.22.
+                                         et al., 2024b)—and reach up to 100% attack success rate                In multi-tenant deployments, this cache is shared across
+                                         (ASR) against unprotected vLLM and SGLang deploy-                   tenants to maximize hit rates and throughput. The problem is
+                                         ments, with reported rates varying by cache architecture            that the hit/miss distinction is observable by any tenant as a
+                                         and prompt structure.                                               timing signal. Three independent research groups have shown
+                                                                                                             how to exploit this:
+                                         We present KVGov, the first unified governance layer                    • PROMPTPEEK: Wu et al. (2025) demonstrated at
+                                         that defends against all three attack families simul-                     NDSS 2025 that an adversary can fingerprint a victim ten-
+                                         taneously.      KVGov’s core mechanism is HMAC-                           ant’s cached prompts by probing TTFT across a known
+                                         keyed namespace isolation: a per-principal salt σ p =
+                                                                                                                   vocabulary and correlating their observed timing vector
+                                         HMACK (secret, principal id) seeds the block-hash chain,
+                                         so that cache keys are cryptographically disjoint across
+                                                                                                                   with a pre-computed victim fingerprint, achieving 99–
+                                         principals and no cross-principal timing signal can                       100% ASR on SGLang’s radix-tree cache.
+                                         arise. An ablation study over N=1000 simulated trials                   • EarlyBird: Song et al. (2024) showed that token-level
+                                         (seed=2026, deterministic judges) isolates HMAC-salt                      reconstruction is possible via TTFT timing at the single-
+                                         as the necessary and sufficient component: it alone ac-                   token cache granularity (block size=1), achieving 100%
+                                         counts for the full reduction in ASR, with the remaining                  ASR on vLLM and SGLang. vLLM 0.26.0 (V1 engine)
+                                         components contributing defense in depth. KVGov fur-                      dropped block size=1, which raises the cost of free-text
+                                         ther incorporates ORIGAMI, a Stackelberg water-filling                    reconstruction to infeasibility — at B=16 an attacker
+                                         audit scheduler that achieves 12.6% reduction in ad-                      must guess sixteen tokens simultaneously. As we show
+                                         versary expected utility at realistic tenant heterogeneity
+                                                                                                                   in Section 3.4, this protection does not extend to template-
+                                         (Gini = 0.63), and an evolutionary stability analysis iden-
+                                         tifying a tipping point at 31.6% adversary prevalence be-
+                                                                                                                   structured prompts, where the unknown is a bounded field
+                                         low which global caching remains evolutionarily stable.                   rather than an open vocabulary.
+                                         On real hardware (Qwen2.5-7B-Instruct, vLLM 0.26.0,                     • InputSnatch: Zheng et al. (2024b) attack both cache
+                                         NVIDIA A100) we measure a gate-verified cold/cached                       mechanisms. Against prefix caching (vLLM, TGI,
+                                         TTFT ratio of 0.22, confirming the channel is exploitable                 TensorRT-LLM) they reconstruct structured prompts field
+                                         at production scale; the defense itself is evaluated in simu-             by field, reporting 62% success on disease extraction and
+                                         lation calibrated to those measurements. Finally, we show                 13.5% on symptom descriptions under real-world rate
+                                         that isolation and cache efficiency are not in conflict: be-              and time limits. Against semantic caching (GPTCache
+                                         cause identifying information resides only in the blocks                  and managed cloud offerings) they explore the embed-
+                                         where prompts diverge, injecting the salt at that boundary
+                                                                                                                   ding space by hierarchical clustering, reporting 43–100%
+                                         rather than at the chain root retains an estimated 93% of
+                                         the prefix-cache benefit while leaving no cross-principal
+                                                                                                                   extraction across thirteen legal domains.
+                                         timing signal.                                                          These attacks share a common root cause: the absence of
+
+
+                                                                                                         1
+per-principal namespace isolation in the cache key computa-              granularity and chain each block’s hash to its predecessor, so
+tion. All three inference engines compute cache keys over                that for a block size B
+token sequences alone, without binding them to the issuing                                                                              
+principal. Any tenant can therefore probe or read cache entries          h0 = H(tokens0..B−1 ),     h j = H h j−1 , tokens jB..( j+1)B−1 .
+created by any other tenant.
+   We present KVGov, a governance layer that eliminates this             A lookup therefore matches the longest common prefix from
+root cause. KVGov’s contributions are:                                   position 0, truncated to a block boundary — which is precisely
+                                                                         what makes partial reuse of a shared preamble possible, and
+    1. First unified defense. Binding cache resolution to the            what the attacks in Section 3 exploit. Any request sharing
+       authenticated principal defeats all three attack families’        such a prefix hits the same blocks regardless of which tenant
+       prefix-cache paths simultaneously, by collision resistance        issued it. This maximizes cache efficiency but creates a shared
+       rather than by obfuscation. An ablation over deterministic        side channel. For exposition we write k(tokens) for the key
+       judges isolates HMAC-salt as the necessary and sufficient         of a cached unit; the argument below applies unchanged to a
+       component.                                                        radix-tree index over token prefixes.
+    2. ORIGAMI audit scheduler. A Stackelberg water-filling
+       dual allocates audit budget across tenants in proportion
+       to their value-at-risk, achieving 12.6% reduction in ad-          2.2   A Taxonomy of Inference Caches
+       versary expected utility over random audit at realistic           “Cache” denotes several mechanisms in LLM serving that
+       workload heterogeneity (Gini = 0.63, N = 10 tenants).             differ in what they store, how they decide a match, and —
+    3. Evolutionary stability analysis. Replicator dynamics              consequently — what isolates them. Conflating them has
+       analysis identifies a closed-form tipping point at 31.6%          produced inconsistent claims in the literature about which
+       adversary prevalence, providing a population-level crite-         attacks apply where, so we fix terminology in Table 1 and use
+       rion for cache scope selection.                                   it throughout.
+    4. Gate-verified hardware validation. Timing side chan-                 Two properties separate the rows. The first is what is reused:
+       nel confirmed on Qwen2.5-7B-Instruct / vLLM 0.26.0 /              prefix caches store KV tensors and shorten prefill, whereas
+       NVIDIA A100 (cold/cached ratio 0.22). The measure-                semantic caches store finished responses and skip inference
+       ment passes five preregistered gates, including a server-         entirely. The second, which governs defense, is how a match
+       side check that the cold arm’s prefix-cache hit rate stayed       is decided. Prefix and radix caches resolve by hash or token
+       below 5%— the failure mode that invalidates naive cache-          equality — a lookup either collides or it does not — so in-
+       timing experiments. We replicate the channel on an in-            jecting a per-principal salt into the key makes cross-principal
+       dependent stack (llama.cpp on Apple Metal, ratio 0.093),          collision cryptographically impossible. Semantic caches re-
+       showing it follows from prefix caching rather than from           solve by nearest-neighbour search under a similarity threshold,
+       one engine’s allocator.                                           and no choice of salt makes two embeddings less similar;
+    5. Deterministic ASR judges. Replacing LLM-based                     isolation there must partition the retrieval index instead.
+       heuristic judges (which our internal audit measured                  This distinction bounds our contribution: KVGov’s salt con-
+       at ∼40% accuracy) with attack-specific deterministic              struction covers the hash-keyed rows, which is where all three
+       judges: Pearson correlation for PROMPTPEEK, exact                 attack families’ prefix-cache paths live, and does not cover the
+       token overlap for InputSnatch, token recovery rate for            similarity-keyed row (Section 7). The mechanism fixes only
+       EarlyBird.                                                        what a probe returns; which attack that return supports, and at
+                                                                         what cost, is developed in Section 3.5.
+2     Background
+                                                                         2.3   Threat Model
+2.1    KV Cache in Multi-Tenant LLM Serving
+                                                                         Definition 1 (Attacker model). An adversarial tenant A is a
+Transformer-based LLMs compute key and value projections                 legitimate API user in a multi-tenant LLM serving system. A
+for every token in the context. These projections are expensive          can:
+but deterministic: given the same prefix tokens, the same KV                • Issue arbitrary inference requests to the serving endpoint.
+tensors result. Inference engines exploit this by storing and
+                                                                            • Observe the TTFT of their own requests with millisecond
+reusing KV states for common prefixes. vLLM implements
+                                                                               precision.
+this via PagedAttention (Kwon et al., 2023); SGLang uses a
+radix tree to enable fine-grained prefix matching (Zheng et al.,            • Enumerate tokens from a known vocabulary V .
+2024a).                                                                  A cannot:
+  In a multi-tenant deployment, the cache is shared across all              • Access kernel memory, GPU memory, or OS-level timing
+tenants. Keys are computed over token content alone, with                      interfaces.
+no binding to the requesting principal. Engines key at block                • Issue requests on behalf of another tenant.
+
+
+                                                                     2
+Table 1: Inference cache mechanisms, the oracle each exposes to a prober, and the isolation primitive each admits. The first three rows resolve
+by key equality and are addressed by salting; the last resolves by similarity and is not. Which attack a given oracle supports is a separate axis
+(Table 2).
+
+    Mechanism             Match criterion              Representative      sys-   Oracle returns                    Isolation primitive
+                                                       tems
+    Block prefix cache    Exact token prefix, quan-    vLLM (PagedAtten-          First k blocks matched,           Salt seeds the block-hash
+                          tised to B-token blocks,     tion), TGI, TensorRT-      quantised to B tokens             chain (root, or divergence
+                          hashes chained               LLM, LMCache                                                 boundary)
+    Radix-tree   prefix   Longest matching token       SGLang                     Matched prefix length —           Per-principal root node, giv-
+    cache                 prefix by tree traversal                                finer than block-quantised        ing disjoint trees
+    Exact-response        Byte equality of the full    Application-level          Whether a complete                Salt prepended to the key
+    cache                 prompt                       caches, gateways           prompt is resident
+    Semantic cache        Embedding similarity ≥       GPTCache, managed          Whether anything within ε         Not salting — per-principal
+                          threshold (nearest neigh-    cloud offerings            is resident                       partitioning of the retrieval
+                          bour)                                                                                     index
+
+
+   • Observe other tenants’ TTFT values directly.                          cosine similarity as the identification criterion:
+The victim tenant V issues requests with a private prompt
+                                                                                                            (fv − f¯v )⊤ (fa − f¯a )
+p∗ ∈ V ∗ . The attacker’s goal is to reconstruct p∗ with high                               ρ(fv , fa ) =
+probability.                                                                                                ∥fv − f¯v ∥ · ∥fa − f¯a |
+                                                                           Raw cosine fails here because [5, 5, . . .] and [50, 50, . . .] are
+Definition 2 (Attack success rate). The attack success rate
+                                                                           parallel vectors (cosine = 1.0) regardless of the defense. After
+(ASR) is the fraction of trials in which A reconstructs p∗
+                                                                           HMAC-salt isolation, the adversary always observes all-MISS
+exactly: ASR = Pr[ p̂ = p∗ ], where p̂ is A ’s output.
+                                                                           (fa ≈ [50, 50, . . .]), which has near-zero variance after mean-
+What KVGov does and does not defend. KVGov defends                         centering, giving ρ ≈ 0.
+against cache timing side channels as described in Defini-
+tion 1. KVGov does not defend against: model weight extrac-                3.2    EarlyBird: Token Reconstruction via Timing
+tion (Tramèr et al., 2016), prompt injection (Greshake et al.,
+                                                                           Song et al. (2024) show that when block size = 1 (token-level
+2023), or inference from model outputs. The defense is at
+                                                                           cache granularity), an adversary can reconstruct the victim’s
+the infrastructure layer—cache key computation—not at the
+                                                                           prompt token-by-token by guessing one token at a time and
+model layer.
+                                                                           observing whether a cache hit occurs. This achieves 100%
+                                                                           token recovery rate.
+3     Attack Taxonomy                                                         vLLM 0.26.0 architectural note. The vLLM V1 engine
+                                                                           (0.26.0) removed support for block size = 1; attempts to set it
+We describe the three published attacks and one variant of our             raise a ValueError across all attention backends. The de-
+own analysis, then show in Section 3.5 that they are instances             fault block size = 16 requires an adversary to guess 16 consec-
+of a single structure: a cache mechanism supplies an oracle,               utive tokens correctly before any cache-hit signal is observable,
+and an adversary goal determines what that oracle costs to                 reducing EarlyBird’s practical ASR to 0% on modern vLLM
+exploit.                                                                   without any additional defense. KVGov’s HMAC-salt defense
+                                                                           covers systems with configurable block sizes (e.g., LMCache,
+3.1    PROMPTPEEK: Timing Fingerprint Attack                               older vLLM variants) where this architectural protection is
+                                                                           absent.
+Wu et al. (2025) observe that a victim’s cached prompts create
+a distinctive TTFT pattern across a probe set. If the adversary
+                                                                           3.3    InputSnatch: Shared-Partition Enumeration
+knows a vocabulary V = {p1 , . . . , pN } of plausible prompts,
+they can compute a timing fingerprint: fv [i] = TTFT(pi ) for              Zheng et al. (2024b) target two distinct rows of Table 1: the
+each probe pi . When the victim has prompt p j cached, fv [ j] ≈           block prefix cache and the semantic cache. Against prefix
+Thit (5 ms in our simulation); otherwise fv [ j] ≈ Tmiss (50 ms).          caching, they exploit the fact that enterprise prompts are usu-
+  The adversary recovers the victim’s cache state by observing             ally template-structured: the adversary already holds the tem-
+that their own fingerprint fa is correlated with fv when the               plate and needs only to enumerate the varying field, recon-
+cache is shared. We use Pearson correlation rather than raw                structing prompts field by field. Against semantic caching,
+
+
+                                                                       3
+where prompts are indexed by embedding similarity rather                Reconstruction recovers unknown content and pays search-
+than exact token match, they explore the embedding space by             space to the power of length. Identification selects among
+hierarchical clustering, inferring cached content without ever          known candidates and pays linearly in the candidate set. Con-
+sending the exact prompt. The distinction matters for defense:          firmation tests a single value and costs one request. Enumera-
+the prefix-caching variant resolves through hash-keyed lookup           tion repeats confirmation over a list.
+and is therefore addressed by the mechanism of Section 4.1,                Two consequences follow. First, reported attack success
+whereas the semantic variant is not (Section 7).                        rates are not comparable across papers unless the goal and
+                                                                        the adversary’s prior are held fixed: EarlyBird reconstructs,
+                                                                        PROMPTPEEK identifies, and InputSnatch reconstructs un-
+3.4   Structured Prompts Defeat Block-Size Protection
+                                                                        der a known template, so their headline numbers measure
+The infeasibility of free-text reconstruction at B=16 rests on          different quantities. Second, and more consequentially for
+an assumption that enterprise deployments violate. Recon-               defense, a single mechanism can be simultaneously secure
+structing an unknown block requires searching |V |B candi-              and insecure. On one block prefix cache, reconstruction at
+dates (≈ 1083 for |V | = 152,000, B = 16). But in a template-           B=16 costs ≈ 1083 while confirmation of a structured field
+structured prompt — “Show transactions for account <n> in               costs O(1) (Section 3.4) — eighty orders of magnitude apart,
+<month>” — the adversary knows every token except the                   same cache, same configuration. Hardening that raises the
+field, because the template is the application’s own interface.         cost of one cell therefore says nothing about the others.
+The search space collapses from the vocabulary to the field’s              This is the sense in which namespace isolation differs in
+domain: 108 for an eight-digit account identifier, and 104 –106         kind from block-size hardening. Salting does not raise the cost
+once a branch or issuer prefix is known. That is a reduction of         of any cell; it removes the oracle, so every cell in the affected
+roughly seventy-five orders of magnitude, and it is independent         rows collapses at once.
+of block size.
+   The sharper consequence is that reconstruction is not the            4     The KVGov Defense Framework
+adversary’s most efficient goal. Confirming whether a specific
+value is cached — “is account 12345678 currently resident?”             4.1   HMAC-Keyed Namespace Isolation
+— costs a single request, since the adversary supplies the entire       KVGov binds cache resolution to the authenticated principal
+block from known template plus one candidate field. This                by seeding the block-hash chain with a per-principal salt:
+membership query is O(1) per target and wholly independent
+of B: block granularity constrains reconstruction, not confirma-        σ p = HMACK (secret, principal id),         h0 = H(σ p ∥ tokens0..B−1 ) ,
+tion. Repeated against a list of known identifiers it enumerates        with h j for j > 0 chained as before. K is a server-side secret
+which subjects were served, and when, without recovering a              and ∥ denotes concatenation. Because every block inherits its
+single token of anyone’s prompt. Larger block sizes therefore           predecessor’s hash, salting h0 makes the entire chain principal-
+offer no protection in precisely the deployments where the              specific, at a cost of one HMAC evaluation per request rather
+data is most sensitive.                                                 than per block (Section 5.9). This is the mechanism vLLM
+                                                                        exposes as cache salt (vLLM Project, 2025).
+3.5   Synthesis: Oracles and Goals                                         The construction instantiates per row of Table 1: a radix-tree
+                                                                        index takes σ p as its root node, giving each principal a disjoint
+The mechanisms of Table 1 determine what a probe returns;               tree, and an exact-response cache prepends σ p to its key. The
+they do not determine the attack. What an adversary does with           semantic row is the exception, and is treated in Section 7.
+that return — and what it costs — is a second, orthogonal axis.            Why this works. Each principal’s salt is derived from a
+The four attacks just described are best read not as a list of          secret the adversary cannot know. An adversary probing pi on
+alternatives but as cells in the grid these two axes span.              their own principal computes k(A , pi ) ̸= k(V , pi ) with over-
+   Each mechanism exposes a distinct oracle. A block prefix             whelming probability (SHA256 collision resistance). The ad-
+cache reports that the first k blocks matched, quantised to B           versary’s probes therefore never hit the victim’s cache entries—
+tokens. A radix-tree index reports the matched prefix length,           they only populate their own namespace. The adversary’s
+a strictly finer signal that grants partial credit where a block        timing fingerprint is all-MISS regardless of what the victim
+cache gives none — which is why fingerprint correlation per-            has cached, giving Pearson ρ ≈ 0 and ASR = 0.
+forms well against SGLang in particular. An exact-response                 Cache efficiency. HMAC-salt eliminates cross-principal
+cache answers only whether a complete prompt is resident. A             sharing. Within a single principal’s session, prefix sharing
+semantic cache answers whether anything within ε of a probe             is fully preserved. The efficiency cost is proportional to the
+embedding is resident, and so accepts approximate queries               fraction of cross-tenant prefix matches, which is workload-
+that the other three reject.                                            dependent. Coarser salt granularities can trade isolation scope
+   Against any of these an adversary may pursue four goals,             for cache efficiency; the appropriate granularity is deployment-
+with costs that differ by many orders of magnitude (Table 2).           specific and outside the scope of this paper.
+
+
+                                                                    4
+Table 2: Adversary goals against a cache oracle. Cost is per target; |V | is the vocabulary, L the unknown length, C the candidate set. The
+named attacks occupy different cells, which is why their reported success rates are not directly comparable.
+
+         Goal                          Cost                    Prior required                   Instance
+         Reconstruction                |V |L                   none                             EarlyBird
+         Identification                O(|C|)                  candidate set                    PROMPTPEEK
+         Constrained reconstruction    field domain            template                         InputSnatch (prefix)
+         Confirmation                  O(1)                    one value                        structured-field query
+         Enumeration                   O(|list|)               target list                      InputSnatch (semantic)
+
+
+4.2   Boundary Salting: Isolation Without Losing Reuse                       hold. We treat the mechanism as a design contribution and
+                                                                             leave its measurement to future work.
+Seeding the chain root isolates every block, which also de-
+stroys the cross-principal reuse that prefix caching exists to
+provide. That cost is avoidable, because it pays for security                4.3   ORIGAMI: Stackelberg Audit Scheduler
+the root salt does not buy.                                                  Even with HMAC-salt isolation, a governance layer must
+   Identification is a function of divergence. If m principals               detect anomalous probing behavior. ORIGAMI allocates a
+share a preamble occupying blocks 0 . . . k − 1, every candidate             finite audit budget K across n tenants using a Stackelberg
+hits those blocks, so their hit/miss pattern is constant across              water-filling dual.
+principals and carries no discriminating signal. The fingerprint                Game formulation. The defender commits to an audit
+F of Section 3.1 separates candidates only where their content               probability pi for each tenant i with value-at-risk vi . The ad-
+differs. Membership queries on structured fields (Section 3.4)               versary, knowing {pi }, chooses the target that maximizes their
+are likewise resolved in the block containing the field, never               expected payoff: maxi vi (1 − pi ). The defender minimizes
+in the shared template. Salting blocks 0 . . . k − 1 therefore               adversary utility subject to ∑ pi = K, pi ∈ [0, 1].
+removes no attacker capability.
+                                                                             Theorem 1 (ORIGAMI water-filling solution). Let the de-
+   This motivates injecting the salt at the divergence boundary
+                                                                             fender solve the Stackelberg problem
+rather than the root:
+                                                                                  min max vi (1 − pi ) s.t.      ∑i pi = K, pi ∈ [0, 1].
+                                                                                    p
+       H(h j−1 , tokens j )        j < k (shared, routable)
+       
+                                                                                         i
+
+ hj =    H(σ p ∥ hk−1 , tokensk )     j=k      (boundary)                    Then the optimal audit probabilities are
+        
+                                                                                                                    
+        H(h , tokens )               j>k      (principal-private)                                                 λ
+            j−1           j
+                                                                                               p∗i = max 0, 1 −         ,
+                                                                                                                   vi
+Chaining propagates σ p to every block beyond k, so the private
+region remains cryptographically disjoint across principals,                 where λ > 0 is the unique value satisfying ∑i p∗i = K, obtained
+while blocks below k stay globally shared and routable by a                  by binary search.
+prefix-aware scheduler.                                                      Proof. Introduce an epigraph variable t and rewrite the prob-
+   Efficiency retained. Prefill cost is proportional to uncached             lem as min p,t t subject to vi (1 − pi ) ≤ t for all i, ∑i pi = K and
+tokens, and in the deployments of interest the shared pream-                 pi ∈ [0, 1].
+ble dominates. Extrapolating from the measurements of Sec-                      Let (p∗ ,t ∗ ) be optimal. Suppose some tenant j with p∗j > 0
+tion 5.7 (cold 149.6 ms, fully cached 32.8 ms, 2119 tokens,                  had v j (1 − p∗j ) < t ∗ strictly. Then a sufficiently small δ > 0
+69.0% MFU), a 2000-token shared preamble with a 119-token                    may be moved from p∗j to any tenant attaining the maximum,
+private tail requires prefilling 8 blocks rather than 133, for               leaving j’s constraint satisfied while strictly decreasing the
+an estimated 41.2 ms — retaining 92.8% of the benefit of                     attained maximum — contradicting optimality. Hence every
+full sharing. The trade-off degrades gracefully: a 1500-token                tenant with p∗i > 0 satisfies vi (1 − p∗i ) = t ∗ , which rearranges
+preamble retains 62.6%.                                                      to p∗i = 1 − t ∗ /vi .
+   Deployment. vLLM’s cache salt (vLLM Project, 2025)                          A tenant with vi ≤ t ∗ would require p∗i ≤ 0, so its constraint
+seeds the root and so implements the all-or-nothing case;                    holds with p∗i = 0 and it receives no budget. Writing λ = t ∗
+boundary salting requires an offset parameter alongside it.                  gives p∗i = max(0, 1 − λ /vi ). Each p∗i is continuous and non-
+Choosing k is a governance decision rather than an infrastruc-               increasing in λ , so ∑i p∗i (λ ) is continuous and non-increasing,
+ture one — the first block containing PII under an admission                 and the λ meeting the budget with equality is unique and
+scan, or the boundary a sharing policy permits — and requires                recoverable by bisection. Since λ > 0 implies 1 − λ /vi < 1,
+the authenticated principal, which the serving layer does not                the upper bound pi ≤ 1 is never active.
+
+
+                                                                      5
+   The solution equalises the adversary’s payoff vi (1 − pi )         Table 3: Attack Success Rate (ASR) by condition, N = 1000 trials,
+across every audited tenant — the defining property of a water-       seed=2026, deterministic judges. Flush-condition 95% bootstrap
+filling allocation — so no target is left disproportionately          intervals are [17.1, 22.1] for PROMPTPEEK and [7.9, 11.7] for In-
+                                                                      putSnatch; the no-defense and KVGov columns are analytic controls
+attractive.
+                                                                      whose intervals are degenerate (see text).
+   This is analogous to water-filling in information theory and
+to the DOBSS algorithm (Tambe, 2011). ORIGAMI achieves
+                                                                               Attack            No defense    Flush    KVGov
+12.6% reduction in adversary expected utility over random
+audit at Gini = 0.63 (enterprise workload) with n = 10, K = 5                  PROMPTPEEK            100.0%    19.5%      0.0%
+(Table 5).                                                                     EarlyBird             100.0%        —      0.0%
+                                                                               InputSnatch           100.0%     9.8%      0.0%
+
+4.4   Evolutionary Stability Analysis
+We model the cache scope selection problem as a two-                   uses Pearson correlation (θ = 0.85); InputSnatch uses exact
+population evolutionary game between global-cache users                token overlap; EarlyBird uses token recovery rate (loaded
+(sharing cache across sessions) and ephemeral-cache users              from hardware results). No LLM judge is used; judges are
+(per-session isolated cache). Let x denote the fraction of the         provably 100% accurate for the simulated attack model.
+population using global cache.                                            Hardware. TTFT measurements use Qwen2.5-7B-Instruct
+Proposition 1 (ESS tipping point). Let τ be the adversary              on vLLM 0.26.0 with --enable-prefix-caching
+prevalence. Ephemeral caching is an evolutionarily stable             --enforce-eager on an NVIDIA A100-SXM4 (80 GB),
+strategy against invasion by global-cache mutants precisely            n = 50 per arm across two independent blocks. Cold arms use
+when τ > τ ∗ , where                                                   a unique per-request prefix to prevent cross-trial reuse, verified
+                                                                       against the server’s own prefix-cache counters (Section 5.7).
+                            Vglb −Veph                                Token counts are taken from the server’s tokenizer rather than
+           τ∗ =                              .
+                                                                       estimated. To test whether the channel is an artifact of one
+                  Cglb,eph −Ceph + Vglb −Veph
+                                                                       engine, we additionally replicate on an independent stack:
+With Vglb = 0.45, Veph = 0.15, Cglb,eph = 0.70 and Ceph = 0.05,        llama.cpp via Ollama on Apple M4 (Metal) with Qwen2.5-3B
+this gives τ ∗ = 0.30/0.95 = 31.6%.                                   (Section 5.8).
+
+Proof. A mutant playing global scope in a predominantly
+ephemeral population earns (1 − τ)Vglb − τCglb,eph : it cap-
+tures the sharing benefit against legitimate peers but pays the       5.2   ASR Results
+exploitation cost against adversaries. An ephemeral incum-
+                                                                      Figure 1 and Table 3 report ASR across three conditions for
+bent earns (1 − τ)Veph − τCeph . Ephemeral is an ESS when
+                                                                      each attack family.
+the mutant does strictly worse, i.e. (1 − τ)(Vglb − Veph ) <
+                                                                         Reading the extremes. The 100% and 0% columns are
+τ (Cglb,eph − Ceph ). Collecting terms in τ and dividing gives
+                                                                      analytic controls, not empirical findings, and we report them
+the stated threshold. Note that Cglb,base , the cost of global
+                                                                      as such. Under a shared cache the adversary’s probe resolves
+scope among global-scope peers, does not appear: the inva-
+                                                                      to the victim’s entry by construction, so the two fingerprints
+sion condition is evaluated against an ephemeral incumbent
+                                                                      share a hit/miss structure and ρ ≈ 1 on every trial; under
+population, where that term carries no weight.
+                                                                      namespace isolation the probe never resolves, so the adver-
+  Replicator dynamics simulations are consistent with this            sary observes an all-MISS vector whose zero variance drives
+threshold: global caching dominates at low adversary preva-           ρ ≈ 0. Both outcomes follow from the collision-resistance
+lence (94% share at convergence) and ephemeral caching pre-           argument of Section 4.1 rather than from sampling, which is
+vails above it (Table 7). The sweep resolves adversary preva-         why their bootstrap intervals are degenerate. Their role here
+lence on a five-point grid, so it brackets τ ∗ between the 30%        is to confirm that the Pearson judge fires when it should and
+and 35% samples rather than locating it precisely; the analytic       stays silent when it should not; the security claim rests on the
+value is the one to cite.                                             cryptographic argument, not on these columns.
+                                                                         The informative comparison is between the partial defenses.
+                                                                      Session-boundary flushing leaves PROMPTPEEK at 19.5%
+5     Evaluation                                                      and InputSnatch at 9.8% — an adversary probing within an
+                                                                      active session retains substantial advantage — and noise injec-
+5.1   Experimental Setup
+                                                                      tion (Section 5.3) suppresses timing correlation while leaving
+Simulation. All ASR and ablation experiments use a determin-          membership-based recovery untouched. These outcomes de-
+istic simulation (Python, seed=2026, N = 1000 trials). Attack-        pend on model parameters rather than on construction, and
+specific judges replace LLM-based heuristics: PROMPTPEEK              their intervals are meaningful.
+
+
+                                                                  6
+                                    Figure 1. ASR by attack family and defense condition                       Table 4: Ablation study: ASR by KVGov component. N = 1000
+                                                                                                               trials, seed=2026. HMAC-salt alone achieves full defense; other
+                                                                                         No defense            components add defense-in-depth.
+                          100                                                            Flush session
+
+
+
+
+Attack Success Rate (%)
+                                                                                         KVGov
+                            80                                                                                                              Condition                       PROMPTPEEK                                                  InputSnatch
+                            60                                                                                                              No defense                                                                 100.0%                      100.0%
+                                                                                                                                            HMAC-salt only                                                               0.0%                        0.0%
+                            40                                                                                                              Admission only                                                             100.0%                       90.5%
+                                                                                                                                            Noise injection                                                              0.3%                      100.0%
+                            20
+                                                                                                                                            Flush (session)                                                             19.5%                        9.8%
+                                               0%                        0%                     0%                                          KVGov full                                                                   0.0%                        0.0%
+                                0
+                                       PROMPTPEEK                EarlyBird             InputSnatch
+                                                                                                                                                           Figure 2. ORIGAMI audit scheduler performance
+Figure 1: ASR by attack family and defense condition. Error bars
+show 95% bootstrap CI. KVGov achieves 0% ASR across all three                                                                                             (a) Expected utility                                                    (b) EU reduction vs. Gini
+                                                                                                                                            1.0
+
+
+
+
+                                                                                                                                                                                        EU reduction vs. random (%)
+                                                                                                                                                                                                                      15.0
+
+
+
+
+                                                                                                               Adversary Expected Utility
+families; flush is a partial defense that still exposes 9–22%.                                                                                                          Random audit
+                                                                                                                                                                        ORIGAMI                                                                           12.6%
+                                                                                                                                            0.9                                                                       12.5
+                                                                                                                                                                                                                      10.0
+                                Figure 4. Ablation: HMAC-salt is necessary and sufficient for 0% ASR
+                                                                                                                                            0.8                                                                        7.5
+                                                                                             PROMPTPEEK                                                                                                                                     4.7%
+                          100                                                                InputSnatch                                                                                                               5.0
+
+
+
+
+Attack Success Rate (%)
+                                                                                                                                            0.7                                                                        2.5
+                           80                                                                                                                                                                                              0.0%
+                                                                                                                                                                                                                       0.0
+                           60                                                                                                               0.6
+                                                                                                                                                    Uniform      Mixed     Enterprise                                       0.0       0.2       0.4       0.6
+                                                                                                                                                    chatbot (session-heavy) (RAG)                                        Gini coefficient (value heterogeneity)
+                           40
+
+                           20
+                                                                                                               Figure 3: ORIGAMI audit scheduler. (a) Adversary expected utility
+                                                0% 0%                                          0% 0%
+                            0                                                                                  (EU) by workload profile; lower is better for the defender. (b) EU
+                                       No      HMAC-salt   Admission   Noise       Flush        KVGov
+                                     defense      only       only      inject.   (session)       full          reduction over random audit grows with Gini coefficient, reaching
+                                                                                                               12.6% at enterprise heterogeneity.
+Figure 2: Ablation study. HMAC-salt alone achieves 0% ASR for
+both attacks (same as KVGov full), confirming it is the necessary and
+sufficient mechanism. Noise injection breaks timing-based PROMPT-                                              rem 1.
+PEEK (0.5%) but not InputSnatch (100%), which is independent of
+timing magnitude.                                                                                              5.5                                Adversarial Load Benchmark
+                                                                                                               We simulate N = 50 tenants with KV-cache values from a
+5.3                             Ablation Study                                                                 Pareto distribution (α = 1.29, Gini = 0.63), K = 10 audit
+                                                                                                               slots (20% rate), T = 500 rounds. The adversary best-responds
+Figure 2 and Table 4 isolate the contribution of each KV-                                                      each round by maximising v j /(1 − p j ), a value-per-residual-
+Gov component. HMAC-salt alone achieves 0% ASR for                                                             exposure heuristic. We note that this differs from the payoff
+both PROMPTPEEK and InputSnatch, confirming it is the                                                          vi (1 − pi ) that Theorem 1 optimises against: the heuristic is
+necessary and sufficient mechanism for the privacy guaran-                                                     increasing in p j , so it does not model an adversary avoid-
+tee. Admission control alone reduces InputSnatch ASR to                                                        ing audit. The breach reductions reported here are therefore
+90.5% (by preventing PII prompts from entering the cache)                                                      empirical results against that specific heuristic and are not
+but does not affect timing-based attacks. Gaussian noise injec-                                                a validation of Theorem 1’s optimality; re-running the load
+tion (σ = 20 ms) nearly breaks PROMPTPEEK fingerprinting                                                       simulation under the theorem’s payoff is outstanding work.
+(0.5% ASR) but has no effect on InputSnatch, which relies on                                                       ORIGAMI reduces breach rates by 58–67% and expected
+direct cache membership rather than timing magnitude.                                                          damage by 66–72% across all adversary fractions. Conver-
+                                                                                                               gence in 21–39 rounds confirms the Stackelberg equilibrium
+5.4                             ORIGAMI Audit Scheduler                                                        is reached quickly relative to the 500-round horizon.
+
+Figure 3 and Table 5 report ORIGAMI’s performance across
+                                                                                                               5.6                                Evolutionary Stability
+three workload profiles with n = 10 tenants and budget K = 5
+(50% coverage). ORIGAMI is equivalent to random audit at                                                       Figure 4 and Table 7 report replicator dynamics convergence
+uniform value distribution (Gini = 0) and increasingly outper-                                                 across adversary prevalence rates. Global caching dominates
+forms it as value heterogeneity grows, consistent with Theo-                                                   below the tipping point (94% share at convergence); ephemeral
+
+
+                                                                                                           7
+                                                                        Dominant strategy share at convergence (%)
+Table 5: ORIGAMI vs. random audit: adversary expected utility.
+Lower is better for defender. n = 10 tenants, budget K = 5.
+                                                                                                                             Figure 3. ESS tipping point at * = 31.6%
+                                                                                                                     100
+      Workload                Gini    ORIGAMI      Random
+                                                                                                                      80
+      Uniform chatbot          0.00       0.950       0.950
+      Mixed (session-heavy)    0.33       0.724       0.760                                                           60         Global cache
+      Enterprise (RAG)         0.63       0.830       0.950                                                                                                             * = 31.6%
+                                                                                                                                 Ephemeral cache
+       EU reduction (enterprise)                    12.6%                                                             40
+
+Table 6: ORIGAMI vs. random audit under adversarial load. Breach
+                                                                                                                      20
+Red. = (random − ORIGAMI)/random. N = 50 tenants, K = 10,
+T = 500 rounds.                                                                                                        0
+                                                                                                                            0          10         20       30      40         50
+                                                                                                                                            Adversary prevalence (%)
+ Adv.%       Rnd ORIGAMI Breach red. Dmg red. Conv.
+       5%   66.0%        22.1%        66.5%       72.2%       39        Figure 4: ESS tipping point at τ ∗ = 31.6% adversary prevalence.
+      10%   65.0%        27.0%        58.4%       66.0%       21        Below the threshold global caching dominates (94% at convergence);
+      20%   64.2%        24.5%        61.8%       68.6%       23        above it ephemeral caching becomes the ESS.
+      30%   64.0%        23.4%        63.4%       69.9%       35
+      50%   63.2%        24.7%        60.9%       68.1%       28
+                                                                        Table 7: Replicator dynamics convergence, five-point sweep. The
+                                                                        analytic threshold is τ ∗ = 31.6%; the grid brackets it between the
+                                                                        30% and 35% samples.
+caching becomes ESS above it. The tipping point is robust
+across the realistic parameter space (τ ∗ ∈ [24%, 40%] across                                                              Adv. rate        Rounds     Dominant    Share
+all tested configurations).
+                                                                                                                           0%                    13    global      94.0%
+                                                                                                                           10%                   18    global      94.0%
+5.7    Real TTFT Measurement                                                                                               20%                   53    global      94.0%
+Figure 5 and Table 8 confirm the timing side channel on pro-                                                               50%                   11    ephemeral   94.0%
+duction hardware. With a 2119-token shared prefix, the cold/-
+cached TTFT ratio of 0.22 falls well below the breach thresh-
+old of 0.40.                                                            a divergence at token i invalidates every block from ⌊i/B⌋
+   Measuring a cache side channel is easy to get wrong: a               onward. The asymmetry this creates is stark. With a 2119-
+“cold” arm that is silently served from cache yields a ratio near       token shared preamble, diverging at token 1990 still yields
+1 and looks like a negative result. We therefore report only runs       roughly 124 of 125 block hits, whereas diverging at token 5
+that pass five preregistered gates, the binding one reading the         yields none. Whatever varies earliest in the prompt therefore
+server’s own prefix cache hits total counter over                       determines how much cache — and how much side channel
+the cold arm alone and requiring a hit rate below 5% (observed:         — a deployment exposes. A serving stack that emits a per-
+0.7%). A second gate rejects any cold arm whose latency im-             principal token near position 0 (a request or tenant identifier)
+plies more than 100% of the GPU’s peak FLOPs (observed:                 already achieves near-total isolation without any cryptographic
+69.0% model-FLOPs utilisation), and a third requires two inde-          mechanism, at the cost of all cross-request reuse; one that
+pendent blocks to agree (observed drift: 1.14%). TTFT is read           places a long shared preamble first sits at maximum exposure.
+from vLLM’s internal time to first token seconds                        Prompt layout is thus a governance control in its own right, and
+counters rather than timed at the client, so network latency            one available to operators who cannot modify their inference
+cannot contaminate the measurement.                                     engine.
+   Prefix length drives breach magnitude: shortening the shared            Where cross-principal prefixes actually arise. The chan-
+prefix to 1447 tokens raises the ratio to 0.37, still a breach          nel requires two principals to share a prefix, which constrains
+but much closer to threshold, because less recomputation is             where it is exploitable in practice. Shared system and instruc-
+avoided per hit. The channel’s exploitability is therefore a            tion preambles are identical across every user of an application
+function of how much work a cache hit saves, not merely                 and account for the largest share of cross-principal hits; re-
+of whether caching is enabled — deployments whose shared                covering them is prompt theft, since such preambles routinely
+prefixes are short leak proportionally less.                            encode proprietary policy and tool definitions. Multi-turn con-
+   Exposure is a design-time property of prompt layout.                 versation history is the largest source of cache reuse overall —
+Because block hashes are chained, a match is the longest                turn n+1 is an exact prefix extension of turn n — but those hits
+common prefix from position 0, truncated to a block boundary:           are intra-principal and leak nothing across a tenant boundary
+
+
+                                                                    8
+                  Figure 5. Gate-verified TTFT on NVIDIA A100 (vLLM 0.26.0)                                           Table 9: Per-request KVGov overhead. ORIGAMI and breach obser-
+                                                                                                                      vation run off-path (background threads).
+                         (a) TTFT values                                               (b) Cache ratio
+            150                     Cold TTFT                              0.6          Breach threshold (0.40)             Component                          Median         p99
+
+
+
+
+                                                  Cached/Cold TTFT ratio
+                                    Cached TTFT                                                     0.37
+            125                                                            0.5                     BREACH                   Plain SHA-256 (no defense)          0.3 µs      0.3 µs
+            100                                                            0.4
+
+TTFT (ms)
+                                                                                                                            HMAC-salt key derivation (KVGov)    1.6 µs      1.9 µs
+             75                                                            0.3      0.22                                      Overhead vs. baseline            +1.3 µs     +1.6 µs
+                                                                                   BREACH
+             50                                                            0.2                                              Breach ratio check (arithmetic)     0.08 µs    0.12 µs
+             25                                                            0.1                                              ORIGAMI dual update (20 iter.)      11.6 µs    14.1 µs
+              0                                                            0.0                                              PII admission gate (Presidio)      50–150 ms (async)
+                       7B              7B                                            7B             7B
+                     2119 tok        1447 tok                                      2119 tok       1447 tok
+
+Figure 5: Real TTFT measurements on NVIDIA A100 (Qwen2.5,                                                             cold TTFT is 1861 ms against 173 ms cached, a ratio of 0.093
+vLLM 0.26.0). (a) Cold vs. cached TTFT in ms. (b) Ratio with                                                          — a breach by a wider margin than on the A100.
+breach threshold at 0.40. Ratio 0.22 at a 2119-token shared prefix                                                       The convergence matters more than the magnitude. Two
+and 0.37 at 1447 tokens: both breach, but the margin narrows as the                                                   stacks with nothing in common but the idea of reusing a shared
+prefix shortens.                                                                                                      prefix both expose the hit/miss distinction as a timing signal,
+                                                                                                                      which is what one expects if the channel follows from prefix
+Table 8: Real TTFT measurements on NVIDIA A100 (vLLM 0.26.0),                                                         caching itself rather than from an implementation detail. The
+Qwen2.5-7B, n = 50 per arm × 2 blocks. Prefix is the shared token                                                     replication also needs no GPU: it runs on a laptop in minutes,
+sequence in tokens (exact, from the server tokenizer); cold and cached                                                so the existence of the channel can be verified by any reviewer
+are milliseconds. Both configurations breach the 0.40 threshold.                                                      without hardware access.
+
+                           Prefix      Cold            Cached                        Ratio
+                                                                                                                      5.9     Performance Overhead
+                            2119       149.6                                32.8      0.22
+                            1447       104.1                                38.7      0.37                            KVGov adds two components to the per-request critical path:
+                                                                                                                      HMAC-keyed cache key derivation and, optionally, a PII
+                                                                                                                      admission check. Table 9 reports microbenchmark results
+unless sessions are shared. The dangerous case is structured                                                          (10,000 trials, Python hmac/hashlib, x86-64 laptop).
+user input: form-driven or template-filled prompts that collide                                                          HMAC derivation adds 1.33 µs per cache key lookup —
+on every token except the sensitive field, reducing prompt                                                            0.0041 % of the 32.8 ms cached TTFT and 0.00089 % of the
+recovery to a membership query over that field. Free-text                                                             149.6 ms cold TTFT. The breach observer and ORIGAMI
+chat, where collisions are rare, is comparatively safe. Beyond                                                        scheduler run in background threads and do not add to request
+retrieval-augmented generation, the same shared-prefix struc-                                                         latency. The PII admission gate (Presidio) costs 50–150 ms but
+ture appears in agentic tool-calling loops (fixed tool schemas                                                        is invoked only on cache-miss paths, and can be overlapped
+plus a monotonically growing scratchpad), code assistants                                                             with the first prefill tokens using speculative caching.
+(repository context, where the shared prefix is itself the con-                                                          The primary efficiency cost of KVGov is not CPU overhead
+fidential asset), few-shot and schema-constrained extraction,                                                         but cache partitioning: HMAC-salt makes keys cryptograph-
+and batch classification over a fixed template. Agentic and                                                           ically disjoint across principals, eliminating cross-principal
+code-assistant deployments are the more consequential cases:                                                          prefix sharing. Deployments with high inter-tenant prompt
+their shared prefixes are both long, which maximises the tim-                                                         similarity (e.g., shared system prompts) may see lower cache
+ing signal, and sensitive, which maximises the value of recov-                                                        hit rates. Quantifying this efficiency trade-off for specific
+ering them.                                                                                                           workloads is left to future work.
+
+
+5.8           Independent-Stack Replication                                                                           6      Related Work
+A single-engine result invites the objection that the channel                                                         KV cache timing attacks. Song et al. (2024) demon-
+is an artifact of vLLM’s allocator rather than a property of                                                          strated the first timing side-channel attack against shared
+prefix caching. We therefore repeated the measurement on a                                                            KV caches in LLM serving, showing that vLLM’s prefix
+deliberately dissimilar stack: llama.cpp (via Ollama) on Apple                                                        cache enables token reconstruction via TTFT timing. Wu
+M4 with Metal, serving Qwen2.5-3B — a different inference                                                             et al. (2025) introduced PROMPTPEEK, a more power-
+engine, accelerator vendor, memory architecture, and model                                                            ful fingerprint-correlation attack that recovers full prompts
+scale, with no code shared with the primary setup. Using the                                                          from SGLang’s radix-tree cache without requiring exact to-
+same streaming-TTFT method and a 781-token shared prefix,                                                             ken guessing. Zheng et al. (2024b) broadened the threat to
+
+
+                                                                                                                  9
+both cache mechanisms, reconstructing template-structured                (Section 4.2) removes most of this cost by confining isolation
+prompts field by field against prefix caches and exploring the           to the divergent region, but its efficiency figures are extrapo-
+embedding space against semantic caches. KVGov is, to our                lated from our hardware measurements rather than measured
+knowledge, the first system to address all three attack families’        directly, and it requires an offset parameter that current engines
+prefix-cache paths under a single mechanism; the semantic-               do not expose. Measuring it end to end is the most immediate
+cache variant requires a different instantiation (Section 7).            item of future work.
+                                                                            Reproducibility. All ASR and ablation experiments are
+Cache side channels in classical systems. Cache timing                   seeded (--seed 2026) and produce byte-identical results
+attacks have a long history in classical hardware security.              across runs; per-condition random streams are derived from
+FLUSH+RELOAD (Yarom and Falkner, 2014) exploits shared                   a stable SHA-256 digest of the condition name rather than
+LLC state; Gruss et al. (2017) show page-table timing leaks              Python’s process-salted hash(). Released scripts reproduce
+kernel ASLR; Rowhammer (Kim et al., 2014) causes DRAM                    every number in Tables 3 and 4.
+bit flips via timed access patterns. Our work brings this body              Semantic caches require a different instantiation. KV-
+of knowledge to the LLM serving context, where the shared re-            Gov’s salt construction isolates the key-equality rows of Ta-
+source is the transformer KV cache rather than CPU or DRAM               ble 1, which covers all three attack families’ prefix-cache
+state.                                                                   paths, including InputSnatch’s. It does not cover InputSnatch’s
+                                                                         semantic-cache variant, which resolves by nearest-neighbour
+                                                                         search over embeddings — two distinct salts do not make two
+LLM inference security. Greshake et al. (2023) study                     embeddings less similar. Isolation there must be enforced by
+indirect prompt injection against LLM agents; Perez and                  partitioning the retrieval index per principal, which our eval-
+Ribeiro (2022) examine direct prompt injection. Wallace et al.           uation does not measure: the InputSnatch simulation judges
+(2019) study universal adversarial triggers against NLP mod-             recovery by exact token overlap and therefore assumes hash-
+els. These works target model outputs rather than inference              keyed lookup. Our InputSnatch result should accordingly be
+infrastructure. KVGov is complementary: it protects infras-              read as validating the underlying principle — binding cache
+tructure from side-channel leakage.                                      resolution to an authenticated principal — rather than the
+                                                                         semantic-cache instantiation of it.
+Multi-tenant ML systems. Tramèr et al. (2016) extract                      Simulation vs. production. ASR experiments use a
+model parameters from black-box ML APIs; Milli et al. (2019)             discrete-event simulation with fixed hit/miss latencies (5 ms
+reconstruct training data from model updates. These attack the           / 50 ms). Real deployments exhibit variable latencies from
+model itself rather than the runtime computation state shared            GPU scheduling, memory bandwidth contention, and network
+by concurrent requests.                                                  jitter. The real TTFT measurements confirm the side channel
+                                                                         exists at production scale; extended field experiments with
+Game-theoretic security. Tambe (2011) introduced Stackel-                real adversarial tenants remain future work.
+berg security games for physical security resource allocation;
+ORIGAMI adapts the water-filling dual to the KV cache audit
+                                                                         8   Conclusion
+context. The replicator dynamics analysis follows Hofbauer
+and Sigmund (1988).                                                      Prior work has established that shared KV caches in multi-
+                                                                         tenant LLM serving create a timing side channel that
+7   Limitations                                                          three independent attacks—PROMPTPEEK, EarlyBird, and
+                                                                         InputSnatch—exploit to reconstruct victim prompts with 100%
+EarlyBird scope. Our EarlyBird results use a reference sim-              ASR. These attacks share a common root cause: cache keys
+ulation (block size=1) because vLLM 0.26.0 removed that                  are computed over token sequences alone, with no binding to
+configuration. That removal is often read as closing the attack,         the issuing principal.
+but as Section 3.4 shows it closes only free-text reconstruction:           KVGov eliminates this root cause by binding cache reso-
+against template-structured prompts the search space is the              lution to the authenticated principal, which by collision re-
+field’s domain rather than the vocabulary, and membership                sistance leaves an adversary’s probes unable to resolve to a
+confirmation remains O(1) regardless of block size. Block-               victim’s entries. An ablation study identifies HMAC-salt as
+size hardening should therefore not be treated as a substitute           the necessary and sufficient component, and boundary salting
+for namespace isolation in deployments whose prompts are                 (Section 4.2) shows the resulting isolation need not cost cross-
+templated.                                                               principal reuse. ORIGAMI extends KVGov with a Stackel-
+   Cache efficiency trade-off. Root salting eliminates cross-            berg water-filling audit scheduler that concentrates governance
+principal prefix sharing, which for workloads with high cross-           budget on high-value tenants, achieving 12.6% reduction in ad-
+tenant prompt similarity (e.g., shared system prompts across             versary expected utility at realistic enterprise workload hetero-
+an organization) materially reduces hit rates. Boundary salting          geneity. An evolutionary stability analysis provides a 31.6%
+
+
+                                                                    10
+adversary-prevalence tipping point as a population-level crite-         Perez, F., Ribeiro, I., 2022. Ignore Previous Prompt: Attack
+rion for cache scope selection.                                           Techniques for Language Models, in: NeurIPS ML Safety
+   KVGov is designed as a governance layer deployable along-              Workshop.
+side existing inference engines without modification to model
+weights, attention mechanisms, or generation pipelines. We re-          Song, L., Pang, Z., Wang, W., He, B., Shan, E., Zhang, J.,
+lease all experimental scripts and data to support reproducibil-          2024. The Early Bird Catches the Leak: Unveiling Timing
+ity.                                                                      Side Channels in LLM Serving Systems. arXiv preprint
+                                                                          arXiv:2409.20002 .
+
+References                                                              Tambe, M., 2011. Security and Game Theory: Algorithms,
+                                                                          Deployed Systems, Lessons Learned. Cambridge University
+Greshake, K., Abdelnabi, S., Mishra, S., Endres, C., Holz, T.,            Press.
+  Fritz, M., 2023. Not What You’ve Signed Up For: Com-
+  promising Real-World LLM-Integrated Applications with                 Tramèr, F., Zhang, F., Juels, A., Reiter, M.K., Ristenpart, T.,
+  Indirect Prompt Injection, in: Proceedings of the 16th ACM              2016. Stealing Machine Learning Models via Prediction
+  Workshop on Artificial Intelligence and Security (AISec),               APIs, in: Proceedings of the 25th USENIX Security Sym-
+  ACM.                                                                    posium, USENIX Association.
+Gruss, D., Lipp, M., Schwarz, M., Fellner, R., Maurice, C.,             vLLM Project, 2025.      RFC: Prefix Cache Isola-
+  Mangard, S., 2017. KASLR is Dead: Long Live KASLR,                      tion via cache salt.     https://github.com/
+  in: Engineering Secure Software and Systems (ESSoS),                    vllm-project/vllm/issues/16016. VLLM RFC
+  Springer.                                                               #16016; cache salt request field, released in vLLM 0.9.
+Hofbauer, J., Sigmund, K., 1988. The Theory of Evolution                Wallace, E., Feng, S., Kandpal, N., Gardner, M., Singh, S.,
+  and Dynamical Systems. Cambridge University Press.                     2019. Universal Adversarial Triggers for Attacking and
+                                                                         Analyzing NLP, in: Proceedings of the 2019 Conference
+Kim, Y., Daly, R., Kim, J., Fallin, C., Lee, J.H., Lee, D.,              on Empirical Methods in Natural Language Processing
+  Wilkerson, C., Lai, K., Mutlu, O., 2014. Flipping Bits in              (EMNLP), ACL.
+  Memory Without Accessing Them: An Experimental Study
+  of DRAM Disturbance Errors, in: Proceedings of the 41st               Wu, G., Zhang, Z., Zhang, Y., Liu, M., Gao, Y., Tang, R.,
+  Annual International Symposium on Computer Architecture                Wang, Q., 2025. I Know What You Asked: Prompt Leakage
+  (ISCA), IEEE.                                                          via KV-Cache Sharing in Multi-Tenant LLM Serving, in:
+                                                                         Proceedings of the 2025 Network and Distributed System
+Kwon, W., Li, Z., Zhuang, S., Sheng, Y., Zheng, L., Yu, C.H.,            Security Symposium (NDSS), Internet Society.
+ Gonzalez, J.E., Zhang, H., Stoica, I., 2023. Efficient Mem-
+ ory Management for Large Language Model Serving with                   Yarom, Y., Falkner, K., 2014. FLUSH+RELOAD: A High
+ PagedAttention, in: Proceedings of the 29th Symposium on                 Resolution, Low Noise, L3 Cache Side-Channel Attack,
+ Operating Systems Principles (SOSP), ACM.                                in: Proceedings of the 23rd USENIX Security Symposium,
+                                                                          USENIX Association.
+Liu, Y., Li, H., Du, Y., Su, S., Shan, J., Qian, Y., Rinard,
+  M., Stoica, I., Zhang, H., Chen, Z., 2024. CacheBlend:                Zheng, L., Yin, L., Xie, Z., Sun, J., Huang, C., Yu, C.H.,
+  Fast Large Language Model Serving for RAG with Cached                   Cao, S., Kozyrakis, C., Stoica, I., Gonzalez, J.E., Barrett,
+  Knowledge Fusion. arXiv preprint arXiv:2405.16444 LM-                   C., Sheng, Y., 2024a. SGLang: Efficient Execution of
+  Cache system.                                                           Structured Language Model Programs .
+Milli, S., Schmidt, L., Dragan, A.D., Hardt, M., 2019. Model            Zheng, X., Han, H., Shi, S., Qian, J., Geng, Z., Zhang,
+ Reconstruction from Model Explanations, in: Proceedings                  W., 2024b. InputSnatch: Stealing Input in LLM Ser-
+ of the 2019 Conference on Fairness, Accountability, and                  vices via Timing Side-Channel Attacks. arXiv preprint
+ Transparency (FAccT), ACM.                                               arXiv:2411.18191 .
+
+
+
+
+                                                                   11
+

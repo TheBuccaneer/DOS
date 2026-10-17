@@ -1,0 +1,1660 @@
+                                                                           Fairness in Serving Large Language Models
+
+                                                 Ying Sheng1,2 Shiyi Cao1 Dacheng Li1 Banghua Zhu1 Zhuohan Li1 Danyang Zhuo3
+                                                                          Joseph E. Gonzalez1 Ion Stoica1
+
+                                                                            1 UC Berkeley 2 Stanford University 3 Duke University
+
+
+
+
+arXiv:2401.00588v2 [cs.AI] 5 Jun 2024
+                                                                                                              of service being provided. Furthermore, LLM providers seek
+                                                                                                              to utilize their resources efficiently so they can reduce costs
+                                                                     Abstract                                 and increase their competitiveness in the market.
+                                        High-demand LLM inference services (e.g., ChatGPT and                     Today’s LLM serving systems [20, 24] typically use First-
+                                        BARD) support a wide range of requests from short chat con-           Come-First-Serve (FCFS) to schedule incoming requests.
+                                        versations to long document reading. To ensure that all client        While simple, this scheduling discipline has several draw-
+                                        requests are processed fairly, most major LLM inference ser-          backs. One such drawback is the lack of isolation: a client
+                                        vices have request rate limits, to ensure that no client can dom-     sending a disproportionate number of requests can negatively
+                                        inate the request queue. However, this rudimentary notion of          impact the service of all the other clients sharing the same
+                                        fairness also results in under-utilization of the resources and       server (i.e., slow down their requests or even cause timeouts)
+                                        poor client experience when there is spare capacity. While            even when they send very little traffic. In multi-tenant person-
+                                        there is a rich literature on fair scheduling, serving LLMs           alized serving (S-LoRA [43], Punica [8]) that uses a dedicated
+                                        presents new challenges due to their unpredictable request            adapter for each user, it is important to ensure fairness among
+                                        lengths and their unique batching characteristics on parallel         the adapters as well. One solution to address this problem is
+                                        accelerators. This paper introduces the definition of LLM             to limit the incoming load of each client. Many of the existing
+                                        serving fairness based on a cost function that accounts for the       LLM services do this today by imposing a request-per-minute
+                                        number of input and output tokens processed. To achieve fair-         (RPM) limit [37] for each client.
+                                        ness in serving, we propose a novel scheduling algorithm, the             Unfortunately, RPM can lead to low resource utilization. A
+                                        Virtual Token Counter (VTC), a fair scheduler based on the            client sending requests at a high rate will be restricted even if
+                                        continuous batching mechanism. We prove a 2× tight upper              the system is underutilized. This leads to wasted resources, an
+                                        bound on the service difference between two backlogged                undesirable situation given the cost and the scarcity of GPUs.
+                                        clients, adhering to the requirement of work-conserving.              Thus, we want a solution that provides not only isolation (like
+                                        Through extensive experiments, we demonstrate the superior            RPM limit) but also high resource utilization.
+                                        performance of VTC in ensuring fairness, especially in con-               This is a common problem in many other domains like
+                                        trast to other baseline methods, which exhibit shortcomings           networking and operating systems. The solution of choice to
+                                        under various conditions. The reproducible code is available          achieve both isolation and high resource utilization in those
+                                        at https://github.com/Ying1123/VTC-artifact.                          domains has been fair queueing [30]. Fair queueing ensures
+                                                                                                              that each client will get their “fair share”. In the simplest case,
+                                                                                                              if there are n clients sharing the same resource, the fair share
+                                        1    Introduction                                                     is at least 1/n of the resource, which means that each client
+                                                                                                              gets at least 1/n of the resource. Furthermore, if some clients
+                                        In a very short time, Large Language Models (LLMs), such
+                                                                                                              do not use their share, other clients with more demands can
+                                        as ChatGPT-4 Turbo [36], have been integrated into various
+                                                                                                              use it, hence leading to higher resource utilization.
+                                        application domains, e.g., programming assistants, customer
+                                                                                                                  In this paper, we apply fair sharing to the domain of LLM
+                                        support, document search, and chatbots. The core functional-
+                                                                                                              serving at the token granularity. We do it at the token rather
+                                        ity rendered by LLM providers to these applications is serving
+                                                                                                              than request granularity to avoid unfairness due to request
+                                        their requests. In addition to the response accuracy, the re-
+                                                                                                              heterogeneity. Consider two clients, client A sends requests
+                                        quest response time is a key metric that determines the quality
+                                                                                                              of 2K tokens each (both input and output), and client B sends
+                                            ∗ Part of the work was done when Ying was visiting UC Berkeley.   requests of 200 tokens each. Serving an equal number of
+requests for each client would be unfair to client B as her re-                                                                            Next Request
+                                                                                                            Select
+                                                                            Virtual Client 2 counter
+quests consume much fewer resources than client A’s requests.               Token Client 1 counter
+                                                                                                               Increase   Update counter
+This is similar to networking where fair queuing is typically              Counter
+applied to the bit granularity, rather than packet granularity.
+   Despite these similarities, we cannot directly use the al-                                                                     LLM execution
+                                                                                                                                     Engine
+gorithms developed for networking and operating systems,                                         Queue
+as LLM serving has several unique characteristics. First, the
+request output lengths are unknown in advance. In contrast, in                                                                                 Finish Request
+
+networking, the packet lengths are known before the packet
+is scheduled. Second, the cost of each token can vary. For                                 Send requests
+instance, the cost of processing an input (prompt) token is typ-                                           Client 2
+                                                                                Client 1
+ically lower than that of an output token, because input token
+processing is parallelizable. In contrast, the cost of sending a   Figure 1: Serving architecture with Virtual Token Counter
+bit or the cost of a CPU time slice are the same irrespective of   (VTC), illustrated with two clients. VTC maintains a queue
+the workload. Third, the effective capacity of an LLM server       of requests and keeps track of tokens served for each client.
+(i.e., processing rate expressed in token/sec when the request     In each iteration of the LLM execution engine, some tokens
+queue is non-empty) can vary over time. For example, longer        from some clients are generated. The counters of these clients
+input sequences take more memory. This limits the number of        are correspondingly updated. When the condition of adding
+batched parallel requests during generation, leading to GPU        new requests is satisfied (e.g. memory is released when some
+under-utilization and a lower processing rate. In contrast, the    other requests finish), VTC will be invoked to choose the
+network or CPU capacity is assumed to be fixed.                    requests to be added. VTC achieves fairness by prioritizing
+   In this paper, we discuss the factors that need to be consid-   clients with the lowest counter and carefully handling clients’
+ered when defining fairness in the context of LLM serving.         leave and rejoin (Section 4.1).
+We show how different definitions can be incorporated into
+a configurable service cost function in Section 3. While the
+cost function can be customized, a simple metric of count-         2     Background
+ing input and output tokens at different prices is extensively
+used in analysis for the sake of simplicity. We then present a     In this section, we first introduce how an LLM serving system
+fair scheduling algorithm called Virtual Token Counter (VTC)       operates. Then we describe existing methods for ensuring
+that can be easily adapted for different service cost functions.   fairness in LLM serving.
+At a high level, VTC tracks the services received for each
+client and will prioritize the ones with the least services re-    2.1     Large Language Models Serving
+ceived, with a counter lift each time a client is new to the
+queue. It updates the counters at a token-level granularity        LLM serving with a single request First, a request con-
+on the fly, which addresses the unknown length issue. VTC          tains information about its arrival time (a), input tokens (x),
+integrates seamlessly with current LLM serving batching tech-      and its associated client (u). Formally, we represent a request
+niques (Section 2.1), and its scheduling mechanism does not        using a three-tuple (a, x, u). The system generates output to-
+depend on the server’s capacity, overcoming the problem of         kens based on the input tokens. For instance, the input tokens
+the dynamically fluctuating server capacity. We also provide       can be an incomplete sentence, and the system generates the
+theoretical bounds of fairness for VTC in Section 4.1. The         rest of the sentence [35].
+serving architecture of VTC is illustrated in Figure 1.               The generation procedure consists of two stages: the ini-
+                                                                   tial prefilling stage, and the decoding stage [39]. Mathemati-
+   In summary, this paper makes the following contributions:
+                                                                   cally, x is a sequence of tokens (x1 , x2 , ..., xn ). In the prefilling
+   • This is the first work to discuss the fair serving of Large   stage, the LLM computes the probability of the first new to-
+     Language Models to the best of our knowledge. We              kens: P(xn+1 |x1 , ..., xn ). In the decoding stage, the system au-
+     identify its unique challenges and give the definition of     toregressively generates a new token. At time t (t ≥ 1), the
+     LLM serving fairness (Section 3).                             process is written as: P(xn+t+1 |x1 , ..., xn+t ).
+   • We propose a simple yet effective fair-serving algorithm         The decoding stage ends when the LLM generates a spe-
+     called VTC. We provide rigorous proofs for VTC on             cial end-of-sentence (EOS) token or the number of generated
+     fairness guarantee, which gives fairness bound within         tokens reaches a pre-defined maximal length.
+     2× of the optimal bound (Section 4).
+   • We conduct in-depth evaluations on our proposed al-           LLM serving with multiple requests In the online serv-
+     gorithm VTC. Results confirm that our proposed algo-          ing scenarios, multiple clients submit requests to the serving
+     rithms are fair and work-conserving (Section 5).              system. To process these requests, the system maintains two
+concurrent streams: A monitoring stream adds requests to                        2.2    Existing Fairness Approaches
+a waiting queue; an execution stream selects and executes
+request(s) from the waiting queue.                                              Fairness is a key metric of interest in computer systems that
+                                                                                provide service to multiple concurrent clients [5]. A fair LLM
+   Naively, the execution stream can choose to execute re-
+                                                                                serving system should protect clients from a misbehaving
+quests one by one. However, this is highly GPU inefficient
+                                                                                client who may try to overload the serving system by submit-
+due to various natures of the LLM generation procedure. For
+                                                                                ting too many requests.
+instance, the decoding steps must be carried out sequentially
+where the arithmetic intensity is relatively low in a single step.
+Contemporary serving systems usually perform batching that                      RPM Limit Per Client As a common practice of API man-
+executes multiple requests concurrently to maximize the sys-                    agement (e.x. [37]), specific rate limits are established for
+tem throughput. The most widely used approach in LLM                            each client’s API usage to prevent potential abuse or misuse
+serving is continuous batching [50]. Algorithm 1 shows the                      of the API and ensure equitable access for all clients. This
+pseudocode for continuous batching.2 The monitoring stream                      limitation is on the metric request-per-minute (RPM). Once
+enqueues requests to a waiting queue. The execution stream                      a client reaches the RPM limit, the client is only allowed
+performs a check on whether there are finished requests at the                  to submit more requests in the next time window. However,
+end of each decoding step. If there are, the system removes                     it’s important to note that while these limits are effective in
+these requests and adds new requests from the queue.                            managing resource allocation during periods of high demand,
+                                                                                they may not be work-conserving when the number of ac-
+                                                                                tive clients is low. In such scenarios, the system’s capacity
+Fairness with continuous batching We can naturally inte-
+                                                                                might be underutilized, as the imposed limits prevent the full
+grate fairness policies into the continuous batching algorithm,
+                                                                                exploitation of available resources.
+by designing a fair select_new_requests() function in Al-
+gorithm 1. Intuitively, the execution stream should keep track
+of how much service a particular client has received, and pri-                  Fair Queueing [30] The fairness problem has been exten-
+oritize clients that haven’t received much service in the next                  sively studied in the past for traditional compute resources,
+selection. We formally define fairness in the LLM serving                       such as CPU cycles and network bandwidth. Fair queuing and
+context in Section 3 and design a method with theoretical                       its variants (e.g., Weighted Fair Queuing (WFQ) [11], Self-
+guarantee in Section 4.                                                         clocked Fair Queueing [15], and Start-time Fair Queueing
+   We adopt a continuous batching scheme in which a re-                         (SFQ) [17]) have been proposed to achieve the fair allocation
+quest only leaves the batch when it generates an EOS token                      of link bandwidth in packet-switching networks.
+or reaches the pre-defined maximum number of generated                             In the traditional packet-switching network, a flow f is
+tokens (i.e., no preemption). This paper focuses on integrat-                   referred to as a sequence of packets p0f , p1f , . . . pnf transmit-
+                                                                                                                     j                    j
+ing fair scheduling with continuous batching, and we leave                      ted by a source. Each packet p f is of length l f . A flow is
+an investigation on preemption as an orthogonal future work                     backlogged during the time interval [t1 ,t2 ) if it has one or
+(discussed in Appendix C.3).                                                    more outstanding packets waiting in the queue at any time
+                                                                                t ∈ [t1 ,t2 ).
+Algorithm 1 LLM serving with Continuous batching                                    All fair queueing algorithms maintain a system virtual
+ 1: Initialize current batch B ← /0, waiting queue Q ← 0/                       time, v(t), which intuitively measures the service received by
+ 2: ▷ with monitoring stream:                                                   a continuously backlogged flow in terms of bits forwarded.
+ 3: while True do                                                               Each packet, p is associated two tags: Start tag S(p) and a
+ 4:    if new request r arrived then                                            Finish tag F(p) = S(p) + l p . The Start tag (a.k.a. packet’s
+ 5:        Q ← Q+r                                                              virtual starting time) is computed based on both the system
+ 6: ▷ with execution stream:                                                    virtual time and the Finish tag (a.k.a. packet’s virtual finishing
+ 7: while True do                                                               time). These algorithms schedule packets in the ascending
+ 8:       if can_add_new_request() then                                         order of either the Finish or Start tags.
+ 9:           Bnew ← select_new_requests(Q)                                         In networking, fairness is simply defined as follows: for any
+10:           prefill(Bnew )                                                    two flows, f and g, that are backlogged during time interval
+11:           B ← B + Bnew                                                      [t1 ,t2 ), we have
+12:       decode(B)
+                                                                                               W f (t1 ,t2 ) −Wg (t1 ,t2 ) ≤ U( f , g),         (1)
+13:       B ← filter_finished_requests(B)
+
+   2 For a simple presentation, we consider an implementation that only uses
+                                                                                where W f (t1 ,t2 ) and Wg (t1 ,t2 ) denote the service received in
+continuous batching for decode steps but keeps the prefill step separated. as
+                                                                                bits by flow f and g, respectively, during interval [t1 ,t2 ), and
+how TGI [21] adopted the original proposed iteration-level scheduling in        U( f , g) is a function of the properties of flows f and g (e.g.,
+Orca [50]. For more discussions, see Appendix C.1.                              maximum packet length) and the system (e.g., link capacity).
+Intuitively, for packets-switching networks, the allocation of           prompt     one decode token
+a link bandwidth is fair if, for any time interval during which                                   lower                         higher
+two flows are backlogged, each of these flows receives approx-                                    throughput                    throughput
+imately the same service in terms of the number of bits being                                     for longer                    for shorter
+forwarded during that interval. A scheduling algorithm is said                                    requests                      requests
+                                                                          Increased time
+to be work-conserving if a link always forwards packets when              for decode tokens
+the queue is not empty [23].
+   There exists a distinct strand of research [3, 6, 47] focusing
+                                                                     Figure 2: An illustration of how request length can affect the
+on the fair scheduling of preemptible tasks (e.g., CPU schedul-
+                                                                     cost and server capacity in terms of throughput. The visual-
+ing). The Completely Fair Scheduler (CFS) [1], implemented
+                                                                     ized length is not precise but for illustration purposes only.
+in Linux 2.6.23 and applying fair queuing to CPU scheduling,
+is closely related to our algorithm. In CFS, a “vruntime” is
+maintained for each task, and the task with the smallest “vrun-      rithms can provide good bounds in fairness by setting the
+time” is scheduled next. The tasks can be presented with a           Start and Finish tags through virtual time, as introduced in
+small time slice, aiming to maximize overall CPU utilization         Section 2.2. However, computing Start and Finish tags re-
+while also maximizing interactive performance.                       quires knowing the request length in advance. DRR performs
+                                                                     round-robin scheduling with a “deficit counter” mechanism
+2.3    Challenges                                                    to achieve fair scheduling of packets of variable length. In
+                                                                     DRR, each client is assigned a specific quantum of service. It
+There are several unique challenges in LLM serving that pre-         tracks the “deficit” of service for each client to ensure fairness
+vent a direct application of fair-queuing-like algorithms. The       over time. During each round, the scheduler allows each client
+first challenge is that the definition of fairness in the context    to dispatch as many requests as possible, provided that the
+of LLM serving is unexplored, and likely very different than         total length of these requests does not exceed the sum of the
+that discussed in fair-queuing literature.                           client’s assigned quantum for that round and any accumulated
+   Traditional fairness is defined by measuring the cost of          deficit from previous rounds. Without knowing the length
+requests, which is usually a fixed value that is easy to esti-       in advance, DRR cannot determine how many jobs can be
+mate in either network or operating systems. For example,            scheduled within the quantum. Compared to CPU schedul-
+in networking, requests correspond to packets, and the cost          ing, although exploring adequate preemption is worthwhile in
+is usually the number of bits of a packet. However, in LLM           LLM serving, it cannot occur frequently. We need to define
+generations, how to define the cost of a request is not obvi-        service fairness in LLM serving and operate at the granularity
+ous. The cost per token can vary. Especially, processing an          of individual tokens when frequent preemption is not possible.
+input (prompt) token is typically less expensive than process-       Additionally, the Completely Fair Scheduler (CFS) in CPU
+ing an output token, as input tokens are processed in parallel       scheduling does not account for the concurrency of each task.
+while output tokens must be generated sequentially. Batching         It seeks fairness among individual tasks rather than among
+the output tokens from different requests can parallelize the        streams of tasks that can be executed concurrently. 3
+fully connected layers but is still slower than processing input        We will give the definition for LLM serving fairness in
+tokens for the attention layers.                                     Section 3 and give a scheduling algorithm to achieve the
+   Additionally, in LLM serving, the server has variable token-      LLM serving fairness in Section 4. We will outline our algo-
+rate capacity, although the memory allocated for a batch is          rithm in a basic format for clarity, while details on its general
+constant. Firstly, even if the request queue is not empty, we        form and integration with existing serving frameworks can
+are not guaranteed that each batch is full. This is because we       be found in Appendix C.1. Although our algorithm is closely
+need to preserve spaces for future generated tokens, and also        related to CFS, we also discuss the adaptation of DRR in Ap-
+because the tokens added to the batch are not at the token           pendix C.2. Further discussions on future work are included
+but the request granularity. Secondly, the number of tokens          in Appendix C.3.
+processed highly depends on the requests’ arrival patterns
+because of the continuous batching mechanism (Section 2.1).
+Furthermore, the capacity depends on the mix between input           3     Definition of Fairness in LLM Serving
+and output tokens of existing requests. If all requests have long
+past tokens, then the capacity is likely to be low (See Figure 2).   In this section, we discuss the cost of a request, and the mea-
+Then there is no way to define a fixed amount of equal share.        surement of the service a client has received (Section 3.1).
+   The second challenge is the characteristic of unknown out-        After defining the measurement of service, we can define
+put length before finishing a request. This prevents a direct        fairness among clients in Section 3.2.
+adaptation of classical algorithms like SFQ and Deficit Round            3 Our algorithm does not consider preemption. Discussion about preemp-
+
+Robin (DRR) [45] into the LLM serving. SFQ-style algo-               tion is in Appendix C.3.
+  Notation        Explanation                                              OpenAI’s API4 . Formally, let w p be the weight of input to-
+  W f (t1 ,t2 )   service received by f during interval [t1 ,t2 ) (write
+                                                                           kens and wq be the weight of output tokens. Then, we have
+                  as W (t1 ,t2 ) when f is clear in the context)           W (t1 ,t2 ) = w p · n p (t1 ,t2 ) + wq · nq (t1 ,t2 ). Due to its simplic-
+     np           number of processed input tokens                         ity, we will use this measure extensively in our analysis and
+     nq           number of processed output tokens                        evaluation.
+     wp           weight of input tokens in the cost function                 Customized, unified representation. The definition of
+     wq           weight of output tokens in the cost function             fairness in LLM serving can also be extended to other aspects,
+  h(n p , nq )    customized cost function                                 such as the weighted number of FLOPs or a more sophisti-
+      ci          virtual token counter for client i                       cated method introduced in [31] that uses piecewise linear
+      Q           waiting queue of requests to be processed                functions for the number of input and output tokens. Gen-
+    i∈Q           ∃r ∈ Q, r is a request from client i                     erally, the service can be represented as a function of the
+    Linput        maximum number of input tokens in a request              number of input and output tokens (n p , nq , respectively). Let
+    Lout put      maximum number of output tokens in a request             h(n p , nq ) be the cost function that is monotonically increasing
+      M           maximum number of tokens that can be fitted in a         according to n p and nq . Our method can easily accommodate
+                  running batch
+                                                                           different h (Section 4.2).
+       U          invariant bound: max(w p · Linput , wq · M)
+
+Table 1: The upper half includes notations for service mea-                3.2     Fairness in LLM Serving
+surement. The lower half includes notations for the VTC
+                                                                           In this paper, we apply fair sharing to the domain of LLM serv-
+algorithm and its analysis. The terms n p , nq can refer to either
+                                                                           ing to provide performance isolation across multiple clients
+a single request or a single client, depending on the context.
+                                                                           sharing the same LLM server. In particular, we employ the
+                                                                           classic formulation of max-min fairness [5], which computes
+                                                                           a fair share for the clients sharing a given server. In a nutshell,
+3.1      Measurement of Service
+                                                                           given the metric of service fairness, if a client sends requests
+In this subsection, we discuss the measurement of the service              at no more than its fair share, all its requests are served. In
+a client has received. Specifically, we define W f (t1 ,t2 ) and           contrast, if a client sends requests at more than its fair share,
+Wg (t1 ,t2 ) from Equation (1) in the context of LLM serving.              its excess requests will be delayed or even dropped. As a
+We omit the subscript and write W (t1 ,t2 ) when the client is             result, a misbehaving client cannot deny the service to other
+clear from the context or is irrelevant. The number of pro-                clients, no matter how many requests it sends. To achieve max-
+cessed input and output tokens are denoted as n p , nq . Nota-             min fairness, an idealized serving system follows desirable
+tions that will be introduced and used multiple times in this              properties as below:
+paper are summarized in Table 1.
+                                                                             1. Backlogged clients Any two clients f , g that are contin-
+    Number of tokens A straightforward way to measure the
+                                                                                uously backlogged during a given time interval [t1 ,t2 )
+service provided to a client is by summing the number of
+                                                                                should receive the same service during this interval, i.e.
+input tokens that have been processed and the number of
+                                                                                W f (t1 ,t2 ) = Wg (t1 ,t2 ).
+output tokens that have been generated so far, i.e., W (t1 ,t2 ) =
+n p (t1 ,t2 ) + nq (t1 ,t2 ) during the time window [t1 ,t2 ).               2. Non-backlogged clients Client f that is continuously
+    Number of FLOPs Alternatively, one can measure the total                    backlogged during time interval [t1 ,t2 ) should not re-
+FLOPs used in each stage, i.e., W (t1 ,t2 ) = FLOPinput (t1 ,t2 ) +             ceive less service than another client, g, that is not con-
+FLOPoutput (t1 ,t2 ). This can be more precise because it cap-                  tinuously backlogged during the same time interval, i.e.,
+tures the difference among tokens in attention computation,                     W f (t1 ,t2 ) ≥ Wg (t1 ,t2 ).
+where tokens with longer prefixes require more computation.
+    However, both of these formulations cannot accurately re-                3. Work-conservation As long as there are requests in the
+flect the actual LLM serving cost: The computation of the                       queue, the server should not be idle.
+tokens at the prefill stage can be parallelized and achieve high
+                                                                              The first property means that two clients sending requests at
+GPU utilization. However, at the generation stage, we can
+                                                                           more than their fair share will get the same service, regardless
+only generate tokens one by one, as each token depends on
+                                                                           of the discrepancy between their sending rates. The second
+all previous tokens as described in Section 2.1.
+                                                                           property says that a client sending requests at a higher rate
+    Weighted number of tokens To better reflect the actual
+                                                                           will not get less service than a client sending at a lower rate.
+LLM serving cost, a more accurate measure should capture
+                                                                           Basically, the first two properties say that a misbehaving client
+the difference in costs of the prefilling and generation phases.
+                                                                           is contained (i.e., doesn’t receive more service than other
+One simple way to implement this idea is by using a weighted
+                                                                           backlogged clients), and not punished (i.e., doesn’t receive
+combination of the prefilling (input) tokens and decoding
+(output) tokens, inspired by the pricing mechanism used in                    4 https://openai.com/pricing
+less service than other non-backlogged clients). Finally, the           Algorithm 2 Virtual Token Counter (VTC)
+work conserving property aims to maximize the utilization,              Input: request trace, input token weight w p , output token
+addressing a key weakness of the RPM-based solutions.                       weight wq , upper bound from Equation (2) denoted as U.
+   The three properties above assume an idealized fair serving           1: let current batch B ← 0/
+system. A practical system will approximate these properties.            2: let ci ← 0 for all client i
+In general, the best we can achieve is deriving bounds that              3: let Q denote the waiting queue, which is dynamically
+are independent of the length of the time interval, e.g., in the            changing.
+first property, the difference between W f (t1 ,t2 ) and Wg (t1 ,t2 )    4: ▷ with monitoring stream:
+is bounded by a value that is independent of t2 − t1 . We give           5: while True do
+the formal guarantees provided by our method in Section 4.1.             6:      if new request r from client u arrived then
+                                                                         7:          if not ∃r′ ∈ Q, client(r′ ) = u then
+4     Achieving Fairness                                                 8:              if Q = 0/ then
+                                                                         9:                   let l ← the last client left Q
+In this section, we present our algorithm VTC with proved               10:                   cu ← max{cu , cl }
+fairness properties in Section 4.1, and show its generalization         11:              else
+for customized service measurement in Section 4.2. Variants             12:                   P ← {i | ∃r′ ∈ Q, client(r′ ) = i}
+of VTC, including weighted VTC and VTC with length pre-                 13:                   cu ← max{cu , min{ci | i ∈ P}}
+diction, are introduced in Section 4.3 and Section 4.4.                 14:          Q ← Q+r
+                                                                        15: ▷ with execution stream:
+4.1    Virtual Token Counter (VTC)                                      16: while True do
+                                                                        17:      if can_add_new_request() then
+Based on insights from prior discussions, we’ve identified              18:          Bnew ← 0/
+key challenges inherent in large language model (LLM) serv-             19:          while True do
+ing that hinder direct adaptation of existing algorithms to             20:              let k ← arg mini∈{client(r)|r∈Q} ci
+deliver approximately fair LLM service. We then propose the             21:              let r be the earliest request in Q from k.
+Virtual Token Counter (VTC), a mechanism for achieving                  22:              if r cannot fit in the memory then
+fair sharing in LLM Serving (Algorithm 2). To quantify the              23:                   Break
+service received by a client we use the weighted number of              24:              ck ← ck + w p · input_length(r)
+tokens metric, as described in Section 3.1. We discuss the              25:              Bnew ← Bnew + r
+generalization to other metrics in Section 4.2.                         26:              Q ← Q−r
+   Intuitively, VTC tracks the services received for each client        27:          forward_prefill(Bnew )
+and will prioritize the ones with the least services received,          28:          B ← B + Bnew
+with a counter lift each time a client is new to the queue. The
+                                                                        29:      forward_decode(B)
+counter lift is needed to fill the gap created by a low load pe-
+                                                                        30:      ci ← ci + wq · |{r | client(r) = i, r ∈ B}|
+riod of the client, so that it will not be unfairly served more in
+                                                                        31:      B ← filter_finished_requests(B)
+the future. In other words, the credits for a client are utilized
+immediately and cannot be carried over or accumulated. The
+virtual counters are updated each time a new token is gener-
+ated, which can reflect the services received instantly. This           will happen. Because this client could have been underloaded
+operates at the token-level granularity, and thus addresses the         before, its counter could be smaller than the other active coun-
+unknown length issue. VTC can be easily integrated into the             ters. However, since the credits cannot be carried over, we
+continuous batching mechanism, and its scheduling mecha-                need to lift it to the same level as other active counters, thus
+nism does not depend on the server’s capacity, overcoming               maintaining fairness among this client and others. Lines 9-10
+the problem of variable token-rate capacity.                            address the scenario where the entire system was in an idle
+   Algorithm 2 shows how VTC can be implemented in the                  state. We do not reset all the counters to avoid nullifying a
+continuous batching framework described in Section 2.1.                 previously accumulated deficit upon a system restart.
+A more general integration for VTC is described in Ap-                     The execution stream is the control loop of an execution
+pendix C.1. It maintains a virtual counter for each client,             engine that implements continuous batching. Line 17 controls
+denoted as {ci }. The counters are initialized as 0 (line 2). The       the frequency of adding a minibatch Bnew of new requests
+program runs with two parallel streams.                                 into the running batch B. Commonly, the server will add a
+   The monitoring stream listens to the incoming requests,              new minibatch after several decoding steps. The minibatch
+described in lines 5-14. The new request will be added to the           Bnew is constructed by iteratively selecting the request from
+waiting queue Q immediately. If the new request is the only             the client with the smallest virtual counter (lines 20-26). The
+request in Q for its sender client, a counter lift (lines 8-13)         counters will be updated when adding new requests according
+to the service invoked by the input tokens (line 24). After               are backlogged, Algorithm 2 guarantees 5
+each decoding step (line 29), {ci } will be updated immedi-
+                                                                                |W f (t1 ,t2 ) −Wg (t1 ,t2 )| ≤ 2 max(w p · Linput , wq · M).
+ately according to the service invoked by the newly generated
+output tokens (line 30).                                                  Proof. For any f , if f is backlogged during time t1 to t2 , we
+                                                                                                (t )    (t )
+   The VTC algorithm is (mostly) work-conserving because                  have W f (t1 ,t2 ) = c f 2 − c f 1 . This is because the line 7 will
+it only manipulates the dispatch order and does not reject a              not be reached for client f during t1 to t2 , and the c f keeps
+request if it can fit in the batch.                                       increasing during t1 to t2 by adding w p product the number
+                                                                          of served input tokens and wq product the number of served
+4.1.1   Fairness for backlogged clients in VTC                            output tokens. By Lemma 4.3, from Equation (2), we have
+                                                                                                                   (t )     (t )       (t )    (t )
+In this subsection, we provide the theoretical guarantee for                   |W f (t1 ,t2 ) −Wg (t1 ,t2 )| ≤ |c f 1 − cg 1 | + |c f 2 − cg 2 |
+fairness among overloaded clients in VTC. More precisely,                                                    ≤ 2 max(w p · Linput , wq · M)
+the overload of a client is reflected by its backlog, which
+can be formally defined as follows. Intuitively, a client being
+backlogged means its requests are queued up.                              Remark 4.5. An empirical illustration of this theorem can be
+Definition 4.1 (Backlog). A client f is backlogged during                 found in Figure 3a, where the difference between services
+time interval [t1 ,t2 ), if at any time t ∈ [t1 ,t2 ), f has a request    received by backlogged clients is bounded, regardless of how
+that is waiting in the queue.                                             long they have been backlogged.
+                                                                          Remark 4.6. Line 13 can be modified to take any value
+   We adapt the traditional definition of fairness for back-              between min{ci |∃r′ ∈ Q, client(r′ ) = i} and max{ci |∃r′ ∈
+logged clients in the network to our scenario. The follow-                Q, client(r′ ) = i}. The proof of Theorem 4.4 should still hold.
+ing definition formally defined the item 1 introduced in Sec-             Remark 4.7. To tighten the bound in Theorem 4.4, we can
+tion 3.2, that for any interval, and any two continuously back-           restrict the memory usage for each client in the running batch.
+logged clients during the time interval, the difference of their          This might compromise the work-conserving property, as we
+received service should be bounded by a value that is inde-               will demonstrate in Theorem 4.8. Therefore, there is a trade-
+pendent of the interval length.                                           off between achieving a better fairness bound and maintaining
+                                                                          work conservation. Heuristically, predicting the request length
+Definition 4.2 (Fairness adapted from [16]). Let W f (t1 ,t2 )
+                                                                          in advance could result in a smaller discrepancy, as detailed
+be the aggregated service received by client f in the interval
+                                                                          in Section 4.4. Additionally, preemption is another method to
+[t1 ,t2 ). A schedule is fair w.r.t. δ, if for any clients f and g, for
+                                                                          achieve smaller differences, discussed in Appendix C.3.
+all intervals [t1 ,t2 ) in which clients f and g are backlogged,
+we have |W f (t1 ,t2 ) −Wg (t1 ,t2 )| ≤ δ.                                    We also prove in the next theorem that the bound in The-
+                                                                          orem 4.4 is tight within a factor of 2 for a family of work-
+   In the rest of the paper, as in Algorithm 2, we let Q denote           conserving schedulers. We say a scheduler is work-conserving
+the set of requests in the waiting queue. We abuse the notation           if it stops adding requests to a partially-filled minibatch (line
+of i ∈ Q for a client i to indicate there exists r ∈ Q, such              22 in Algorithm 2) only when it runs out of memory6 but not
+that r is a request from client i. Let Linput and Lout put be the         for fairness reasons.
+maximum number of input and output tokens in a request.
+                                                                          Theorem 4.8. For any work-conserving schedule without
+Let M be the maximum number of tokens that can be fitted
+                                                                          preemption, there exists some query arrival sequence such
+in a running batch. Lemma 4.3 reflects the core design of
+                                                                          that for client f , g and a time period t1 ,t2 , such that
+Algorithm 2, that the virtual counters for active clients are
+chasing each other to ensure their maximum difference is                                    |W f (t1 ,t2 ) −Wg (t1 ,t2 )| ≥ wq · M,
+bounded. The missing proof for Lemma 4.3 and all following                where clients f , g are backlogged during the time [t1 ,t2 ).
+theorems are in Appendix A.
+                                                                             As we mentioned before, output tokens are more expensive
+Lemma 4.3. The following invariant holds at any time in                   than input tokens, so normally we have wq > w p . Therefore
+Algorithm 2 when Q ̸= /0:                                                 the right-hand side of the inequality in Theorem 4.4 is 2wq · M,
+                                                                          which is 2× of the lower bound in Theorem 4.8.
+           max ci − min ci ≤ max(w p · Linput , wq · M)            (2)        5 The service of a served request incurred by pre-filling (service for input
+           i∈Q        i∈Q
+                                                                          tokens) is counted at the time when the request is added to the running batch
+  We then introduce our main theorem which provides a                     (line 24 in Algorithm 2), rather than the time when prefill is finished. This is
+                                                                          because we want to count the input tokens immediately to avoid selecting all
+bound for Definition 4.2.                                                 the same k at line 20 in Algorithm 2 for Bnew .
+                                                                              6 Different implementation may have different criteria of “not enough
+Theorem 4.4 (Fairness for overloaded clients). For any                    memory”. This can only be achieved heuristically because the number of
+clients f and g, for any time interval [t1 ,t2 ) in which f and g         output tokens is unknown before it finishes.
+4.1.2   Fairness for non-backlogged clients in VTC                      Theorem 4.13. (Fairness for non-overloaded clients) For
+                                                                        any time interval [t1 ,t2 ), we claim the following.
+In this subsection, we discuss item 2 in Section 3.2. A back-
+                                                                           Assume a client f is not backlogged at time t1 and for any
+logged client will not receive less service than another client.
+                                                                        time interval [t,t2 ),t1 ≤ t < t2 , f has requested services less
+This can be reflected in the following theorem.                                  (t,t2 )
+                                                                        than Tn(t,t      − 5U, where T (t,t2 ) is the total services received
+                                                                                     2)
+Theorem 4.9. If a client f is backlogged during time interval           for all clients during the interval [t,t2 ), n(t,t2 ) is the number
+[t1 ,t2 ), for any client g, there is                                   of clients that have requested services during the interval, and
+                                                                        U is the upper bound from Equation (2).
+                  W f (t1 ,t2 ) ≥ Wg (t1 ,t2 ) − 4U.                       Then, all of the services requested from f during the inter-
+                                                                        val [t1 ,t2 ) will be dispatched.
+Here U is the upper bound from Equation (2).
+   In addition to that, clients who send requests constantly            4.2     Adapt to Different Fairness Criteria
+less than their share should have their requests serviced nearly
+instantly. This property intuitively can be implied by the first        Algorithm 2 is designed for fairness with the service function
+item in Section 3.2, as if a low-rate client cannot be served           W (t1 ,t2 ) as a linear combination of the number of processed
+on time, it becomes backlogged, which requires the same                 input tokens and the number of generated tokens. For a differ-
+level of service with backlogged clients. We formally prove             ent definition of W (t1 ,t2 ), Algorithm 2 can be easily modified
+this property to offer a fairness assurance for clients who are         to update the counter according to the other definitions de-
+not overloaded. This intuitively acts as a safeguard against            scribed in Section 3.1.
+misbehaving clients [10].                                                  Assume we aim for fairness using ∑r h(nrp , nrq ) as the metric
+   We start with Definition 4.10 and Theorem 4.11 discussing            of service, where h is a specific function. In this context, r
+the aspect of latency bounds. Intuitively, if a client is not           indexes the served requests, and nrp , nrq represent the number
+backlogged and has no requests running, the next request from           of input and output tokens served for request r, respectively.
+it will be processed within a latency bound that is independent         Line 24 will be changed to
+of the request rate of other clients.
+                                                                                                 ck ← ck + h(nrp , 0).
+Definition 4.10. Assume there are n active clients during [t1 ,
+                                                                        Line 30 will be changed to
+t2 ), and the server capacity at time t ∈ [t1 ,t2 ) is defined as
+S(t), where                                                                                                   h(nrp , nrq ) − h(nrp , nrq − 1) .
+                                                                                                                                              
+                                                                              ci ← ci +         ∑
+                   Z t2              n
+                                                                                          r|client(r)=i,r∈B
+                          S(t) dt = ∑ Wi (t1 ,t2 )
+                     t1             i=1
+                                                                           The fairness bound will also be changed according to h(·, ·).
+Because the server capacity is always positive and bounded,             Under the assumption that output tokens are more expensive
+there exists a, b ∈ R+ such that ∀ t, a < S(t) ≤ b.                     than input tokens, the bound will become the maximum value
+                                                                        of aggregated h(·, ·) for a set of requests that can be fitted
+Theorem 4.11. Let A(r) and D(r) denote the arrival time                 in one running batch. Algorithm 4 in Appendix C.1 is the
+and dispatch time of a request r. Assume there are in total n           pseudocode of a general VTC framework.
+clients, ∀t1 ,t2 , if at t1 , a client f is not backlogged and has no
+requests in the running batch, then the next request r f with           4.3     Weighted VTC
+t1 < A(r f ) < t2 will have its response time bounded:
+                                                                        VTC can be applied when clients have tiers. Similar to
+                                     max(w p · Linput , wq · M)         weighted fair queuing, clients can have different weights
+   D(r f ) − A(r f ) ≤ 2 · (n − 1) ·                              (3)   to represent their priority in service. If a client f has a
+                                                a
+                                                                        weight w1 , that is twice the weight w2 of client g, client
+Here a is the lower bound of the capacity in Definition 4.10.            f is expected to receive twice the service than client g.
+Remark 4.12. The bound in Theorem 4.11 is irrelevant to                 When they are continuously backlogged during the interval
+                                                                                          W (t ,t ) W (t ,t )
+the request rate of others, giving an upper bound for latency           [t1 ,t2 ), we want f w11 2 − g w12 2 to be bounded instead of
+against ill-behavior clients.                                            W f (t1 ,t2 ) −Wg (t1 ,t2 ) .
+   The above is about one request not getting delayed. The                 Weighted VTC can be easily implemented by modifying
+following theorem shows that during time period [t1 ,t2 ), if           the lines that update the virtual tokens. For example, the line
+there are n active clients sending requests, and client f is            22 in Algorithm 4 will be changed to
+sending requests with a rate constantly less than 1/n of the                                           
+                                                                                                                          r(old) r(old)
+                                                                                                                                         
+server’s capacity (with some constant gap), client f should                             ∑r|client(r)=i h(nrp , nrq ) − h(n p    , nq    )
+have all its requests been served.                                         ci ← ci +                                                       .
+                                                                                                                wi
+Here ci is the virtual counter of client i, and wi is its corre-    could be taken into consideration among adapters, especially
+sponding weight.                                                    under the scenario of personalization that uses one adapter
+                                                                    per customer, which originally motivated this paper.
+4.4      VTC with Length Prediction
+                                                                    Baselines In this section, we benchmark VTC and the base-
+As mentioned in Remark 4.7, using VTC with length pre-              lines as below:
+diction can heuristically reduce the service discrepancy. In
+                                                                       • First Come First Serve (FCFS): In the First-Come-First-
+standard VTC, the counters only reflect served tokens. Tokens
+                                                                         Serve method, requests are handled strictly in the order
+generated in the future can only be passively added to the
+                                                                         they are received, irrespective of the requesting client.
+counter. This results in a large service discrepancy because re-
+                                                                         This is the default scheduling strategy in many preva-
+quests are overly added due to underestimation of their costs
+                                                                         lent LLM serving systems, including vLLM [24] and
+at the time of prompting, leading to the forced serving of
+                                                                         Huggingface TGI [20].
+over-compensated output tokens. Incorporating a prediction
+mechanism can help reduce this variance.                               • Request per minute (RPM): This method limits the max-
+   The theoretical worst-case scenario won’t change, accord-             imum number of requests that a client can make to the
+ing to the lower bound proved in Theorem 4.8. But practically,           server within a one-minute timeframe. The definition of
+the average-case service discrepancy could be smaller.                   service corresponds to Section 3. When a client exceeds
+   The modified pseudocode of VTC with length prediction                 this limit, subsequent requests are blocked until the limit
+is described in Algorithm 3 in Appendix B.3. Intuitively,                resets at the start of the next minute.
+when a request r is selected, the cost associated with the             • Least Counter First (LCF): This is a variant of VTC with-
+predicted number of output tokens is immediately added to                out the counter lift component. Each client will maintain
+the virtual counter of the client sending the request. During the        a counter for the service it received so far. The request
+actual decoding process, adjustments are made to the virtual             from the client with the smallest counter will be sched-
+counter based on the actual number of output tokens produced.            uled each time.
+If the actual number of tokens exceeds the prediction, the          We also benchmark the VTC with length predictions as de-
+virtual counter is increased accordingly. Conversely, if fewer      scribed below:
+tokens are generated than predicted when finished, the virtual         • VTC (predict): This variant of VTC, detailed in Algo-
+counter is reduced. The effectiveness of the length predictor            rithm 3, utilizes the average output length of the last five
+is contingent upon both the workload and the accuracy of                 requests from each client to predict the output length.
+predictions, as demonstrated in our evaluations.                       • VTC (oracle): This variant employs a hypothetical output
+                                                                         length predictor that achieves 100% accuracy.
+5     Evaluations
+                                                                    Synthetic Workload We run Llama-2-7b on A10G (24GB),
+In this section, we evaluate VTC against other alternatives         using the memory pool for the KV cache with size 100008 .
+under different workloads. The results confirm the fairness         We use various workloads to demonstrate different aspects of
+properties introduced in Section 3 of VTC, and show that all        fairness, and compare VTC with other baselines. The detailed
+other alternatives will fail in at least one workload.              results are in Section 5.2. We start with synthetic workloads
+                                                                    to give a clear message for fairness properties.
+5.1      Setup
+Implementation We implement our VTC and other base-                 Real Workload To validate the effectiveness of VTC in
+line schedulers in S-LoRA [43], a system that serves a large        more complex real-world scenarios, we also experiment with
+amount of LoRA adapters concurrently. Its backbone is a gen-        VTC and other baselines under workloads constructed from
+eral serving system adapted from LightLLM [29]. It includes         the trace log of LMSYS Chatbot Arena [52, 53], which is an
+the implementation of continuous batching [50] and Page-            LLM serving platform for real-world clients.
+dAttention [24]7 . Our VTC scheduler is built on top of those
+two techniques. Our implementation is elegant and can be            Ablation Study In the ablation study, to evaluate the impact
+implemented as a thin layer on top of the existing scheduler, it    of different memory pool sizes and request lengths on the
+contains only about 100 lines of code on top of S-LoRA. The         scheduling fairness, we run Llama-2-13b on A100 (80GB)
+simplicity demonstrates its wide applicability. Fairness can        with a memory pool of size 35000 and 65000 respectively. For
+be considered among general clients, and our experiments are        each memory pool size, we evaluate the absolute difference
+done in this way. But we would like to note that fairness also      in the accumulated service of two clients.
+    7 with block size equals 1.                                        8 There are in total 10000 tokens for KV cache that can be stored on GPU.
+                                                                     Absolute Difference in Service
+Metrics We apply the weighted number of tokens described
+                                                                                                                     VTC              FCFS
+in Section 3.1 as the measurement of services in our evalua-                                          3   1e5
+                                                                                                                                                                                              Client 1         Client 2
+tion. Following OpenAI pricing, we set w p = 1 and wq = 2.
+                                                                                                      2                                                                    600.0
+   • The service received by client i at time t is measured as
+                                                                                                                                                        Service
+      Wi (t − T,t + T ) for a certain T .                                                             1                                                                    400.0
+
+   • The absolute difference in service between clients is                                                                                                                 200.0
+                                                                                                      0
+      quantified based on accumulated services, represented                                                          200     400                                                   0.0
+                                                                                                                       Time (s)                                                       0          200     400        600
+      as maxi, j |Wi (0,t) −W j (0,t)|.                                                                                                                                                            Time (s)
+
+   • The response time of client i at time t is measured as the      (a) Absolute difference for                                                        (b) Received service rate, calcu-
+      average first token latency of the requests sent by client     accumulated service                                                                lated as an average of 60s time
+      i during the time window [t − T,t + T ].                                                                                                          windows. (VTC)
+In all settings, we set T = 30 seconds.
+   We employ service difference as a quantitative metric to          Figure 3: Two clients with different request rates and both
+assess the deviation from ideal fairness. A smaller difference       overloaded. Client 1 sends 90 requests per minute. Client 2
+in service indicates more equitable scheduling. Formally, the        sends 180 requests per minute, both evenly spaced out so that
+service difference between two clients is defined as the min-        each request is sent at a consistent time interval throughout
+imum of two values: the difference between their received            the minute. Every request has input lengths of 256 and output
+services, and the difference between the lower service and its       lengths of 256. Both clients are backlogged because they
+corresponding request rate. For example, consider two clients        exceed the server capacity.
+that received services s1 and s2 , such that s1 ≤ s2 , and let r1
+                                                                                                          Client 1         Client 2          Client 3                              Client 1         Client 2     Client 3
+denote the request rate sent from the first client. Then the
+
+
+                                                                                                                                                              Response Time (s)
+service difference is defined as min(s2 − s1 , |r1 − s1 |).                                           750.0
+                                                                                                                                                                                  150.0
+
+                                                                             Service
+                                                                                                      500.0                                                                       100.0
+                                                                                                      250.0                                                                        50.0
+VTC Variants The experiments for weighted VTC are pre-                                                     0.0                                                                      0.0
+                                                                                                              0       200     400                                                      0       200     400
+sented in Appendix B.1, demonstrating its capability to serve                                                           Time (s)                                                                 Time (s)
+
+clients with varying priorities. To illustrate the versatility of
+                                                                     (a) Received service rate (VTC).                                                                             (b) Response time (VTC).
+the service function beyond the linear model used in our pri-
+mary analysis, we evaluate a profiled service cost function          Figure 4: Client 3 who is overloaded can consume more than
+in Appendix B.2, which is a quadratic function. Additional           its share as Clients 1 and 2 are sending requests lower than
+experiments on VTC with length prediction are detailed in            their share. Clients 1, 2, and 3 send 15, 30, and 90 requests
+Appendix B.3.                                                        per minute, respectively, under uniform distribution. Requests
+                                                                     have input lengths of 256 and output lengths of 256. Client 3
+5.2    Results on Synthetic Workloads                                is backlogged, while Clients 1 and 2 are not.
+
+We design a set of experiments to visualize the fairness prop-
+erties of VTC. We start with synthetic traces to show plots             In Figure 4, three clients send requests at around 2/13,
+reflecting the ideal case’s fairness. We experiment from the         4/13, and > 7/13 of the server’s capacity, respectively. In
+simplest setting, where clients send requests following a uni-       this case, Clients 1 and 2 can be served immediately when
+form distribution with the same input and output length, to          their requests arrive (Figure 4b), and Client 3 will consume
+complex settings, where requests arrive stochastically, with         the remaining capacity (more than 1/3), which is an empirical
+various input and output lengths.                                    illustration of the work-conserving property of VTC. The
+                                                                     service received for Client 1 and Client 2 have a ratio 1 : 2,
+Constant request rates We start with scenarios where re-             which is consistent with their request rates (15 versus 30).
+quests arrive deterministically with the same input and output
+length. In Figure 3, two clients send requests at different rates,   ON/OFF request pattern In real-world applications,
+but are both constantly overloaded. In this case, Figure 3a          clients usually do not always send requests to the server. They
+shows VTC can keep the difference between services received          may occasionally be idle (“OFF” phase). We call this the
+by both clients to be small. FCFS cannot maintain fairness,          “ON/OFF” pattern. In Figure 5, Client 2 is always in the “ON”
+which always serves more for the client who is sending re-           phase, sending requests at a rate of 120 per minute. Client 1
+quests at a higher rate. Figure 3b shows the real-time received      sends 30 requests per minute (less than half of the capacity)
+service rate for two clients in VTC, which confirms that the         during the ON phase and switches to OFF phase periodically.
+two received the same level of services at any time interval.        Since Client 1 uses less than half the system capacity when it
+This experiment empirically validates Theorem 4.4.                   is in the ON phase, its requests are mostly processed before
+                                                                                                                                                         Absolute Difference in Service
+it switches to the OFF phase (Figure 5b). When it is in the
+                                                                                                                                                                                                                      VTC         FCFS
+OFF phase, Client 1 thus takes all the system capacity. The
+                                                                                                                             Client 1         Client 2                                      3               1e5
+
+
+total service rate remains the same, which confirms VTC’s
+flexibility in achieving work-conserving.                                                                          1000.0                                                                   2
+    On the contrary, in Figure 6, client 1 sends much more
+                                                                                                         Service
+                                                                                                                                                                                            1
+than half the capacity during the ON phase, and makes itself                                                        500.0
+always backlogged. Thus, even when it is in the OFF phase,                                                                                                                                  0
+                                                                                                                                                                                                                      200     400
+it is still in the backlog status. In this case, Client 1 and Client                                                  0.0
+                                                                                                                         0      200     400       600                                                                  Time (s)
+2 should still receive the same level of service rate.                                                                            Time (s)
+
+                                                                                                          (a) Received service rate (VTC).               (b) Absolute difference for ac-
+                    Client 1         Client 2                                Client 1         Client 2
+                                                                                                                                                         cumulated service.
+
+
+
+                                                Response Time (s)
+                                                                    150.0
+          1000.0
+
+Service
+                                                                    100.0                                Figure 7: Client 1 sends 480 requests per minute. Client 2
+           500.0                                                     50.0
+                                                                                                         sends 90 requests per minute. Requests arrive according to a
+                                                                                                         Poisson process with the coefficient of variance 1. Requests
+             0.0                                                      0.0
+                0      200     400       600                             0      200     400       600    sent from Client 1 have input lengths of 64 and output lengths
+                         Time (s)                                                 Time (s)
+                                                                                                         of 64. Requests sent from Client 2 have input lengths of 256
+(a) Received service rate (VTC).                                    (b) Response time (VTC).             and output lengths of 256.
+
+Figure 5: ON/OFF request pattern. Client 1 sends 30 requests
+
+
+
+
+                                                                                                                                                                           Absolute Difference in Service
+per minute (less than half of the capacity) during the ON phase                                                                                                                                                       VTC         FCFS
+                                                                                                                             Client 1         Client 2                                                      3   1e5
+
+and switches to OFF phase periodically. Client 2 is always in
+the ON phase, sending requests at a rate of 120 requests per                                                       1000.0                                                                                   2
+
+
+                                                                                                         Service
+minute (larger than half of the capacity). Requests have input
+lengths of 256 and output lengths of 256.                                                                           500.0                                                                                   1
+
+                                                                                                                                                                                                            0
+                                                                                                                      0.0                                                                                              100      200
+                                                                                                                         0      200     400       600                                                                    Time (s)
+                    Client 1         Client 2                                Client 1         Client 2                            Time (s)
+
+
+
+
+                                                Response Time (s)
+                                                                    400.0
+                                                                                                          (a) Received service rate (VTC).                              (b) Absolute difference for
+           600.0
+
+Service
+                                                                                                                                                                        accumulated service.
+           400.0                                                    200.0
+           200.0                                                                                         Figure 8: Client 1 sends 480 requests per minute. Client 2
+             0.0
+                0      200     400       600
+                                                                      0.0
+                                                                         0      200     400       600
+                                                                                                         sends 90 requests per minute. Requests arrive according to a
+                         Time (s)                                                 Time (s)               Poisson process with the coefficient of variance 1. Requests
+(a) Received service rate (VTC).                                       (b) Response time.                sent from Client 1 have input lengths of 64 and output lengths
+                                                                                                         of 512. Requests sent from Client 2 have input lengths of 512
+Figure 6: ON/OFF request pattern. Client 1 sends 120 requests                                            and output lengths of 64.
+per minute constantly during the ON phase (over its share),
+and stops sending during the OFF phase. Client 2 sends 180                                               received by two clients. FCFS cannot preserve fairness ac-
+requests per minute all the time (over its share). Requests                                              cording to Figure 7b and Figure 8b. This confirms that VTC
+have input lengths of 256 and output lengths of 256.                                                     can work under stochastic workloads with variable lengths.
+
+
+Variable input/output length and poisson process In this                                                 Isolation To illustrate the isolation property, we use the
+experiment, we simulate scenarios where requests arrive                                                  setup with a deterministic arrival pattern and the same input
+stochastically. Furthermore, they send requests with different                                           length and output length of 256. In Figure 9, Client 1 sends
+input and output lengths. In both Figure 7 and Figure 8, Client                                          30 requests per minute, which is under half of the server’s
+1 sends requests with a high rate and Client 2 sends requests                                            capacity. Client 2 acts as an "ill-behaved" client. It sends
+with a rate lower but still over its share. Requests arrive ac-                                          requests at a linearly increasing rate, and gradually over half
+cording to a Poisson process with the coefficient of variance                                            of the system capacity. We observe that the response time
+1. In Figure 7, client 1 sends short requests, and client 2 sends                                        of requests from client 1 is roughly unchanged, empirically
+long requests. In Figure 8, Client 1 sends requests with short                                           validating the property stated in Theorem 4.13.
+input and long output, while Client 2 sends requests with long
+input and short output. Similarly, with the observation before,                                          Distribution shift In reality, clients’ behavior may change
+VTC maintains a bounded difference between the services                                                  over time. To this end, we evaluate the robustness of VTC
+                                                                                                            Request Rate (token/s)                                Request Rate (token/s)
+                    Client 1         Client 2                                  Client 1         Client 2
+
+
+
+
+                                                 Response Time (s)
+          1000.0                                                       40.0                                                                                                            2000
+                                                                                                                                     600
+
+
+Service
+           500.0
+                                                                                                                                     400
+                                                                       20.0                                                                                                            1000
+                                                                                                                                     200
+
+             0.0                                                        0.0                                                            0                                                     0
+                0      200     400         600                             0      200     400         600                               0      200    400   600                               0    200    400   600
+                         Time (s)                                                   Time (s)                                                     Time (s)                                            Time (s)
+
+(a) Received service rate (VTC).                                     (b) Response time (VTC).
+                                                                                                            Figure 11: Request rate distribution during the sampled 10
+Figure 9: Client 1 sends 30 requests per minute, Client 2                                                   minutes duration with re-scale. The figure on the left denotes
+sends 120 requests per minute, in a uniform arrival pattern.                                                the real-time request rate for the 27 clients. A few clients have
+Requests have input lengths of 256 and output lengths of 256.                                               sent many more requests than others, reflecting the original
+Client 1 sends 30 requests per minute, which is under half                                                  trace of a few most popular models. The figure on the right
+of the server’s capacity. Client 2 sends requests at a linearly                                             depicts the total request rate from all 27 clients.
+increasing rate, and gradually over half of the system capacity.
+                                                                                                                                     60.0                                                  60.0
+
+
+
+
+                                                                                                            Response Time (s)                                     Response Time (s)
+                    Client 1         Client 2                                  Client 1         Client 2
+                                                                                                                                     40.0                                                  40.0
+
+          1000.0                                                     1000.0                                                          20.0                                                  20.0
+
+Service                                          Service
+           500.0                                                      500.0                                                           0.0                                                   0.0
+                                                                                                                                         0     200    400   600                                0   200    400   600
+                                                                                                                                                 Time (s)                                            Time (s)
+             0.0                                                        0.0
+                0    250   500       750                                   0    250   500       750
+                        Time (s)                                                   Time (s)
+                                                                                                            Figure 12: Response time of 4 selected clients when using
+(a) Received service rate (VTC). (b) Received service rate (LCF).                                           FCFS (Left) and VTC (Right) in real traces. Each curve cor-
+                                                                                                            responds to one client. There are some curves that show dis-
+Figure 10: Clients send requests in three phases, all with                                                  connected because, during some periods, a client may have
+uniform arrival patterns. The first 5 minutes is ON/OFF phase.                                              no requests served. Requests distribution see Figure 11.
+Client 1 sends 30 requests per minute during the ON phase
+(less than its share) and stops sending during the OFF phase.
+Each ON or OFF phase has 60 seconds. The second 5 minutes                                                   5.3                             Results on Real Workloads
+is the overload phase. Both Client 1 and Client 2 send 60
+requests per minute, which causes the server to be overloaded.                                              We construct real workload traces from the traces of LMSYS
+In the last 5 minutes, Client 1 sends 30 requests per minute                                                Chatbot Arena [52, 53], following a similar process in [43].
+(less than its share), and Client 2 sends 90 requests per minute,                                           The trace is from a server that serves multiple LLMs. To adapt
+which causes the server to be still overloaded. Requests all                                                it to our setting, we treat each LLM as a client. In total, there
+have input lengths of 256 and output lengths of 256.                                                        are 27 clients. To sample from this log, we define D, the dura-
+                                                                                                            tion, and R, the request rate. We then sample R ∗ D requests
+when the distribution of client requests shifts. In Figure 10,                                              from the trace, and re-scale the real-time stamps to [0, D]. We
+we construct a 15-minute workload comprising three phases.                                                  use a duration of 10 minutes to be consistent with previous
+The first phase is an ON/OFF phase, in which Client 1 sends                                                 experiments, and a request rate of 210 requests per minute
+requests less than its share only during the ON phase and stops                                             for the whole system. With the adapted workload, we run
+during the OFF phase. Client 2 sends requests at a constant                                                 Llama-2-7b on A10G (24GB). In summary, the prompts from
+rate, which makes the server overloaded. We can observe the                                                 the 27 clients are collected from the real world interactions,
+pattern for the first phase to be similar to Figure 5a, which                                               which will be sent to the server for inference on Llama-2-7b.
+maintains a constant total service. During the second phase,                                                The timestamps are re-scaled from the real-world trace.
+because the two clients both send requests over their share, a                                                  For better visualization of the evaluation results, we se-
+fair server should let them receive the same level of service.                                              lect two clients that send the most requests and two clients
+Figure 10a demonstrates that VTC yields a desired pattern,                                                  that send a medium number of requests. We sort 27 clients
+similar to that shown in Figure 3b. Figure 10b reveals that                                                 according to the number of requests they send, and depict
+LCF disproportionately serves Client 1, as it inherits Client                                               the statistics of the 13th , 14th and 26th , 27th clients. We do
+1’s deficit from the first phase. In the last phase, the serving                                            not choose clients that send the least requests because they
+pattern for VTC and LCF are similar, because they simply                                                    typically only send requests in a small interval.
+serve all requests from Client 1 immediately as Client 1 sends                                                  Request distribution The request rate distribution is vi-
+requests under its share.                                                                                   sualized in Figure 11. The request rate of individual clients
+                       1.0                                                                               15.0
+
+
+
+
+Response Time (s)                                                                    Response Time (s)
+                                                                                                                                     over their share. This opens the capacity for clients with fewer
+                       0.8                                                                                                           requests. As demonstrated in the uppermost plot in Figure 13,
+                                                                                                         10.0
+                       0.5                                                                                                           all requests have a similar response time. However, this low
+                                                                                                          5.0                        rate limit rejects more requests than needed, causing a lower
+                       0.2
+                                                                                                                                     throughput (cluster-wise throughput is ≈ 340 output tokens
+                       0.0                                                                                0.0
+                          0    200    400                            600                                     0    200    400   600   per second when RPM=5, as opposed to ≈ 779 tokens per
+                                 Time (s)                                                                           Time (s)
+                       60.0                                                                      60.0
+                                                                                                                                     second in VTC or FCFS). When the rate limit is set higher,
+
+
+
+   Response Time (s)                                                        Response Time (s)
+                                                                                                                                     the system throughput is gradually increasing, i.e., increasing
+                       40.0                                                                      40.0                                from 340 tokens to 747 tokens per second. However, the
+                                                                                                                                     response time for all requests grows up. When the request rate
+                       20.0                                                                      20.0
+                                                                                                                                     is set higher and higher, the response time curve converges to
+                        0.0
+                           0   200    400                             600
+                                                                                                         0.0
+                                                                                                            0    200    400    600
+                                                                                                                                     the one in FCFS, and there is no fairness guarantee anymore.
+                                 Time (s)                                                                          Time (s)          In other words, the RPM approach can be summarized as
+                                                                                                                                     follows: it functions as an FCFS (First-Come, First-Served)
+Figure 13: Response time of 4 selected clients (all 27 clients                                                                       approach with admission control (rate limiting), rather than
+when rpm=5) when using RPM in real traces. Left-upper to                                                                             as a truly fair scheduler. Its fairness is achieved by rejecting
+right-bottom corresponds to a different rate limit (5, 15, 20,                                                                       numerous requests from other clients, which compromises
+30 requests per minutes, respectively). There are some curves                                                                        the overall system throughput.
+that show disconnected because, during some periods, a client                                                                           Quantitative Measurement We measured the maximum
+may have no requests served.                                                                                                         and average service difference described in Section 5.1 dur-
+                                                                                                                                     ing the time window (10 minutes) in which we ran the ex-
+                                                        800                                                                          periments. Table 2 is a summary for all baselines using this
+
+
+
+
+                                 Throughput (Token/s)
+                                                        700                                                                          quantitative measurement for real workload trace.
+                                                        600
+                                                                                                                                        Scheduler      Max Diff    Avg Diff    Diff Var    Throu    Isolation
+                                                        500
+                                                                                                                                           FCFS         759.97      433.53     32112.00     777       No
+                                                                                          VTC Throughput
+                                                        400
+                                                                                          RPM Throughput
+                                                                                                                                           LCF          750.49      323.82     29088.90     778      Some9
+
+                                                              5      10     15    20     30                                               VTC           368.40      251.66     6549.16      779       Yes
+                                                                  Number of RPM threshold                                              VTC(predict)     365.47      240.33     5321.62      773       Yes
+                                                                                                                                       VTC(oracle)      329.46      227.51     4475.76      781       Yes
+Figure 14: Throughput of RPM versus different number of                                                                                  RPM(5)         143.86      83.58      1020.46      340      Some
+requests per minute threshold. Compared with VTC, RPM                                                                                    RPM(20)        446.76      195.71     7449.79      694      Some
+                                                                                                                                         RPM(30)        693.66      309.45     24221.31     747      Some
+consistently exhibits a lower throughput.
+                                                                                                                                     Table 2: The service difference is counted by summing the
+                                                                                                                                     service difference between each client and the client who re-
+and the total request rate are all highly dynamic. The input
+                                                                                                                                     ceived the maximum services. Throughput is the total number
+and output length distribution is depicted in Figure 20 in the
+                                                                                                                                     of tokens (including input and output tokens) processed di-
+Appendix. The average input length is 136, and the average
+                                                                                                                                     vided by the total execution time.
+output length is 256. The input and output lengths have the
+range of [2, 1021] and [2, 977], respectively.
+   Effect on response time Figure 12 shows the response time                                                                         5.4     Ablation Study
+of 4 selected clients on the real trace. With FCFS scheduling,
+the response time of all clients increases drastically because                                                                       In Figure 15, we evaluate how different memory pool sizes
+some clients send over their share, monopolizing the service                                                                         and request lengths will affect scheduling fairness. As shown
+and impacting other clients. With VTC, only clients that send                                                                        in Figure 15a, with a larger memory pool size, the attain-
+requests over its share will have a drastic increase in the                                                                          able batch size becomes larger. Therefore, there is greater
+response time.                                                                                                                       variation in the absolute difference of accumulated services
+   Analysis of request rate per limit approach In Figure 13,                                                                         received by the clients when the memory pool is 65000 than
+we show the response of RPM approach with different rate                                                                             that is 35000, which empirically validates Theorem 4.4. Fig-
+limits. In Figure 14, we show the corresponding throughput                                                                           ure 15b demonstrates that larger request lengths will also
+comparison with VTC. These plots reveal a core dilemma                                                                               lead to greater variations in the service difference. This is
+of the RPM approach - the system has to choose between                                                                                   9 LCF achieves isolation if the workload does not change. However, the
+fairness or throughput, but not both. If the rate limit is low,                                                                      isolation can be broken by newly joined clients whose virtual counter is
+then the system rejects many requests from clients that send                                                                         lagging behind.
+                                       VTC-512-35000           VTC-512-65000                                           VTC-256-35000           VTC-768-35000
+                                                                                                                       VTC-512-35000
+                                                                                                                                                               are assigned the same number of resources. It then defines a
+
+
+
+
+Absolute Difference in Service                                                 Absolute Difference in Service
+                                 1.0
+                                       1e5
+                                                                                                                 1.0
+                                                                                                                       1e5                                     finish-time fairness metric to measure fairness in ML training
+                                 0.8                                                                             0.8                                           scenarios. Pollux [40] further points out that ML jobs should
+                                 0.6                                                                             0.6                                           jointly consider the throughput and the statistical efficiency,
+                                 0.4                                                                             0.4                                           and develop a goodput-based scheduler that further improves
+                                 0.2                                                                             0.2                                           the finish-time fairness of ML jobs. In this paper, we con-
+                                 0.0                                                                             0.0                                           sider fairness in LLM serving. The fairness problem in LLM
+                                             200   300   400   500   600                                                     200   300  400     500
+                                                    Time (s)                                                                        Time (s)
+                                                                                                                                                               serving is quite different from the fairness problem in model
+(a) Different memory pool size.                                                                                 (b) Different request length.                  training. In model training, different clients’ GPUs are iso-
+                                                                                                                                                               lated and the problem is which GPUs are assigned to each
+Figure 15: In all settings, both clients are sending requests                                                                                                  client. Achieving fairness in LLM serving requires design for
+of the same lengths with uniform arrival patterns. They send                                                                                                   a different set of issues, including how to batch requests from
+requests with different request rates but are both backlogged.                                                                                                 multiple clients to achieve high GPU utilization.
+Three different request lengths (256*2, 512*2 and 768*2) are
+evaluated for the 35000 KV cache setting.
+                                                                                                                                                               LLM Serving Systems How to improve the performance
+                                                                                                                                                               of LLM serving systems has recently gained significant at-
+caused by the unknown output length of request generation.                                                                                                     tention. Notable techniques cover advanced batching mecha-
+At line 24 in Algorithm 2, the most conservative way of only                                                                                                   nisms [13, 50], memory optimizations [24, 44], GPU kernel
+counting the input tokens leads to over-compensation for the                                                                                                   optimizations [2, 9, 34, 48], model parallelism [2, 25, 39], pa-
+smallest counter, as all the potential output tokens are not                                                                                                   rameter sharing [55], and speculative execution [28, 46] were
+counted. A shorter request length has a milder effect of over-                                                                                                 proposed. FastServe [49] explored preemptive scheduling to
+compensation. The curves of (512 ∗ 2) and (768 ∗ 2) show the                                                                                                   minimize job completion time (JCT). However, none of these
+same variance. This is because at length (512 ∗ 2), the upper                                                                                                  works consider fairness among clients. Our work bridges this
+bound given by VTC has been reached.                                                                                                                           gap, and our proposed scheduling methods can be easily in-
+                                                                                                                                                               tegrated with many of these techniques. Our implementation
+                                                                                                                                                               used for this paper is built atop continuous batching (iteration-
+6                                  Related Works
+                                                                                                                                                               level scheduling) [50]10 and PagedAttention [24].
+Fairness in scheduling Achieving fairness in scheduling
+resources in a multi-client environment has been a long-                                                                                                       7    Conclusion
+standing topic in computer science [14, 41, 42, 51]. Among
+these, Fair Queuing [30] has been adapted into many vari-                                                                                                      We studied the problem of fair serving in Large Language
+ants for different contexts such as CPU scheduling [3], link                                                                                                   Models (LLMs) with regard to the service received by each
+bandwidth allocation [11, 15, 17, 23, 38], and memory al-                                                                                                      client. We identified unique characteristics and challenges
+location [33]. Deficit round robin [45] and stochastic fair                                                                                                    associated with fairness in LLM serving, as compared to tradi-
+queuing [27] are non-real-time fair queuing algorithms for                                                                                                     tional fairness problems in networking and operating systems.
+variable-size packets, providing guarantees for long-term fair-                                                                                                We then defined what constitutes fairness and proposed a fair
+ness. There are also real-time fair queuing algorithms (e.g.,                                                                                                  scheduler, applying the concept of fair sharing to the domain
+WFQ [11] and SFQ [17]) that can make more strict short-term                                                                                                    of LLM serving at the token granularity.
+delay guarantees [12]. Our scheduling algorithm is different
+from these algorithms because we need to consider the batch-
+ing effects across multiple clients’ requests and deal with                                                                                                    Acknowledgment
+unknown request length. Further, we need to accommodate
+a flexible notion of fairness on both performance and GPU                                                                                                      We thank Aurick Qiao, Shu Liu, Stephanie Wang, Hao Zhang
+resource consumption.                                                                                                                                          for helpful discussions and feedback. This research was sup-
+                                                                                                                                                               ported by gifts from Anyscale, Astronomer, Google, IBM,
+Fairness in ML training Within the realm of deep learn-                                                                                                        Intel, Lacework, Microsoft, Mohamed Bin Zayed University
+ing, research has delved into scheduling jobs in shared clus-                                                                                                  of Artificial Intelligence, Samsung SDS, Uber, and VMware.
+ters [7, 26, 32, 40], with a primary focus on long-duration                                                                                                    Ying is partly supported by the Stanford Center for Automated
+training jobs. Machine Learning training jobs have unique                                                                                                      Reasoning. We thank Clark Barrett for academic advising and
+characteristics and traditional fair schedulers [18,22] designed                                                                                               funding support.
+for big-data workflow usually fail [26]. In particular, Them-                                                                                                    10We presented VTC on continuous batching with separated prefill and
+sis [26] points out that ML jobs are device placement sensitive,                                                                                               decode steps in the main context. A general integration is discussed in
+where jobs will be envious of other’s placement even if they                                                                                                   Appendix C.1.
+References                                                       [12] Peter L Dorlan. An introduction to computer networks.
+                                                                      Autoedición, 2016.
+ [1] Linux 2.6.23.      Completely fair scheduler.
+     https://docs.kernel.org/scheduler/                          [13] Jiarui Fang, Yang Yu, Chengduo Zhao, and Jie Zhou.
+     sched-design-CFS.html.                                           Turbotransformers: an efficient gpu serving system for
+                                                                      transformer models. In Proceedings of the 26th ACM
+ [2] Reza Yazdani Aminabadi, Samyam Rajbhandari, Am-                  SIGPLAN Symposium on Principles and Practice of
+     mar Ahmad Awan, Cheng Li, Du Li, Elton Zheng,                    Parallel Programming, pages 389–402, 2021.
+     Olatunji Ruwase, Shaden Smith, Minjia Zhang, Jeff
+     Rasley, Shaden Smith, Olatunji Ruwase, and Yuxiong          [14] Ali Ghodsi, Matei Zaharia, Benjamin Hindman, Andy
+     He. Deepspeed-inference: enabling efficient inference            Konwinski, Scott Shenker, and Ion Stoica. Dominant
+     of transformer models at unprecedented scale. In SC22:           resource fairness: fair allocation of multiple resource
+     International Conference for High Performance Com-               types. In Proceedings of Networks and Systems Design
+     puting, Networking, Storage and Analysis, pages 1–15.            and Implementation (NSDI), 2011.
+     IEEE, 2022.
+                                                                 [15] S. Jamaloddin Golestani. A self-clocked fair queueing
+ [3] Jens Axboe. Linux block io—present and future. In                scheme for broadband applications. In Proceedings
+     Ottawa Linux Symp, pages 51–61, 2004.                            IEEE INFOCOM ’94, The Conference on Computer
+ [4] Jon CR Bennett and Hui Zhang. Hierarchical packet                Communications, Thirteenth Annual Joint Conference
+     fair queueing algorithms. IEEE/ACM Transactions on               of the IEEE Computer and Communications Societies,
+     networking, 5(5):675–689, 1997.                                  Networking for Global Communications, pages 636–646.
+                                                                      IEEE Computer Society, 1994.
+ [5] Dimitri Bertsekas and Robert Gallager. Data networks.
+     Athena Scientific, 2021.                                    [16] P. Goyal, H.M. Vin, and Haichen Cheng. Start-time fair
+                                                                      queueing: a scheduling algorithm for integrated services
+ [6] Bogdan Caprita, Wong Chun Chan, Jason Nieh, Clifford             packet switching networks. IEEE/ACM Transactions on
+     Stein, and Haoqiang Zheng. Group ratio round-robin:              Networking, 5(5):690–704, 1997.
+     O(1) proportional share scheduling for uniprocessor and
+     multiprocessor systems. In USENIX Annual Technical          [17] Pawan Goyal, Harrick M. Vin, and Haichen Cheng.
+     Conference (ATC), pages 337–352. USENIX, 2005.                   Start-time fair queueing: A scheduling algorithm for in-
+                                                                      tegrated services packet switching networks. In Confer-
+ [7] Shubham Chaudhary, Ramachandran Ramjee, Muthian                  ence on Applications, Technologies, Architectures, and
+     Sivathanu, Nipun Kwatra, and Srinidhi Viswanatha. Bal-           Protocols for Computer Communication (SIGCOMM),
+     ancing efficiency and fairness in heterogeneous gpu clus-        pages 157–168. ACM, 1996.
+     ters for deep learning. In Proceedings of the Fifteenth
+     European Conference on Computer Systems, pages 1–           [18] Robert Grandl, Mosharaf Chowdhury, Aditya Akella,
+     16, 2020.                                                        and Ganesh Ananthanarayanan. Altruistic scheduling
+                                                                      in Multi-Resource clusters. In 12th USENIX Sympo-
+ [8] Lequn Chen. Potentials of multitenancy fine-tuned
+                                                                      sium on Operating Systems Design and Implementa-
+     llm serving. https://le.qun.ch/en/blog/2023/
+                                                                      tion (OSDI 16), pages 65–80, Savannah, GA, November
+     09/11/multi-lora-potentials/, 2023.
+                                                                      2016. USENIX Association.
+ [9] Tri Dao. Flashattention-2: Faster attention with bet-
+     ter parallelism and work partitioning. arXiv preprint       [19] Mohammad Hedayati, Kai Shen, Michael L Scott, and
+     arXiv:2307.08691, 2023.                                          Mike Marty. {Multi-Queue} fair queuing. In 2019
+                                                                      USENIX Annual Technical Conference (USENIX ATC
+[10] Alan Demers, Srinivasan Keshav, and Scott Shenker.               19), pages 301–314, 2019.
+     Analysis and simulation of a fair queueing algorithm.
+     ACM SIGCOMM Computer Communication Review,                  [20] Hugging Face.         Text generation infer-
+     19(4):1–12, 1989.                                                ence.       https://github.com/huggingface/
+                                                                      text-generation-inference.   Accessed: 2023-
+[11] Alan J. Demers, Srinivasan Keshav, and Scott Shenker.            11.
+     Analysis and simulation of a fair queueing algorithm.
+     In Lawrence H. Landweber, editor, ACM Symposium             [21] HuggingFace.       Text-generation-inference(tgi).
+     on Communications Architectures & Protocols (SIG-                https://github.com/huggingface/
+     COMM), pages 1–12. ACM, 1989.                                    text-generation-inference, 2023.
+[22] Michael Isard, Vijayan Prabhakaran, Jon Currey, Udi             Cheaply estimating inference efficiency metrics for au-
+     Wieder, Kunal Talwar, and Andrew Goldberg. Quincy:              toregressive transformer models. In Thirty-seventh
+     Fair scheduling for distributed computing clusters. In          Conference on Neural Information Processing Systems,
+     ACM Symposium on Operating Systems Principles                   2023.
+     (SOSP), page 261–276. Association for Computing Ma-
+     chinery, 2009.                                             [32] Deepak Narayanan, Keshav Santhanam, Fiodar
+                                                                     Kazhamiaka, Amar Phanishayee, and Matei Zaharia.
+[23] Wei Jin, Jeffrey S. Chase, and Jasleen Kaur. Interposed         {Heterogeneity-Aware} cluster scheduling policies for
+     proportional sharing for a storage service utility. In          deep learning workloads. In 14th USENIX Symposium
+     International Conference on Measurements and Model-             on Operating Systems Design and Implementation
+     ing of Computer Systems (SIGMETRICS), pages 37–48.              (OSDI 20), pages 481–498, 2020.
+     ACM, 2004.
+                                                                [33] Kyle J. Nesbit, Nidhi Aggarwal, James Laudon, and
+[24] Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying                    James E. Smith. Fair queuing memory systems. In 2006
+     Sheng, Lianmin Zheng, Cody Hao Yu, Joseph Gonzalez,             39th Annual IEEE/ACM International Symposium on
+     Hao Zhang, and Ion Stoica. Efficient memory man-                Microarchitecture (MICRO’06), pages 208–222, 2006.
+     agement for large language model serving with page-
+     dattention. In Proceedings of the 29th Symposium on        [34] NVIDIA. Fastertransformer. https://github.com/
+     Operating Systems Principles, pages 611–626, 2023.              NVIDIA/FasterTransformer.
+[25] Zhuohan Li, Lianmin Zheng, Yinmin Zhong, Vincent           [35] OpenAI. Openai api reference. https://platform.
+     Liu, Ying Sheng, Xin Jin, Yanping Huang, Zhifeng Chen,          openai.com/docs/api-reference. Accessed: 2023-
+     Hao Zhang, Joseph E Gonzalez, et al. {AlpaServe}: Sta-          11.
+     tistical multiplexing with model parallelism for deep
+     learning serving. In 17th USENIX Symposium on Oper-        [36] OpenAI. Gpt-4 turbo, 2023.
+     ating Systems Design and Implementation (OSDI 23),
+     pages 663–679, 2023.                                       [37] OpenAI. Rate limit. https://platform.openai.
+                                                                     com/docs/guides/rate-limits?context=
+[26] Kshiteej Mahajan, Arjun Balasubramanian, Arjun                  tier-free, 2023.
+     Singhvi, Shivaram Venkataraman, Aditya Akella, Amar
+     Phanishayee, and Shuchi Chawla. Themis: Fair and effi-     [38] A.K. Parekh and R.G. Gallager. A generalized pro-
+     cient gpu cluster scheduling. In 17th USENIX Sympo-             cessor sharing approach to flow control in integrated
+     sium on Networked Systems Design and Implementation             services networks: the single-node case. IEEE/ACM
+     (NSDI 20), pages 289–304, 2020.                                 Transactions on Networking, 1(3):344–357, 1993.
+[27] P.E. McKenney. Stochastic fairness queueing. In Pro-       [39] Reiner Pope, Sholto Douglas, Aakanksha Chowdhery,
+     ceedings. IEEE INFOCOM ’90: Ninth Annual Joint                  Jacob Devlin, James Bradbury, Jonathan Heek, Kefan
+     Conference of the IEEE Computer and Communications              Xiao, Shivani Agrawal, and Jeff Dean. Efficiently scal-
+     Societies@m_The Multiple Facets of Integration, pages           ing transformer inference. Proceedings of Machine
+     733–740 vol.2, 1990.                                            Learning and Systems, 5, 2023.
+[28] Xupeng Miao, Gabriele Oliaro, Zhihao Zhang, Xinhao
+                                                                [40] Aurick Qiao, Sang Keun Choe, Suhas Jayaram Subra-
+     Cheng, Zeyu Wang, Rae Ying Yee Wong, Zhuoming
+                                                                     manya, Willie Neiswanger, Qirong Ho, Hao Zhang, Gre-
+     Chen, Daiyaan Arfeen, Reyna Abhyankar, and Zhihao
+                                                                     gory R Ganger, and Eric P Xing. Pollux: Co-adaptive
+     Jia. Specinfer: Accelerating generative llm serving with
+                                                                     cluster scheduling for goodput-optimized deep learning.
+     speculative inference and token tree verification. arXiv
+                                                                     In 15th {USENIX} Symposium on Operating Systems
+     preprint arXiv:2305.09781, 2023.
+                                                                     Design and Implementation ({OSDI} 21), 2021.
+[29] ModelTC. Lightllm: Python-based llm inference and
+                                                                [41] Bozidar Radunovic and Jean-Yves Le Boudec. A uni-
+     serving framework. https://github.com/ModelTC/
+                                                                     fied framework for max-min and min-max fairness with
+     lightllm, 2023. GitHub repository.
+                                                                     applications. IEEE/ACM Transactions on networking,
+[30] J. Nagle. On packet switches with infinite storage. IEEE        15(5):1073–1083, 2007.
+     Transactions on Communications, 35(4):435–438, 1987.
+                                                                [42] Uwe Schwiegelshohn and Ramin Yahyapour. Fairness in
+[31] Deepak Narayanan, Keshav Santhanam, Peter Hender-               parallel job scheduling. Journal of Scheduling, 3(5):297–
+     son, Rishi Bommasani, Tony Lee, and Percy Liang.                320, 2000.
+[43] Ying Sheng, Shiyi Cao, Dacheng Li, Coleman Hooper,           [52] Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, Tianle
+     Nicholas Lee, Shuo Yang, Christopher Chou, Banghua                Li, Siyuan Zhuang, Zhanghao Wu, Yonghao Zhuang,
+     Zhu, Lianmin Zheng, Kurt Keutzer, Joseph E. Gonzalez,             Zhuohan Li, Zi Lin, Eric Xing, et al. Lmsys-chat-1m: A
+     and Ion Stoica. S-lora: Serving thousands of concurrent           large-scale real-world llm conversation dataset. arXiv
+     lora adapters. arXiv preprint arXiv:2311.03285, 2023.             preprint arXiv:2309.11998, 2023.
+
+[44] Ying Sheng, Lianmin Zheng, Binhang Yuan, Zhuohan             [53] Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, Siyuan
+     Li, Max Ryabinin, Beidi Chen, Percy Liang, Christopher            Zhuang, Zhanghao Wu, Yonghao Zhuang, Zi Lin, Zhuo-
+     Ré, Ion Stoica, and Ce Zhang. Flexgen: high-throughput            han Li, Dacheng Li, Eric Xing, et al. Judging llm-as-a-
+     generative inference of large language models with a              judge with mt-bench and chatbot arena. In Conference
+     single gpu. In International Conference on Machine                on Neural Information Processing Systems, Datasets
+     Learning, pages 31094–31116. PMLR, 2023.                          and Benchmarks Track, 2023.
+
+                                                                  [54] Lianmin Zheng, Liangsheng Yin, Zhiqiang Xie, Jeff
+[45] M. Shreedhar and George Varghese. Efficient fair queue-
+                                                                       Huang, Chuyue Sun, Cody Hao Yu, Shiyi Cao, Chris-
+     ing using deficit round-robin. IEEE/ACM Trans. Netw.,
+                                                                       tos Kozyrakis, Ion Stoica, Joseph E Gonzalez, et al.
+     4(3):375–385, 1996.
+                                                                       Efficiently programming large language models using
+                                                                       sglang. arXiv preprint arXiv:2312.07104, 2023.
+[46] Mitchell Stern, Noam Shazeer, and Jakob Uszkoreit.
+     Blockwise parallel decoding for deep autoregressive          [55] Zhe Zhou, Xuechao Wei, Jiejing Zhang, and Guangyu
+     models. Advances in Neural Information Processing                 Sun. Pets: A unified framework for parameter-efficient
+     Systems, 31, 2018.                                                transformers serving. In 2022 USENIX Annual Tech-
+                                                                       nical Conference (USENIX ATC 22), pages 489–504,
+[47] Ion Stoica, Hussein M. Abdel-Wahab, Kevin Jeffay, San-            2022.
+     joy K. Baruah, Johannes Gehrke, and C. Greg Plaxton. A
+     proportional share resource allocation algorithm for real-
+     time, time-shared systems. In IEEE Real-Time Systems
+     Symposium (RTSS), pages 288–299. IEEE Computer
+     Society, 1996.
+
+[48] Xiaohui Wang, Ying Xiong, Yang Wei, Mingxuan Wang,
+     and Lei Li. Lightseq: A high performance inference
+     library for transformers. In Proceedings of the 2021
+     Conference of the North American Chapter of the As-
+     sociation for Computational Linguistics: Human Lan-
+     guage Technologies: Industry Papers, pages 113–120,
+     2021.
+
+[49] Bingyang Wu, Yinmin Zhong, Zili Zhang, Gang Huang,
+     Xuanzhe Liu, and Xin Jin. Fast distributed inference
+     serving for large language models. arXiv preprint
+     arXiv:2305.05920, 2023.
+
+[50] Gyeong-In Yu, Joo Seong Jeong, Geon-Woo Kim, Soo-
+     jeong Kim, and Byung-Gon Chun. Orca: A distributed
+     serving system for transformer-based generative mod-
+     els. In 16th USENIX Symposium on Operating Systems
+     Design and Implementation (OSDI 22), pages 521–538,
+     2022.
+
+[51] Matei Zaharia, Dhruba Borthakur, Joydeep Sen Sarma,
+     Khaled Elmeleegy, Scott Shenker, and Ion Stoica. Delay
+     scheduling: a simple technique for achieving locality
+     and fairness in cluster scheduling. In Proceedings of the
+     5th European conference on Computer systems, pages
+     265–278, 2010.
+A    Missing Proofs in Proving Fairness of VTC                            which can derive
+
+Lemma A.1. In Algorithm 2, mini∈Q (ci ) is non-decreasing                 c′u = max{cu , min ci } ≤ min ci +max(w p ·Linput , wq ·M).
+                                                                                            i∈Q               i∈Q
+during the time when Q ̸= /0.
+                                                                          Combine with Equation (2) and Equation (4), there is
+Proof. We prove the lemma by case study on each line of                            max c′i = max{c′u , max ci }
+changing the ci ’s.                                                                i∈Q′                        i∈Q
+
+  • In the initialization, all ci = 0, lemma holds.                                         ≤ min ci + max(w p · Linput , wq · M)
+                                                                                                  i∈Q
+  • If the condition of line 7 is satisfied, at lines 8-14, a
+    new client will be added to Q. If lines 9-10 are reached,                               ≤ min′ c′i + max(w p · Linput , wq · M)
+                                                                                                 i∈Q
+    the mini∈Q (ci ) is equals to its value at the last time
+                                                                          Therefore, Equation (2) holds after the change.
+    when Q ̸= /0. If lines 12-13 are reached, since cu =
+    max{cu , mini∈Q ci }, the mini∈Q (ci ) will not change.            3. If a client u is left from Q at line 26, the differ-
+  • At line 24 and line 30, the ci ’s can only increase, so that          ence maxi∈Q ci − mini∈Q ci will not increase. Because
+    mini∈Q (ci ) is non-decreasing.                                       max(C′ ) − min(C′ ) ≤ max(C) − min(C), ∀C ⊇ C′ ,C′ ̸=
+  • At line 26, if a client has cleared all its requests from             /0. Therefore, Equation (2) still holds.
+    Q, that the client is removed from Q, mini∈Q (ci ) cannot          4. At line 24, since ck = mini∈Q ci , there is
+    decrease.
+                                                                                  min ci ≤ min c′i ≤ c′k ≤ min ci + w p · Linput .    (5)
+                                                                                   i∈Q           i∈Q                 i∈Q
+
+Lemma A.2. The following invariant holds at any time in                   From Equation (2), we have
+Algorithm 2 when Q ̸= /0:                                                         max ci ≤ min ci + max(w p · Linput , wq · M).
+                                                                                   i∈Q           i∈Q
+             max ci − min ci ≤ max(w p · Linput , wq · M)        (2)      Because:
+             i∈Q            i∈Q
+                                                                                                max c′i = max(max ci , c′k )
+                                                                                                 i∈Q                  i∈Q
+Proof. We prove the lemma by induction. During the induc-
+tion, for each line of change of ci in Algorithm 2, we use c′i            We have:
+to denote the new value and ci to denote the original value.               max c′i ≤ max(min ci + max(w p · Linput , wq · M), c′k ) (6)
+Similarly, we use Q′ to donate the new value and Q to denote                i∈Q                  i∈Q
+                                 (t)
+the original value. We also use ci to denote the value of ci at           In Equation (5) we have derived that:
+              (t)
+time t, and Q to denote the value of Q at time t.
+                                                                                                 c′k ≤ min ci + w p · Linput
+                                                                                                         i∈Q
+ 1. In the initialization, all ci = 0, Equation (2) holds.
+                                                                          Thus:
+                  / Q receive a new request and thus Q′ =
+ 2. If a client u ∈
+                                                                                     c′k ≤ min ci + w p · Linput
+    Q ∪ {u}, line 12-13 will be reached, and thus c′u =                                         i∈Q
+    max{cu , mini∈Q ci } ≥ mini∈Q ci . Then we have,                                      ≤ min ci + max(w p · Linput , wq · M)
+                                                                                                i∈Q
+                      min′ c′i = min{c′u , min ci } = min ci .   (4)      Thus:
+                      i∈Q                          i∈Q   i∈Q
+                                                                                  max(min ci + max(w p · Linput , wq · M), c′k ) =
+     Let t be the last time that u was in Q before the change,                            i∈Q
+                (t)
+     and thus cu = cu . From Equation (2), there is                                       min ci + max(w p · Linput , wq · M).
+                                                                                          i∈Q
+                      (t)              (t)
+             max ci − min ci ≤ max(w p · Linput , wq · M).                Thus Equation (6) gives:
+             i∈Q(t)           i∈Q(t)
+                                                                                   max c′i ≤ min ci + max(w p · Linput , wq · M)      (7)
+                                                                                    i∈Q           i∈Q
+     Then we have
+                                                                          Finally, combining the inequality from Equation (5) that
+       (t)                  (t)              (t)
+      cu ≤ max ci ≤ min ci + max(w p · Linput , wq · M).
+                 i∈Q(t)           i∈Q(t)                                                               min ci ≤ min c′i ,
+                                                                                                        i∈Q          i∈Q
+                                                         (t)              we arrive at:
+     From Theorem A.1, there is mini∈Q(t) ci ≤ mini∈Q ci , so
+     we have                                                                      max c′i ≤ min c′i + max(w p · Linput , wq · M).
+                                                                                   i∈Q           i∈Q
+                    (t)
+              cu = cu ≤ min ci + max(w p · Linput , wq · M),              Therefore, Equation (2) holds.
+                        i∈Q
+  5. At line 30, let k = arg maxi∈Q c′i , so that c′k = maxi∈Q c′i .      Proof. Let the counter for f be c f after line 13 for r f . Before
+     Let r be the last one among requests from k that have                Dr f , since r f is always in the queue, the counter for f will not
+     been scheduled. Let t be the time when r was selected                be lifted. Since there is no running batch of f in the server,
+     at line 21. Since r is the last one been scheduled from k,           line 21 will select r f to be the next one for f . Lemma 4.3
+     there is                                                             shows that for any other client g,
+                                      (t)
+                     max c′i = c′k ≤ ck + wq · M              (8)
+                       i∈Q                                                                cg − c f < max(w p · Linput , wq · M).
+     Because request r from client k has been scheduled at                In the worst case where these counters are incremented se-
+                                     (t)            (t)                                                                  max(w p ·Linput ,wq ·M)
+     time t, from line 20, there is ck = mini∈Q(t) ci . From              quentially, it will take at most 2 ∗ (n − 1) ∗                         .
+                                                                                                                                   a
+                                               (t)
+     Lemma A.1, we have mini∈Q(t) ci ≤ mini∈Q c′i . Com-                  Thus, giving a bound for the dispatch time of r f .
+     bine with Equation (8), we have
+                                                                          Theorem 4.9. If a client f is backlogged during time interval
+                       max c′i − min c′i ≤ wq · M.                        [t1 ,t2 ), for any client g, there is
+                       i∈Q       i∈Q
+
+     Therefore, Equation (2) holds.                                                            W f (t1 ,t2 ) ≥ Wg (t1 ,t2 ) − 4U.
+
+                                                                          Here U is the upper bound from Equation (2).
+
+Theorem 4.8. For any work-conserving schedule without                     Proof. If g is not backlogged during the entire [t1 ,t2 ), then
+preemption, there exists some query arrival sequence such                 Wg (t1 ,t2 ) ≤ U, the theorem trivially holds. Next, assume g is
+that for client f , g and a time period t1 ,t2 , such that                backlogged at some point during [t1 ,t2 ). Let t1′ , t2′ be the first
+                                                                          time and the last time g is backlogged between [t1 ,t2 ). Since
+                |W f (t1 ,t2 ) −Wg (t1 ,t2 )| ≥ wq · M,                   there is no request submitted in [t1 ,t1′ ) and [t2′ ,t2 ), we have
+where clients f , g are backlogged during the time [t1 ,t2 ).                              Wg (t1 ,t1′ ) ≤ U,               Wg (t2′ ,t2 ) ≤ U.             (9)
+Proof. Consider at time 0 the client f sends a list of requests
+                                                                          Since ci ’s in Algorithm 2 are non-decreasing,
+which cannot fit in the memory at once. Because of work-
+conserving, client f will fill the whole running batch. In this                                     (t )        (t ′ )          (t ′ )           (t )
+                                                                                                   cf 1 ≤ cf 1 ≤ cf 2 ≤ cf 2 ,                            (10)
+case, client f is backlogged, and any new query is not pro-
+cessed until the existing queries finish processing. Assume                                         (t )        (t ′ )          (t ′ )           (t )
+that all existing queries finish at time T , and that at time ε                                    cg 1 ≤ cg 1 ≤ cg 2 ≤ cg 2 .                            (11)
+with ε close to 0, a second client g sends another batch of               According to Lemma 4.3 there is,
+requests. Now during the time interval [ε, T ], both clients f , g
+are backlogged since there exist queries from both clients in                             (t ′ )       (t ′ )                   (t ′ )           (t ′ )
+                                                                                         cg 2 ≤ c f 2 +U,                   cg 1 ≥ c f 1 −U.
+the queue. At time T , client f received service from the first
+batch of processing, which can be up to wq · M if the memory              By Equation (10) and Equation (11):
+is luckily fully utilized. Thus we have
+                                                                                          (t ′ )       (t )                     (t ′ )           (t )
+                                                                                         cg 2 ≤ c f 2 +U,                   cg 1 ≥ c f 1 −U.
+                        W f (ε, T ) = wq · M.
+                                                                                                     (t ′ )      (t ′ )
+On the other hand, client g did not receive any service during            Since Wg (t1′ ,t2′ ) ≤ cg 2 − cg 1 , there is
+the time period [ε, T ]. Thus Wg (ε, T ) = 0. In this case, we
+                                                                                                                         (t )            (t )
+have constructed an instance with                                                            Wg (t1′ ,t2′ ) ≤ c f 2 − c f 1 + 2U.
+
+                |W f (t1 ,t2 ) −Wg (t1 ,t2 )| ≥ wq · M.                   Combine with Equation (9), there is:
+
+                                                                                   Wg (t1 ,t2 ) = Wg (t1 ,t1′ ) +Wg (t1′ ,t2′ ) +Wg (t2′ ,t2 )
+                                                                                                        (t )        (t )
+Theorem 4.11. Let A(r) and D(r) denote the arrival time                                            ≤ c f 2 − c f 1 + 4U.
+and dispatch time of a request r. Assume there are in total n
+clients, ∀t1 ,t2 , if at t1 , a client f is not backlogged and has no     Since f is backlogged during (t1 ,t2 ),
+requests in the running batch, then the next request r f with                                                                   (t )            (t )
+t1 < A(r f ) < t2 will have its response time bounded:                                              W f (t1 ,t2 ) = c f 2 − c f 1
+
+                                       max(w p · Linput , wq · M)         Thus:
+   D(r f ) − A(r f ) ≤ 2 · (n − 1) ·                                (3)                        W f (t1 ,t2 ) ≥ Wg (t1 ,t2 ) − 4U
+                                                  a
+Here a is the lower bound of the capacity in Definition 4.10.
+Theorem 4.13. (Fairness for non-overloaded clients) For                  shows differentiated service levels. The clients were assigned
+any time interval [t1 ,t2 ), we claim the following.                     weights of 1, 2, 3, and 4, respectively, and the resulting service
+   Assume a client f is not backlogged at time t1 and for any            distribution closely adhered to these ratios.
+time interval [t,t2 ),t1 ≤ t < t2 , f has requested services less
+         (t,t2 )
+than Tn(t,t      − 5U, where T (t,t2 ) is the total services received                          Client 1         Client 3                          Client 1         Client 3
+             2)                                                                                Client 2         Client 4                          Client 2         Client 4
+for all clients during the interval [t,t2 ), n(t,t2 ) is the number                4
+                                                                                       1e2                                               1e2
+
+
+
+of clients that have requested services during the interval, and
+U is the upper bound from Equation (2).                                                                                              4
+
+                                                                         Service                                           Service
+   Then, all of the services requested from f during the inter-                    2
+val [t1 ,t2 ) will be dispatched.                                                                                                    2
+
+
+Proof. We prove by contradiction. Assume there is a request                        0                                                 0
+                                                                                                 200           400                                  200           400
+from f that has not been dispatched in t2 , i.e., f is backlogged                                   Time (s)                                           Time (s)
+
+at t2 . Since f is not backlogged at t1 , there exists a (non-                                  (a) VTC                                        (b) Weighted VTC
+empty) set of time steps such that f becomes backlogged. We
+let t be the largest element in the set, i.e. f is backlogged at         Figure 16: Received service during the 10 minutes of the
+                                                      (t,t2 )
+any time in [t,t2 ). We claim that W f (t,t2 ) ≥ Tn(t,t       − 4U.      synthetic overloaded workload with input and output length
+                                                          2)
+   From the pigeonhole principle, there is at least one client           both at 256. The figure on the left is obtained through standard
+                                               (t,t2 )
+g who has received services Wg (t,t2 ) ≥ Tn(t,t        . If f = g, the   VTC. The figure on the right is obtained through weighted
+                                                   2)
+claim holds. If not, from Theorem 4.9, we have                           VTC with weights 1:2:3:4 for the 4 clients.
+
+                                           T (t,t2 )
+         W f (t,t2 ) ≥ Wg (t,t2 ) − 4U ≥             − 4U.
+                                           n(t,t2 )
+                                                                         B.2                 VTC with Profiled Cost Function
+   Since f swicthes from non-backlogged to backlogged at
+t, requests sent before t at most contributes a U increase               In this section, we demonstrate the generalizability of the
+in W f (t,t2 ). Thus, requests sent in (t,t2 ) at least contribute       token cost function used in VTC (see Section 4.2) by using a
+                                                                         profiled service cost function.
+to T (t,t2)
+            − 5U, which contradicts to the assumption in the
+      n                                                                     To match our experimental setup, we profiled the infer-
+theorem.
+                                                                         ence time for Llama-2-7b on an A10G (24GB) across various
+                                                                         conditions, as shown in Figure 17. We employed a batch
+B     Advanced VTC Variants                                              size that utilizes the entire memory pool for each data point
+                                                                         corresponding to specific input and output lengths. Conse-
+This section presents additional experiments on various vari-            quently, shorter lengths allow for larger batch sizes, while
+ants of VTC. Appendix B.1 evaluate weighted VTC, which                   longer lengths necessitate smaller ones. The prefill time is
+is introduced in Section 4.3. In Appendix B.2, we show con-              determined by dividing the total prefill time of the batch by
+cretely how VTC can be tailored to specific cost functions,              the batch size. Similarly, the decode time is calculated by
+using a profiled service cost function as an example. In Ap-             dividing the time taken to decode all tokens in the batch by
+pendix B.3, we include more analysis of VTC with length                  the batch size. The function h(n p , nq ) is defined as the sum of
+prediction, which is introduced in Section 4.4. We empirically           prefill and decode times for the data point with input length
+show its effectiveness in obtaining a better service discrep-            n p and output length nq .
+ancy.                                                                       When considering the same total number of input and out-
+   For all experiments shown in this section, we run Llama-2-            put tokens, the decode time for scenarios involving all output
+7b on A10G (24GB), using the memory pool of 10000 tokens                 tokens is about 2 to 5 times the prefill time for scenarios in-
+for KV cache.                                                            volving all input tokens. The profiled cost function does not
+                                                                         follow a linear model. We proceeded to fit the profiled data
+B.1     VTC for Weighted Fairness                                        points and adjusted the coefficients to derive the following
+                                                                         cost function:
+Figure 16 demonstrates the effectiveness of the weighted VTC
+in managing clients with varied priority levels. We conducted               h(n p , nq ) = 2.1 · n p + nq + 0.04 · n p nq + 0.032 · n2q + 11.46
+a test using a synthetic workload involving four overloaded
+clients. The results depicted in Figure 16a were achieved                   We conducted real trace experiments using this profiled
+using standard VTC, which illustrates the comparable levels              cost function as the metric, the results of which are presented
+of service received by all four clients. In contrast, Figure 16b,        in Table 3. The disparity between VTC and other baseline
+which was obtained through the application of weighted VTC,              methods is insignificant because clients with low request rates,
+                                                                                    8        64           256         512
+                                                                                                                                Scheduler    Max Diff    Avg Diff   Diff Var   Throughput
+                   0.1
+
+
+
+Prefill time (s)
+                                                                                                                                FCFS          323.18      317.13     15.98         876
+
+
+                                                            Decode time (s)
+                                                                              0.6
+                                                                                                                                VTC           137.27       74.87    2819.40        900
+                   0.1                                                        0.4                                             VTC(oracle)      4.28        0.34       0.91         893
+                                                                              0.2
+                   0.0                                                        0.0                                           Table 4: Results run on the synthetic overloaded workload
+                      0         200        400                                   0           100          200
+                          Number of input tokens                                        Number of output tokens             with 2 clients under the profiled cost function introduced in
+                                                                                                                            Appendix B.2. The work difference is counted by summing
+                          (a) Prefill Time                                              (b) Decode Time
+                                                                                                                            the work difference between each client and the client who
+Figure 17: Profiled prefill and decode time in different settings.                                                          received the maximum services.
+For each data point, the batch size is set to the maximum to
+fulfill the memory pool (full utilization). The prefill time and
+decode time are all divided by the batch size. For the figure                                                               B.3     VTC with Length Prediction
+on the right, the legend for each curve denotes its number of                                                               The adapted pseudocode for VTC with length prediction is
+input tokens.                                                                                                               detailed in Algorithm 3. In line 25, the cost associated with the
+                                                                                                                            predicted number of output tokens is preemptively calculated.
+                                                                                                                            Lines 32-37 describe the adjustments made to the cost to
+                                                                                                                            correspond with the actual number of output tokens produced.
+when starved, do not substantially impact the overall service                                                                  Figure 19 demonstrates how length prediction reduces ser-
+difference. However, as observed in Figure 18, VTC success-                                                                 vice discrepancies among clients in a synthetic workload
+fully maintains low response times for clients with low request                                                             scenario where all clients are overloaded. "VTC (oracle)"
+rates, a feat not matched by other baselines except for LCF. In                                                             refers to a simulation using a predictor with 100% accuracy.
+the case of LCF, clients with consistently high request rates                                                               "VTC (±50%)" simulates a predictor that randomly selects a
+face undue penalties, resulting in excessively high response                                                                value within 50% of the actual output length, either above or
+times. We reinforce our findings by assessing the profiled cost                                                             below. While standard VTC ensures that the absolute differ-
+function on a synthetically overloaded workload to highlight                                                                ences in services received by clients remain bounded and do
+the differences between VTC and FCFS, as shown in Table 4.                                                                  not grow over time, VTC with length prediction significantly
+   The results empirically show that VTC can achieve fairness                                                               lowers these differences throughout the test period, even with
+using a customized cost function. However, our goal is not                                                                  a prediction error margin of 50%. Table 5 and Table 6 provide
+to determine the optimal cost function or pricing model, as                                                                 quantitative assessments of the service discrepancies among
+these can vary based on numerous factors in a production                                                                    overloaded clients under the same conditions.
+environment and may change over time. The investigation
+                                                                                                                                Scheduler     Max Diff   Avg Diff   Diff Var   Throughput
+into the cost function and pricing model is designated for
+future research.                                                                                                                 VTC           192.88     103.77    6981.24        893
+                                                                                                                              VTC (±50%)       33.98       12.54     111.94        904
+                                                                                                                              VTC (oracle)      5.87       0.51       1.71         895
+                    Scheduler     Max Diff       Avg Diff                      Diff Var           Throu     Isolation
+                                                                                                                            Table 5: Results run on 10-minute synthetic workload same
+                     FCFS             743.23       457.29                      26645.42           777            No
+                     LCF              709.35       384.78                      23299.20           778           Some
+                                                                                                                            with Figure 19 for 2 clients. The service difference is counted
+                                                                                                                            by summing the work difference between each client and the
+                VTC                   707.35       368.74                      21918.67           780           Yes
+             VTC(predict)             617.22       337.05                      11803.41           778           Yes         client who received the maximum services. Throughput is the
+             VTC(oracle)              387.43       277.18                       4541.57           783           Yes         total number of tokens (including input and output tokens)
+                    RPM(5)            230.78       151.00                        823.15           340           Some        processed divided by the total execution time.
+                    RPM(20)           445.34       270.51                       5938.52           694           Some
+                    RPM(30)           801.16       377.22                      25980.39           747           Some
+
+Table 3: Results run on real workload under the profiled cost                                                               C     Discussions
+function introduced in Appendix B.2. The service difference
+is counted by summing the service difference between each                                                                   C.1     VTC Integration in Real Systems
+client and the client who received the maximum services.
+Throughput is the total number of tokens (including input and                                                               In Algorithm 2, we have shown an example of VTC inte-
+output tokens) processed divided by the total execution time.                                                               gration with continuous batching. In implementation, VTC
+                                                                                                                            integration should be a simple change in the request scheduler.
+                                                                                                                            Generally, for an existing serving system, there are three mod-
+                           1e2                                                   1e2
+
+
+
+
+                                                                                                             Absolute Difference in Service                                                             Absolute Difference in Service
+ Response Time (s)                                     Response Time (s)
+                     1.5                                                   1.5
+                                                                                                                                                    VTC               VTC_pred_50       VTC_oracle                                            VTC             VTC_pred_50      VTC_oracle
+                                                                                                                                                         1e3                                                                                      1e3
+
+                                                                                                                                                                                                                                              3
+                     1.0                                                   1.0                                                                     7.5
+                                                                                                                                                                                                                                              2
+                                                                                                                                                   5.0
+                     0.5                                                   0.5
+                                                                                                                                                   2.5                                                                                        1
+
+                     0.0                                                   0.0                                                                     0.0                                                                                        0
+                                    200          400                                      200          400                                                            200     400                                                                             200     400
+                                      Time (s)                                              Time (s)                                                                   Time (s)                                                                                Time (s)
+
+                             (a) VTC (oracle)                                           (b) VTC
+                                                                                                                                                               (a) 2 Clients                                                                            (b) 8 Clients
+                     1.5
+                           1e1                                                   1e1
+
+                                                                            4
+
+
+
+
+ Response Time (s)                                     Response Time (s)
+                                                                                                             Figure 19: The figures illustrate the maximum difference in
+                     1.0
+                                                                                                             accumulated service received by clients during a 10-minute
+                                                                            2
+                     0.5                                                                                     period of synthetic workload, where both the input and output
+                                                                                                             lengths are set at 256. The left figure is derived from a simula-
+                     0.0                                                    0                                tion involving two clients, while the right figure comes from
+                                    200          400                                      200          400
+                                      Time (s)                                              Time (s)         a simulation involving eight clients. In both scenarios, the
+                                 (c) RPM(20)                                           (d) RPM(30)           request rate for each client surpasses the available capacity,
+                           1e1                                                   1e2                         resulting in continuous backlogging of each client.
+
+
+
+ Response Time (s)                                     Response Time (s)
+                     7.5
+                                                                            2
+                                                                                                                                               Scheduler                       Max Diff          Avg Diff                                          Diff Var           Throughput
+                     5.0
+                                                                            1                                                                    VTC                                322.16           162.20                                        5151.49                   875
+                     2.5                                                                                                                      VTC (± 50%)                            99.43           66.32                                         487.10                    875
+                     0.0                                                    0
+                                                                                                                                              VTC (oracle)                           43.23           36.34                                          56.52                    875
+                                    200          400                                      200          400
+                                      Time (s)                                              Time (s)
+                                                                                                             Table 6: Results run on 10-minute synthetic workload same
+                                  (e) FCFS                                              (f) LCF              with Figure 19 for 8 clients. The service difference is counted
+                                                                                                             by summing the work difference between each client and the
+Figure 18: Response time of the 27 clients during the 10
+                                                                                                             client who received the maximum services. Throughput is the
+minutes of real trace simulation using different schedulers.
+                                                                                                             total number of tokens (including input and output tokens)
+The VTC style schedulers are using the profiled cost function
+                                                                                                             processed divided by the total execution time.
+introduced in Appendix B.2. There are some curves that show
+disconnected because, during some periods, a client may have
+                                                                                                                                              80                                                                                    140
+no requests served. Requests distribution see Figure 11.                                                                                      70                                                                                    120
+
+
+
+
+                                                                                                             Frequency                                                                                Frequency
+                                                                                                                                              60                                                                                    100
+                                                                                                                                              50
+                                                                                                                                                                                                                                         80
+                                                                                                                                              40
+                                                                                                                                                                                                                                         60
+ules that need to be modified. First, the monitoring stream                                                                                   30
+                                                                                                                                              20                                                                                         40
+handles counter-lifting when a new request comes, as shown                                                                                    10                                                                                         20
+in Algorithm 4, which is the same as in Algorithm 2. Second,                                                                                   0
+                                                                                                                                                    0          200    400    600      800 1000
+                                                                                                                                                                                                                                         0
+                                                                                                                                                                                                                                              0         200    400     600   800   1000
+when new tokens have been processed, the counters should                                                                                                             Input length                                                                        Output length
+
+be updated according to a pre-defined cost function as dis-
+cussed in Section 4.2. Third, when new requests need to be                                                   Figure 20: Request input and output length distribution in the
+selected for processing, we schedule the request from a user                                                 real workload trace during the sampled 10 minutes duration
+with the lowest counter first. The added modules are demon-                                                  with re-scale. The average input length is 136, and the average
+strated in Algorithm 4. We are assuming a customized cost                                                    output length is 256. The input and output lengths have the
+function h(n p , nq ) as introduced in Section 3.1. At line 22,                                              range of [2, 1021] and [2, 977], respectively.
+nrp , nrq denote the number of processed input and output to-
+                                  r(old)   r(old)
+kens, and n p   , nq    denote the number of processed input                                                 be prioritized. A natural solution to combine the two is adding
+and output tokens before processing the new tokens.                                                          a policy of switching between the two schedulers by setting
+   Those modules for maintaining the virtual token counters                                                  tolerable fairness bounds. We leave such exploration as future
+and selecting requests according to the counters could be                                                    research.
+additive features of an existing serving system. However, in
+some cases, VTC is possibly in conflict with a scheduling
+                                                                                                             C.2                                           Adapted Deficit Round Robin
+algorithm that optimizes performance while being against
+fairness. Cache-aware scheduling introduced in [54] is an                                                    We have briefly discussed in Section 2.3 why Deficit Round
+example in which requests with shared prefixes will always                                                   Robin (DRR) cannot be directly applied. In this section, we
+Algorithm 3 VTC with Length Prediction                           Algorithm 4 General VTC
+Input: request trace, input token weight w p , output token      Input: request trace, input token weight w p , output token
+    weight wq , upper bound from Equation (2) denoted as U.          weight wq , upper bound from Equation (2) denoted as U.
+ 1: let current batch B ← 0/                                      1: let current batch B ← 0/
+ 2: let ci ← 0 for all client i                                   2: let ci ← 0 for all client i
+ 3: let Q denote the waiting queue, which is dynamically          3: let Q denote the waiting queue, which is dynamically
+    changing.                                                        changing.
+ 4: ▷ with monitoring stream:                                     4: ▷ with monitoring stream:
+ 5: while True do                                                 5: while True do
+ 6:      if new request r from client u arrived then              6:      if new request r from client u arrived then
+ 7:          if not ∃r′ ∈ Q, client(r′ ) = u then                 7:           if not ∃r′ ∈ Q, client(r′ ) = u then
+ 8:               if Q = /0 then                                  8:               if Q = 0/ then
+ 9:                    let l ← the last client left Q             9:                   let l ← the last client left Q
+10:                    cu ← max{cu , cl }                        10:                   cu ← max{cu , cl }
+11:               else                                           11:               else
+12:                    P ← {i | ∃r′ ∈ Q, client(r′ ) = i}        12:                   P ← {i | ∃r′ ∈ Q, client(r′ ) = i}
+13:                    cu ← max{cu , min{ci | i ∈ P}}            13:                   cu ← max{cu , min{ci | i ∈ P}}
+14:          Q ← Q+r                                             14:           Q ← Q+r
+15: ▷ with execution stream:                                     15: ▷ when process new request:
+16: while True do                                                16: if add_new_request() then
+17:      if can_add_new_request() then                           17:      let k ← arg mini∈{client(r)|r∈Q} ci
+18:          Bnew ← 0/                                           18:      let r be the earliest request in Q from k.
+19:          while True do                                       19:      Q ← Q−r
+20:               let k ← arg mini∈{client(r)|r∈Q} ci            20:      original process when selecting r.
+21:               let r be the earliest request in Q from k.     21: ▷ when new tokens been processed:                         
+22:               if r cannot fit in the memory then                                                             r(old) r(old)
+                                                                 22: ci ← ci + ∑r|client(r)=i h(nrp , nrq ) − h(n p    , nq    )
+23:                    Break
+24:               ck ← ck + w p · input_length(r)
+25:               ck ← ck + wq · predicted_out put_length(r)
+26:               Bnew ← Bnew + r                                     non-empty queue and schedules its requests as many as
+27:               Q ← Q−r                                             possible if the incurred cost P is less than or equal to
+28:          forward_prefill(Bnew )                                   Q +Ci . The Ci is then updated to Q +Ci − P if P > Ci or
+29:          B ← B + Bnew                                             Ci − P if else.
+30:      forward_decode(B)                                          The obstacle to applying DRR in LLM serving is that we
+31:      ▷ Adjust the cost of output tokens                      do not know how many requests we should schedule to meet
+32:      for each r ∈ B do                                       the requirement of P ≤ Q + Ci since the number of output
+33:          δ ← out put_len(r) − predicted_out put_len(r)       tokens is unknown in advance.
+34:          if δ > 0 then                                          We then give an adapted version for LLM serving:
+35:               cclient(r) ← cclient(r) + wq                     1. The algorithm maintains a constant Q, which is still the
+36:         if r is finished and δ < 0 then                           quantum that each client has.
+37:              cclient(r) ← cclient(r) + wq · δ                  2. Every client maintains a variable Ci that represents its
+                                                                      debt, which is initialized as 0.
+38:     B ← filter_finished_requests(B)
+                                                                   3. In each round, the algorithm processes each client. If
+                                                                      Ci ≤ 0, it refills Ci by adding Q to it. Should the updated
+                                                                      Ci become positive, the algorithm schedules as many
+discuss an adaptation of Deficit Round Robin [45] and show
+                                                                      requests as possible, such that the cost associated with
+it is equivalent to our proposed VTC scheduler.
+                                                                      the prompt tokens P slightly exceeds Ci with the addi-
+    The original DRR can be described as follows:                     tion of the last scheduled request. After scheduling, P is
+   1. The algorithm maintains a constant Q, which is the quan-        subtracted from Ci .
+       tum that each client has.                                   4. Each time a new token is decoded, the associated cost
+   2. Every client maintains a variable Ci that represents its        is deducted from the respective Ci . Consequently, Ci
+       deficit, which is initialized as 0.                            may become negative, exceeding the value of Q multi-
+   3. On each round, the algorithm visits each client with a          ple times, and it might require waiting through several
+      rounds before it can be scheduled again.                       VTC for distributed systems Integrating VTC in a dis-
+   Fairness is no longer strictly bounded by Q, yet a smaller Q      tributed LLM serving system is an interesting direction for
+promotes a tighter constraint. When Q = ε is extremely small,        future work. For a distributed setup where there are many
+smaller than the cost of a single prompt token, the algorithms       replicas of serving engines, we will have a central request
+revert to functioning like the VTC algorithm. This is because        dispatcher where we can keep the token counter and enforce
+each round results in one of two outcomes: either all Ci values      the algorithm (this is similar to hierarchical fair sharing [4] in
+remain non-positive, prompting another round, or the highest         the network domain, and multi-queue fair queuing [19]). The
+Ci turns positive and the corresponding client is scheduled.         bound now is dependent on the total memory capacity of all
+The client with the highest Ci is the one who has received the       the serving engines. However, in the distributed setting, the
+least service, which corresponds to having the smallest virtual      counter will be updated by different serving engines concur-
+counter in VTC.                                                      rently, raising the problem of counter synchronization, which
+                                                                     will be interesting to explore as a future work.
+   If a client has no requests in the queue at a given time, it
+will cease to be refilled once Ci ≥ 0. When a new request
+arrives, its Ci will be within (0, ε], approximating maxi Ci .       VTC and Auto-scaling The VTC algorithm does not rely
+The maxi Ci remains within the range of (0, ε] because the           on a constant capacity. Adding and removing GPUs will
+algorithm persistently adds ε to Ci to maintain it positive, but     not affect the algorithm but may need a hierarchical virtual
+then rapidly pulls it back into the negative by scheduling new       counter as discussed in the paragraph about distributed sys-
+requests. This process mirrors the counter lift mechanism in         tems. However, auto-scaling is a possible approach to mitigate
+VTC.                                                                 the issue of throughput degradation in RPM. The resources
+                                                                     can be auto-scaled to fit the fluctuating traffic, but this requires
+   In addition to its similarity to VTC, practically, simulating
+                                                                     flexible and responsive resource management. Auto-scaling
+repeated round-robin with a small quantum Q is inefficient.
+                                                                     has its own challenges, including operational cost overhead,
+Therefore, we focus solely on analyzing VTC in this paper,
+                                                                     inaccurate workload prediction, and delays. A combination of
+leaving the discussion of the round-robin simulation here for
+                                                                     VTC and auto-scaling is a future direction worth exploring.
+reference.
+
+
+
+C.3     Future Work
+Preemption As we mentioned in Section 2.1, this paper
+focuses on how to integrate fair scheduling with continuous
+batching, and leaving an investigation on preemption as an
+orthogonal future work. But we still would like to discuss
+how preemption will affect the VTC algorithm, and point out
+a possible future research on it.
+   The nature of unpredictable length in a no-preemption
+framework directly affects the fairness bound in the main the-
+orem Theorem 4.4, which is U = 2 max(w p · Linput , wq · M).
+Intuitively, the worst case occurs when many requests from
+one client are added, generating a large number of tokens
+that cannot be preempted. During the process, other clients
+cannot catch up arbitrarily because the memory is occupied.
+Essentially, this is caused by an underestimation of a future
+number of tokens, similarly explained in the ablation study
+(Section 5.4) and VTC with length prediction (Section 4.4).
+   In Theorem 4.7, we mentioned that we could restrict the
+memory usage for each client in the running batch to obtain
+a better bound. However, this can potentially lower the over-
+all throughput because the memory may not always be fully
+utilized. Having a preemption mechanism could be a good
+solution to address the problem of underestimating and tight-
+ening the bound. Basically, if the difference in service is larger
+than a threshold, we can preempt the requests in processing
+and swap in requests from clients with lower counters.
+

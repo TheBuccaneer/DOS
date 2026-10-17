@@ -1,0 +1,38 @@
+{
+  "package_version": "2.0",
+  "created_utc": "2026-10-10T16:17:06.300999+00:00",
+  "scope": "technical_gate_tools_and_bounded_local_function_checks",
+  "runtime_gate_passed": false,
+  "gpu_model_start_performed": false,
+  "real_http_measurements_performed": false,
+  "full_eight_cell_campaign_included": false,
+  "autonomous_pressure_driver_included": false,
+  "historical_repository_modified_by_this_task": false,
+  "historical_checkout_currently_clean": true,
+  "original_waiting_runner_patched": false,
+  "sampler_finalization_adapter_implemented": true,
+  "offline_tests": {
+    "passed": 48,
+    "failed": 0,
+    "python_executable": "/home/rock/projects/porto/.venv-py313-repair/bin/python3",
+    "http_transport": "mocked; local sockets unavailable in this context",
+    "server_start": "fake vllm CLI, no model loaded",
+    "original_executor": "loaded unchanged with fake SSE transport; complete two-token fixture"
+  },
+  "historical_reaudit": {
+    "episodes": 100,
+    "paired_blocks": 50,
+    "requests": 2200,
+    "output_tokens": 131200,
+    "integrity_errors": 0
+  },
+  "remaining": [
+    "GPU and real HTTP function checks",
+    "resolved effective scheduler/cache/capacity evidence",
+    "filled preregistered study values",
+    "integration into a separately reviewed study acquisition layer",
+    "full campaign not implemented in this package",
+    "causal mechanism and literature/claims audit"
+  ],
+  "scientific_results_generated": false
+}

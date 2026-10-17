@@ -1,0 +1,667 @@
+
+v1/core/kv_cache_utils.py:494
+494: def generate_block_hash_extra_keys(
+495:     request: Request, start_token_idx: int, end_token_idx: int, start_mm_idx: int
+496: ) -> tuple[tuple[Any, ...] | None, int]:
+497:     """Generate extra keys for the block hash. The extra keys can come from
+498:     the multi-modal inputs, request specific metadata (e.g., LoRA names), and
+499:     hashed data from prompt embeddings.
+500: 
+501:     Args:
+502:         request: The request object.
+503:         start_token_idx: The start token index of the block.
+504:         end_token_idx: The end token index of the block.
+505:         start_mm_idx: The start multi-modal index of the block.
+506: 
+507:     Returns:
+508:         A tuple of extra keys and the next multi-modal index.
+509:     """
+510:     mm_extra_keys: list[Any]
+511:     mm_extra_keys, new_start_mm_idx = _gen_mm_extra_hash_keys(
+512:         request, start_token_idx, end_token_idx, start_mm_idx
+513:     )
+514:     lora_extra_keys: list[str] = _gen_lora_extra_hash_keys(request)
+515:     cache_salt_keys: list[str] = (
+516:         [request.cache_salt] if (start_token_idx == 0 and request.cache_salt) else []
+517:     )
+518:     prompt_embeds_keys = _gen_prompt_embeds_extra_hash_keys(
+519:         request, start_token_idx, end_token_idx
+520:     )
+521: 
+522:     extra_keys: list[Any] = (
+523:         lora_extra_keys + mm_extra_keys + cache_salt_keys + prompt_embeds_keys
+524:     )
+525: 
+526:     if not extra_keys:
+527:         return None, new_start_mm_idx
+528: 
+529:     return tuple(extra_keys), new_start_mm_idx
+530: 
+531: 
+532: def hash_block_tokens(
+533:     hash_function: Callable[[Any], bytes],
+534:     parent_block_hash: BlockHash | None,
+535:     curr_block_token_ids: Sequence[int],
+536:     extra_keys: tuple[Any, ...] | None = None,
+537: ) -> BlockHash:
+538:     """Computes a hash value corresponding to the contents of a block and
+539:     the contents of the preceding block(s). The hash value is used for
+540:     prefix caching. We use LRU cache for this function to avoid recomputing
+541:     hash values for the same block contents.
+542:     Args:
+543:         hash_function: The hash function used to compute block hash.
+544:         parent_block_hash: The hash of the parent block. None
+545:             if this is the first block.
+546:         curr_block_token_ids: A list of token ids in the current
+547:             block. The current block is assumed to be full.
+548:         extra_keys: Extra keys for the block.
+549:     Returns:
+550:         The hash value of the block and the token ids in the block.
+551:         The entire tuple is used as the hash key of the block.
+552:     """
+553:     if not parent_block_hash:
+554:         parent_block_hash = NONE_HASH
+555: 
+556:     curr_block_token_ids_tuple = tuple(curr_block_token_ids)
+557:     return BlockHash(
+558:         hash_function((parent_block_hash, curr_block_token_ids_tuple, extra_keys))
+559:     )
+560: 
+561: 
+562: def get_request_block_hasher(
+563:     block_size: int,
+564:     caching_hash_fn: Callable[[Any], bytes],
+565: ) -> Callable[[Request], list[BlockHash]]:
+
+v1/core/kv_cache_utils.py:817
+817:     return max_concurrency
+818: 
+819: 
+820: def may_override_num_blocks(vllm_config: VllmConfig, num_blocks: int) -> int:
+821:     """
+822:     Override the number of kv cache blocks if `num_gpu_blocks_override` is set.
+823:     """
+824:     if vllm_config.cache_config.num_gpu_blocks_override is not None:
+825:         num_gpu_blocks_override = vllm_config.cache_config.num_gpu_blocks_override
+826:         logger.info(
+827:             "Overriding num_gpu_blocks=%d with num_gpu_blocks_override=%d",
+828:             num_blocks,
+829:             num_gpu_blocks_override,
+830:         )
+831:         num_blocks = num_gpu_blocks_override
+832: 
+833:     return num_blocks
+834: 
+
+v1/core/kv_cache_manager.py:164
+164:     def get_computed_blocks(self, request: Request) -> tuple[KVCacheBlocks, int]:
+165:         """Get the computed (cached) blocks for the request.
+166:         Note that the computed blocks must be full.
+167: 
+168:         Args:
+169:             request: The request to get the computed blocks.
+170: 
+171:         Returns:
+172:             A tuple containing:
+173:                 - A list of blocks that are computed for the request.
+174:                 - The number of computed tokens.
+175:         """
+176:         # We skip finding the prefix cache hit when prefix caching is
+177:         # disabled or the request is marked as skipping kv cache read
+178:         # (which happens when the request requires prompt logprobs
+179:         # or calls a pooling model with all pooling).
+180:         if not self.enable_caching or request.skip_reading_prefix_cache:
+181:             return self.empty_kv_cache_blocks, 0
+182: 
+183:         # NOTE: When all tokens hit the cache, we must recompute the last token
+184:         # to obtain logits. Thus, set max_cache_hit_length to prompt_length - 1.
+185:         # This can trigger recomputation of an entire block, rather than just
+186:         # the single last token, because allocate_slots() requires
+187:         # num_computed_tokens to be block-size aligned. Removing this limitation
+188:         # could slightly improve performance in the future.
+189:         max_cache_hit_length = request.num_tokens - 1
+190:         computed_blocks, num_new_computed_tokens = (
+191:             self.coordinator.find_longest_cache_hit(
+192:                 request.block_hashes, max_cache_hit_length
+193:             )
+194:         )
+195: 
+196:         if self.log_stats:
+197:             assert self.prefix_cache_stats is not None
+198:             self.prefix_cache_stats.record(
+199:                 num_tokens=request.num_tokens,
+200:                 num_hits=num_new_computed_tokens,
+201:                 preempted=request.num_preemptions > 0,
+202:             )
+203: 
+204:         return self.create_kv_cache_blocks(computed_blocks), num_new_computed_tokens
+205: 
+
+v1/core/kv_cache_manager.py:206
+206:     def allocate_slots(
+207:         self,
+208:         request: Request,
+209:         num_new_tokens: int,
+210:         num_new_computed_tokens: int = 0,
+211:         new_computed_blocks: KVCacheBlocks | None = None,
+212:         num_lookahead_tokens: int = 0,
+213:         num_external_computed_tokens: int = 0,
+214:         delay_cache_blocks: bool = False,
+215:         num_encoder_tokens: int = 0,
+216:     ) -> KVCacheBlocks | None:
+217:         """Add slots for a request with new tokens to append.
+218: 
+219:         Args:
+220:             request: The request to allocate slots.
+221:             num_new_tokens: The number of new tokens to be allocated and computed.
+222:             num_new_computed_tokens: The number of new computed tokens just
+223:                 hitting the prefix caching, excluding external tokens.
+224:             new_computed_blocks: The cached blocks for the above new computed
+225:                 tokens, grouped as a tuple by kv cache groups.
+226:             num_lookahead_tokens: The number of speculative tokens to allocate.
+227:                 This is used by spec decode proposers with kv-cache such
+228:                 as eagle.
+229:             num_external_computed_tokens: The number of tokens that their
+230:                 KV caches are not cached by vLLM but cached by the connector.
+231:             delay_cache_blocks: Whether to skip caching the blocks. This is
+232:                 used by P/D when allocating blocks used in a KV transfer
+233:                 which will complete in a future step.
+234:             num_encoder_tokens: The number of encoder tokens to allocate for
+235:                 cross-attention in encoder-decoder models(e.g., Whisper).
+236:                 For decoder-only models, this should be 0.
+237: 
+238:         Blocks layout:
+239:         ```
+240:         ----------------------------------------------------------------------
+241:         | < comp > | < new_comp > | < ext_comp >  | < new >  | < lookahead > |
+242:         ----------------------------------------------------------------------
+243:                                                   |   < to be computed >     |
+244:         ----------------------------------------------------------------------
+245:                                   |            < to be allocated >           |
+246:         ----------------------------------------------------------------------
+247:                                   | < to be cached (roughly, |
+248:                                   | details below)>          |
+249:         ----------------------------------------------------------------------
+250:         | Prefix-cached tokens from either vLLM   |
+251:         | or connector. Can be safely removed if  |
+252:         | they are outside sliding window.        |
+253:         ----------------------------------------------------------------------
+254:         |   < cached by vLLM >    | not cached by |
+255:                                   | vLLM, but     |
+256:         | ref_cnt  | ref_cnt not  | cached by     |
+257:         | increased| increased yet| connector     |
+258:         ----------------------------------------------------------------------
+259:         ```
+260: 
+261:         Abbrivations:
+262: 
+263:         ```
+264:         comp      = request.num_computed_tokens
+265:         new_comp  = num_new_computed_tokens
+266:                   = len(new_computed_blocks) * block_size
+267:         ext_comp  = num_external_computed_tokens, cached by the connector
+268:         new       = num_new_tokens, including unverified draft tokens
+269:         lookahead = num_lookahead_tokens
+270:         ```
+271: 
+272:         NOTE: for new tokens which include both verified and unverified draft
+273:         tokens, we only cache the verified tokens (by capping the number at
+274:         `request.num_tokens`).
+275: 
+276:         The allocation has three stages:
+277:         - Free unnecessary blocks in `comp` and check
+278:            if we have sufficient free blocks (return None if not).
+279:         - Handle prefix tokens (`comp + new_comp + ext_comp`):
+280:             - Free unnecessary blocks (e.g. outside sliding window)
+281:             - Allocate new blocks for `ext_comp` tokens inside
+282:               sliding window
+283:         - Allocate new blocks for tokens to be computed (`new + lookahead`)
+284: 
+285:         Returns:
+
+v1/core/block_pool.py:150
+150:         num_gpu_blocks: int,
+151:         enable_caching: bool,
+152:         hash_block_size: int,
+153:         enable_kv_cache_events: bool = False,
+154:         metrics_collector: KVCacheMetricsCollector | None = None,
+155:     ):
+156:         assert isinstance(num_gpu_blocks, int) and num_gpu_blocks > 0
+157:         self.num_gpu_blocks = num_gpu_blocks
+158:         self.enable_caching = enable_caching
+159:         self.hash_block_size = hash_block_size
+160:         # All kv-cache blocks.
+161:         self.blocks: list[KVCacheBlock] = [
+162:             KVCacheBlock(idx) for idx in range(num_gpu_blocks)
+163:         ]
+164:         # Free block queue that constructs and manipulates a doubly linked
+165:         # list of free blocks (including eviction candidates when caching is
+166:         # enabled).
+167:         self.free_block_queue = FreeKVCacheBlockQueue(self.blocks)
+168: 
+169:         # Cache for block lookup
+170:         self.cached_block_hash_to_block: BlockHashToBlockMap = BlockHashToBlockMap()
+171: 
+172:         # To represent a placeholder block with block_id=0.
+173:         # The ref_cnt of null_block is not maintained, needs special care to
+174:         # avoid freeing it.
+175:         self.null_block = self.free_block_queue.popleft()
+176:         self.null_block.is_null = True
+177: 
+178:         self.enable_kv_cache_events = enable_kv_cache_events
+179:         self.kv_event_queue: list[KVCacheEvent] = []
+180: 
+
+v1/core/block_pool.py:320
+320:     def get_new_blocks(self, num_blocks: int) -> list[KVCacheBlock]:
+321:         """Get new blocks from the free block pool.
+322: 
+323:         Note that we do not check block cache in this function.
+324: 
+325:         Args:
+326:             num_blocks: The number of blocks to allocate.
+327: 
+328:         Returns:
+329:             A list of new block.
+330:         """
+331:         if num_blocks > self.get_num_free_blocks():
+332:             raise ValueError(f"Cannot get {num_blocks} free blocks from the pool")
+333: 
+334:         ret: list[KVCacheBlock] = self.free_block_queue.popleft_n(num_blocks)
+335: 
+336:         # In order to only iterate the list once, we duplicated code a bit
+337:         if self.enable_caching:
+338:             for block in ret:
+339:                 self._maybe_evict_cached_block(block)
+340:                 assert block.ref_cnt == 0
+341:                 block.ref_cnt += 1
+342:                 if self.metrics_collector:
+343:                     self.metrics_collector.on_block_allocated(block)
+344:         else:
+345:             for block in ret:
+346:                 assert block.ref_cnt == 0
+347:                 block.ref_cnt += 1
+348:                 if self.metrics_collector:
+349:                     self.metrics_collector.on_block_allocated(block)
+350:         return ret
+351: 
+352:     def _maybe_evict_cached_block(self, block: KVCacheBlock) -> bool:
+353:         """
+354:         If a block is cached in `cached_block_hash_to_block`, we reset its hash
+355:         metadata and evict it from the cache.
+356: 
+357:         Args:
+358:             block: The block to evict.
+359: 
+360:         Returns:
+361:             True if the block is evicted, False otherwise.
+362:         """
+363:         # Clean up metrics tracking first to prevent leaks
+364:         if self.metrics_collector:
+365:             self.metrics_collector.on_block_evicted(block)
+366: 
+367:         block_hash = block.block_hash
+368:         if block_hash is None:
+369:             # The block doesn't have hash, eviction is not needed
+370:             return False
+371: 
+372:         if self.cached_block_hash_to_block.pop(block_hash, block.block_id) is None:
+373:             # block not found in cached_block_hash_to_block,
+374:             # eviction is not needed
+375:             return False
+376: 
+377:         block.reset_hash()
+378: 
+379:         if self.enable_kv_cache_events:
+380:             # FIXME (Chen): Not sure whether we should return `hash_value`
+381:             # or `(hash_value, group_id)` here. But it's fine now because
+382:             # we disable hybrid kv cache manager when kv cache event is
+383:             # enabled, so there is only one group.
+384:             self.kv_event_queue.append(
+385:                 BlockRemoved(
+386:                     block_hashes=[maybe_convert_block_hash(get_block_hash(block_hash))],
+387:                     medium=MEDIUM_GPU,
+388:                 )
+389:             )
+390:         return True
+391: 
+392:     def touch(self, blocks: Sequence[KVCacheBlock]) -> None:
+393:         """Touch a block increases its reference count by 1, and may remove
+394:         the block from the free queue. This is used when a block is hit by
+395:         another request with the same prefix.
+
+v1/core/block_pool.py:480
+480:         """Get the number of free blocks in the pool.
+481: 
+482:         Returns:
+483:             The number of free blocks.
+484:         """
+485:         return self.free_block_queue.num_free_blocks
+486: 
+487:     def get_usage(self) -> float:
+488:         """Get the KV cache usage.
+489: 
+490:         Returns:
+491:             The KV cache usage (between 0.0 and 1.0).
+492:         """
+493: 
+494:         # Subtract 1 to account for null block.
+495:         total_gpu_blocks = self.num_gpu_blocks - 1
+496:         if not total_gpu_blocks:
+497:             return 0
+498:         return 1.0 - (self.get_num_free_blocks() / total_gpu_blocks)
+499: 
+500:     def take_events(self) -> list[KVCacheEvent]:
+501:         """Atomically takes all events and clears the queue.
+502: 
+503:         Returns:
+504:             A list of KV cache events.
+505:         """
+
+v1/core/sched/scheduler.py:318
+318:         # NOTE(woosuk) on the scheduling algorithm:
+319:         # There's no "decoding phase" nor "prefill phase" in the scheduler.
+320:         # Each request just has the num_computed_tokens and
+321:         # num_tokens_with_spec. num_tokens_with_spec =
+322:         # len(prompt_token_ids) + len(output_token_ids) + len(spec_token_ids).
+323:         # At each step, the scheduler tries to assign tokens to the requests
+324:         # so that each request's num_computed_tokens can catch up its
+325:         # num_tokens_with_spec. This is general enough to cover
+326:         # chunked prefills, prefix caching, speculative decoding,
+327:         # and the "jump decoding" optimization in the future.
+328: 
+329:         scheduled_new_reqs: list[Request] = []
+330:         scheduled_resumed_reqs: list[Request] = []
+331:         scheduled_running_reqs: list[Request] = []
+332:         preempted_reqs: list[Request] = []
+333: 
+334:         req_to_new_blocks: dict[str, KVCacheBlocks] = {}
+335:         num_scheduled_tokens: dict[str, int] = {}
+336:         token_budget = self.max_num_scheduled_tokens
+337:         if self._pause_state == PauseState.PAUSED_ALL:
+338:             # Do not schedule any requests when paused.
+339:             token_budget = 0
+340: 
+341:         # Encoder-related.
+342:         scheduled_encoder_inputs: dict[str, list[int]] = {}
+343:         encoder_compute_budget = self.max_num_encoder_input_tokens
+
+v1/core/sched/scheduler.py:370
+370:                 req_index += 1
+371:                 continue
+372: 
+373:             num_new_tokens = (
+374:                 request.num_tokens_with_spec
+375:                 + request.num_output_placeholders
+376:                 - request.num_computed_tokens
+377:             )
+378:             if 0 < self.scheduler_config.long_prefill_token_threshold < num_new_tokens:
+379:                 num_new_tokens = self.scheduler_config.long_prefill_token_threshold
+380:             num_new_tokens = min(num_new_tokens, token_budget)
+381: 
+382:             # Make sure the input position does not exceed the max model len.
+383:             # This is necessary when using spec decoding.
+384:             num_new_tokens = min(
+385:                 num_new_tokens, self.max_model_len - 1 - request.num_computed_tokens
+386:             )
+
+v1/core/sched/scheduler.py:427
+427:                 continue
+428: 
+429:             # Schedule newly needed KV blocks for the request.
+430:             with record_function_or_nullcontext("schedule: allocate_slots"):
+431:                 while True:
+432:                     new_blocks = self.kv_cache_manager.allocate_slots(
+433:                         request,
+434:                         num_new_tokens,
+435:                         num_lookahead_tokens=self.num_lookahead_tokens,
+436:                     )
+437: 
+438:                     if new_blocks is not None:
+439:                         # The request can be scheduled.
+440:                         break
+441: 
+442:                     # The request cannot be scheduled.
+443:                     # Preempt the lowest-priority request.
+444:                     if self.policy == SchedulingPolicy.PRIORITY:
+445:                         preempted_req = max(
+446:                             self.running,
+447:                             key=lambda r: (r.priority, r.arrival_time),
+448:                         )
+449:                         self.running.remove(preempted_req)
+450:                         if preempted_req in scheduled_running_reqs:
+451:                             preempted_req_id = preempted_req.request_id
+452:                             scheduled_running_reqs.remove(preempted_req)
+453:                             token_budget += num_scheduled_tokens.pop(preempted_req_id)
+454:                             req_to_new_blocks.pop(preempted_req_id)
+455:                             scheduled_spec_decode_tokens.pop(preempted_req_id, None)
+456:                             preempted_encoder_inputs = scheduled_encoder_inputs.pop(
+457:                                 preempted_req_id, None
+458:                             )
+459:                             if preempted_encoder_inputs:
+460:                                 # Restore encoder compute budget if the preempted
+461:                                 # request had encoder inputs scheduled in this step.
+462:                                 num_embeds_to_restore = sum(
+463:                                     preempted_req.get_num_encoder_embeds(i)
+464:                                     for i in preempted_encoder_inputs
+465:                                 )
+466:                                 encoder_compute_budget += num_embeds_to_restore
+467:                             req_index -= 1
+468:                     else:
+469:                         preempted_req = self.running.pop()
+470: 
+471:                     self._preempt_request(preempted_req, scheduled_timestamp)
+472:                     preempted_reqs.append(preempted_req)
+473:                     if preempted_req == request:
+474:                         # No more request to preempt. Cannot schedule this request.
+475:                         break
+476: 
+477:             if new_blocks is None:
+478:                 # Cannot schedule this request.
+479:                 break
+480: 
+481:             # Schedule the request.
+482:             scheduled_running_reqs.append(request)
+483:             request_id = request.request_id
+484:             req_to_new_blocks[request_id] = new_blocks
+485:             num_scheduled_tokens[request_id] = num_new_tokens
+486:             token_budget -= num_new_tokens
+487:             req_index += 1
+488: 
+489:             # Speculative decode related.
+
+v1/core/sched/scheduler.py:650
+650:                     # Number of tokens to be scheduled.
+651:                     # We use `request.num_tokens` instead of
+652:                     # `request.num_prompt_tokens` to consider the resumed
+653:                     # requests, which have output tokens.
+654:                     num_new_tokens = request.num_tokens - num_computed_tokens
+655:                     threshold = self.scheduler_config.long_prefill_token_threshold
+656:                     if 0 < threshold < num_new_tokens:
+657:                         num_new_tokens = threshold
+658: 
+659:                     # chunked prefill has to be enabled explicitly to allow
+660:                     # pooling requests to be chunked
+661:                     if (
+662:                         not self.scheduler_config.enable_chunked_prefill
+663:                         and num_new_tokens > token_budget
+664:                     ):
+665:                         # If chunked_prefill is disabled,
+666:                         # we can stop the scheduling here.
+667:                         break
+668: 
+669:                     num_new_tokens = min(num_new_tokens, token_budget)
+670:                     assert num_new_tokens > 0
+671: 
+672:                     # Schedule encoder inputs.
+673:                     if request.has_encoder_inputs:
+674:                         (
+675:                             encoder_inputs_to_schedule,
+676:                             num_new_tokens,
+677:                             new_encoder_compute_budget,
+678:                             external_load_encoder_input,
+679:                         ) = self._try_schedule_encoder_inputs(
+
+v1/core/sched/scheduler.py:914
+914:     def _preempt_request(self, request: Request, timestamp: float) -> None:
+915:         """Preempt a request and put it back to the waiting queue.
+916: 
+917:         NOTE: The request should be popped from the running queue outside of this
+918:         method.
+919:         """
+920:         assert request.status == RequestStatus.RUNNING, (
+921:             "Only running requests can be preempted"
+922:         )
+923:         self.kv_cache_manager.free(request)
+924:         self.encoder_cache_manager.free(request)
+925:         request.status = RequestStatus.PREEMPTED
+926:         request.num_computed_tokens = 0
+927:         if request.spec_token_ids:
+928:             request.spec_token_ids = []
+929:         request.num_preemptions += 1
+930:         if self.log_stats:
+931:             request.record_event(EngineCoreEventType.PREEMPTED, timestamp)
+932: 
+933:         # Put the request back to the waiting queue.
+934:         self.waiting.prepend_request(request)
+935: 
+936:     def _update_after_schedule(self, scheduler_output: SchedulerOutput) -> None:
+937:         # Advance the number of computed tokens for the request AFTER
+938:         # the request is scheduled.
+939:         # 1. The scheduler_output of the current step has to include the
+940:         #    original number of scheduled tokens to determine input IDs.
+v1/utils.py
+415:     return tensor.flatten().contiguous().view(torch.uint8).numpy().data
+416: 
+417: 
+418: @dataclass
+419: class IterationDetails:
+420:     num_ctx_requests: int
+421:     num_ctx_tokens: int
+422:     num_generation_requests: int
+423:     num_generation_tokens: int
+424: 
+425:     def __repr__(self) -> str:
+426:         return f"IterationDetails(num_ctx_requests={self.num_ctx_requests},\
+427:                  num_ctx_tokens={self.num_ctx_tokens}, \
+428:                  num_generation_requests={self.num_generation_requests}, \
+429:                  num_generation_tokens={self.num_generation_tokens})"
+430: 
+431: 
+432: def compute_iteration_details(scheduler_output: SchedulerOutput) -> IterationDetails:
+433:     """
+434:     Compute the number of context/generation requests and tokens
+435:     for the current iteration's scheduler output. A requests is regarded
+436:     as a context request if its output tokens are still 0, an extended chunk
+437:     of chunked prefill falls into this category.
+438: 
+439:     Args:
+440:         scheduler_output: The scheduler output for the current iteration.
+441: 
+442:     Returns:
+443:         An IterationDetails object containing the number of
+444:         context/generation requests and tokens.
+445:     """
+446:     num_context_requests = 0
+447:     num_context_tokens = 0
+448:     num_generation_requests = 0
+449:     num_generation_tokens = 0
+450:     new_req_ids = {new_req.req_id for new_req in scheduler_output.scheduled_new_reqs}
+451:     for req_id, num_tokens in scheduler_output.num_scheduled_tokens.items():
+452:         if scheduler_output.scheduled_cached_reqs.is_context_phase(req_id) or (
+453:             req_id in new_req_ids
+454:         ):
+455:             num_context_requests += 1
+456:             num_context_tokens += num_tokens
+457:         else:
+458:             num_generation_requests += 1
+459:             num_generation_tokens += num_tokens
+460:     return IterationDetails(
+461:         num_context_requests,
+462:         num_context_tokens,
+463:         num_generation_requests,
+464:         num_generation_tokens,
+465:     )
+
+v1/core/sched/output.py
+118:     new_token_ids: list[list[int]]
+119:     # For requests not scheduled in the last step, propagate the token ids to the
+120:     # connector. Won't contain requests that were scheduled in the prior step.
+121:     all_token_ids: dict[str, list[int]]
+122:     new_block_ids: list[tuple[list[int], ...] | None]
+123:     num_computed_tokens: list[int]
+124:     num_output_tokens: list[int]
+125: 
+126:     # Version of dataclass repr with token IDs obfuscated.
+127:     def anon_repr(self) -> str:
+128:         new_token_ids_lens = [len(toks) for toks in self.new_token_ids]
+129:         all_token_ids_lens = {
+130:             req_id: len(toks) for req_id, toks in self.all_token_ids.items()
+131:         }
+132:         return (
+133:             f"CachedRequestData("
+134:             f"req_ids={self.req_ids},"
+135:             f"resumed_req_ids={self.resumed_req_ids},"
+136:             f"new_token_ids_lens={new_token_ids_lens},"
+137:             f"all_token_ids_lens={all_token_ids_lens},"
+138:             f"new_block_ids={self.new_block_ids},"
+139:             f"num_computed_tokens={self.num_computed_tokens},"
+140:             f"num_output_tokens={self.num_output_tokens}"
+141:             f")"
+142:         )
+143: 
+144:     def __repr__(self) -> str:
+145:         return self.anon_repr()
+146: 
+147:     @property
+148:     def num_reqs(self) -> int:
+149:         return len(self.req_ids)
+150: 
+151:     @cached_property
+152:     def _req_id_to_num_output_tokens(self) -> dict[str, int]:
+153:         """Cache mapping of req_id to num_output_tokens for O(1) lookup.
+154: 
+155:         This cached property is safe because CachedRequestData instances
+156:         are created fresh each scheduling iteration and not mutated during
+157:         computation of iteration details.
+158:         """
+159:         return dict(zip(self.req_ids, self.num_output_tokens))
+160: 
+161:     def is_context_phase(self, req_id: str) -> bool:
+162:         num_output_tokens = self._req_id_to_num_output_tokens.get(req_id)
+163:         return num_output_tokens is not None and num_output_tokens == 0
+164: 
+165:     @classmethod
+
+v1/engine/core.py
+348: 
+349:     @contextmanager
+350:     def log_iteration_details(self, scheduler_output: SchedulerOutput):
+351:         if not self.vllm_config.observability_config.enable_logging_iteration_details:
+352:             yield
+353:             return
+354:         self._iteration_index = getattr(self, "_iteration_index", 0)
+355:         iteration_details = compute_iteration_details(scheduler_output)
+356:         before = time.monotonic()
+357:         yield
+358:         logger.info(
+359:             "".join(
+360:                 [
+361:                     "Iteration(",
+362:                     str(self._iteration_index),
+363:                     "): ",
+364:                     str(iteration_details.num_ctx_requests),
+365:                     " context requests, ",
+366:                     str(iteration_details.num_ctx_tokens),
+367:                     " context tokens, ",
+368:                     str(iteration_details.num_generation_requests),
+369:                     " generation requests, ",
+370:                     str(iteration_details.num_generation_tokens),
+371:                     " generation tokens, iteration elapsed time: ",
+372:                     format((time.monotonic() - before) * 1000, ".2f"),
+373:                     " ms",
+374:                 ]
+375:             )
+376:         )
+377:         self._iteration_index += 1
+378: 

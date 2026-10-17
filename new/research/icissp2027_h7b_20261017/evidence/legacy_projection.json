@@ -1,0 +1,11 @@
+{
+  "scope": "legacy capture timing projection only; not H7b training or validation",
+  "source": "/home/rock/projects/DOS/new/runs/cache_isolation_gate/overlap_shared_b64_20261017T114419Z.jsonl",
+  "sha256": "b2b1b19acb9dfb916c246219653648a80d68d45c4b110dff9c35ec880950da6f",
+  "public_projection": {
+    "ttft_ms": 63.838833,
+    "reference_pre_ms": 20.630528499999997
+  },
+  "stored_ttft_ms": 63.850583,
+  "note": "Stored legacy TTFT uses request_start_ns; new projection uses request_dispatch_ns. Their difference is preserved, not silently equated."
+}

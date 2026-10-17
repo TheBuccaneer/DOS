@@ -1,0 +1,3042 @@
+{
+  "schema": "dos-h7b-analysis-v1",
+  "evidence_kind": "synthetic_plumbing_only",
+  "hypothesis_demonstrated": false,
+  "submission_ready": false,
+  "n_calibration": 32,
+  "n_test": 96,
+  "feature_fields": {
+    "ttft_learned": [
+      "ttft_ms"
+    ],
+    "temporal_learned": [
+      "ttft_ms",
+      "past_ttft_median_ms"
+    ],
+    "joint_learned": [
+      "ttft_ms",
+      "past_ttft_median_ms",
+      "reference_pre_ms"
+    ]
+  },
+  "bandwidth_ms": 7.645409245748853,
+  "preselection_cutoff_ms": 5.101933375,
+  "manipulation_failures": [],
+  "views": {
+    "shared": {
+      "all": {
+        "ttft_rank": {
+          "n": 64,
+          "n_positive": 32,
+          "n_blocks": 4,
+          "auc": 0.80859375
+        },
+        "ttft_learned": {
+          "n": 64,
+          "n_positive": 32,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "temporal_learned": {
+          "n": 64,
+          "n_positive": 32,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "joint_learned": {
+          "n": 64,
+          "n_positive": 32,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "joint_reference_permuted": {
+          "n": 64,
+          "n_positive": 32,
+          "n_blocks": 4,
+          "auc": 0.958984375
+        },
+        "selection_fraction": 1.0
+      },
+      "preselected": {
+        "ttft_rank": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "ttft_learned": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "temporal_learned": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "joint_learned": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "joint_reference_permuted": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "selection_fraction": 0.265625
+      },
+      "preselected_reference_permuted": {
+        "joint_reference_permuted": {
+          "n": 17,
+          "n_positive": 10,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "selection_fraction": 0.265625,
+        "selection_changed_n": 26
+      },
+      "preselected_off_w16_theta0.5": {
+        "ttft_rank": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "ttft_learned": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "temporal_learned": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "joint_learned": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "joint_reference_permuted": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        }
+      },
+      "preselected_off_w16_theta0.7": {
+        "ttft_rank": {
+          "n": 1,
+          "n_positive": 1,
+          "n_blocks": 1,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 1,
+          "n_positive": 1,
+          "n_blocks": 1,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 1,
+          "n_positive": 1,
+          "n_blocks": 1,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 1,
+          "n_positive": 1,
+          "n_blocks": 1,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 1,
+          "n_positive": 1,
+          "n_blocks": 1,
+          "auc": null
+        }
+      },
+      "preselected_off_w16_theta0.9": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      },
+      "preselected_off_w16_theta0.95": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      },
+      "preselected_off_w16_theta0.99": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      },
+      "preselected_off_w32_theta0.5": {
+        "ttft_rank": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "ttft_learned": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "temporal_learned": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "joint_learned": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        },
+        "joint_reference_permuted": {
+          "n": 17,
+          "n_positive": 7,
+          "n_blocks": 4,
+          "auc": 1.0
+        }
+      },
+      "preselected_off_w32_theta0.7": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      },
+      "preselected_off_w32_theta0.9": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      },
+      "preselected_off_w32_theta0.95": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      },
+      "preselected_off_w32_theta0.99": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      }
+    },
+    "isolated": {
+      "all": {
+        "ttft_rank": {
+          "n": 32,
+          "n_positive": 16,
+          "n_blocks": 2,
+          "auc": 0.60546875
+        },
+        "ttft_learned": {
+          "n": 32,
+          "n_positive": 16,
+          "n_blocks": 2,
+          "auc": 0.4375
+        },
+        "temporal_learned": {
+          "n": 32,
+          "n_positive": 16,
+          "n_blocks": 2,
+          "auc": 0.4375
+        },
+        "joint_learned": {
+          "n": 32,
+          "n_positive": 16,
+          "n_blocks": 2,
+          "auc": 0.357421875
+        },
+        "joint_reference_permuted": {
+          "n": 32,
+          "n_positive": 16,
+          "n_blocks": 2,
+          "auc": 0.47265625
+        },
+        "selection_fraction": 1.0
+      },
+      "preselected": {
+        "ttft_rank": {
+          "n": 8,
+          "n_positive": 7,
+          "n_blocks": 2,
+          "auc": 0.8571428571428571
+        },
+        "ttft_learned": {
+          "n": 8,
+          "n_positive": 7,
+          "n_blocks": 2,
+          "auc": 0.5
+        },
+        "temporal_learned": {
+          "n": 8,
+          "n_positive": 7,
+          "n_blocks": 2,
+          "auc": 0.5
+        },
+        "joint_learned": {
+          "n": 8,
+          "n_positive": 7,
+          "n_blocks": 2,
+          "auc": 0.5
+        },
+        "joint_reference_permuted": {
+          "n": 8,
+          "n_positive": 7,
+          "n_blocks": 2,
+          "auc": 0.3571428571428571
+        },
+        "selection_fraction": 0.25
+      },
+      "preselected_reference_permuted": {
+        "joint_reference_permuted": {
+          "n": 8,
+          "n_positive": 4,
+          "n_blocks": 2,
+          "auc": 0.625
+        },
+        "selection_fraction": 0.25,
+        "selection_changed_n": 12
+      },
+      "preselected_off_w16_theta0.5": {
+        "ttft_rank": {
+          "n": 2,
+          "n_positive": 2,
+          "n_blocks": 1,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 2,
+          "n_positive": 2,
+          "n_blocks": 1,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 2,
+          "n_positive": 2,
+          "n_blocks": 1,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 2,
+          "n_positive": 2,
+          "n_blocks": 1,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 2,
+          "n_positive": 2,
+          "n_blocks": 1,
+          "auc": null
+        }
+      },
+      "preselected_off_w16_theta0.7": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      },
+      "preselected_off_w16_theta0.9": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      },
+      "preselected_off_w16_theta0.95": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      },
+      "preselected_off_w16_theta0.99": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      },
+      "preselected_off_w32_theta0.5": {
+        "ttft_rank": {
+          "n": 6,
+          "n_positive": 5,
+          "n_blocks": 2,
+          "auc": 0.8
+        },
+        "ttft_learned": {
+          "n": 6,
+          "n_positive": 5,
+          "n_blocks": 2,
+          "auc": 0.5
+        },
+        "temporal_learned": {
+          "n": 6,
+          "n_positive": 5,
+          "n_blocks": 2,
+          "auc": 0.5
+        },
+        "joint_learned": {
+          "n": 6,
+          "n_positive": 5,
+          "n_blocks": 2,
+          "auc": 0.5
+        },
+        "joint_reference_permuted": {
+          "n": 6,
+          "n_positive": 5,
+          "n_blocks": 2,
+          "auc": 0.5
+        }
+      },
+      "preselected_off_w32_theta0.7": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      },
+      "preselected_off_w32_theta0.9": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      },
+      "preselected_off_w32_theta0.95": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      },
+      "preselected_off_w32_theta0.99": {
+        "ttft_rank": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "ttft_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "temporal_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_learned": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        },
+        "joint_reference_permuted": {
+          "n": 0,
+          "n_positive": 0,
+          "n_blocks": 0,
+          "auc": null
+        }
+      }
+    }
+  },
+  "per_trial": [
+    {
+      "trial_id": "constructed-32",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 27.291311,
+        "reference_pre_ms": 5.0685175000000005,
+        "past_ttft_median_ms": 46.377762000000004
+      },
+      "gate_overlaps": {
+        "16": 0.6535326415064862,
+        "32": 0.6684103042292873
+      },
+      "predictions": {
+        "ttft_rank": -27.291311,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.7898335162587733
+      }
+    },
+    {
+      "trial_id": "constructed-33",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 29.970839,
+        "reference_pre_ms": 5.014682,
+        "past_ttft_median_ms": 46.359233
+      },
+      "gate_overlaps": {
+        "16": 0.6192383969898092,
+        "32": 0.6697204531443737
+      },
+      "predictions": {
+        "ttft_rank": -29.970839,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.7898335162587733
+      }
+    },
+    {
+      "trial_id": "constructed-34",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 19.707642,
+        "reference_pre_ms": 5.107634,
+        "past_ttft_median_ms": 37.766665
+      },
+      "gate_overlaps": {
+        "16": 0.6225511945592501,
+        "32": 0.669106655698652
+      },
+      "predictions": {
+        "ttft_rank": -19.707642,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.8669058783030559
+      }
+    },
+    {
+      "trial_id": "constructed-35",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 19.122992,
+        "reference_pre_ms": 5.1490835,
+        "past_ttft_median_ms": 28.631075000000003
+      },
+      "gate_overlaps": {
+        "16": 0.6599463451970857,
+        "32": 0.6731719808599699
+      },
+      "predictions": {
+        "ttft_rank": -19.122992,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.8669058783030559
+      }
+    },
+    {
+      "trial_id": "constructed-36",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 48.864083,
+        "reference_pre_ms": 8.184963,
+        "past_ttft_median_ms": 23.4994765
+      },
+      "gate_overlaps": {
+        "16": 0.6714694970924883,
+        "32": 0.6716737977656646
+      },
+      "predictions": {
+        "ttft_rank": -48.864083,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.8789756818517471,
+        "joint_reference_permuted": 0.2082256466354533
+      }
+    },
+    {
+      "trial_id": "constructed-37",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 46.348195,
+        "reference_pre_ms": 8.1199725,
+        "past_ttft_median_ms": 24.839240500000002
+      },
+      "gate_overlaps": {
+        "16": 0.6764343264713054,
+        "32": 0.6755791337387806
+      },
+      "predictions": {
+        "ttft_rank": -46.348195,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.8789756818517471,
+        "joint_reference_permuted": 0.2082256466354533
+      }
+    },
+    {
+      "trial_id": "constructed-38",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 53.869898,
+        "reference_pre_ms": 8.181221,
+        "past_ttft_median_ms": 33.0279185
+      },
+      "gate_overlaps": {
+        "16": 0.6743923829140408,
+        "32": 0.6758191814142893
+      },
+      "predictions": {
+        "ttft_rank": -53.869898,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-39",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 49.344935,
+        "reference_pre_ms": 8.045399,
+        "past_ttft_median_ms": 47.606139
+      },
+      "gate_overlaps": {
+        "16": 0.6781558816605098,
+        "32": 0.6775233611333371
+      },
+      "predictions": {
+        "ttft_rank": -49.344935,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.8789756818517471,
+        "joint_reference_permuted": 0.8789756818517471
+      }
+    },
+    {
+      "trial_id": "constructed-40",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 28.80662,
+        "reference_pre_ms": 5.049831,
+        "past_ttft_median_ms": 49.104509
+      },
+      "gate_overlaps": {
+        "16": 0.6677105049388194,
+        "32": 0.6821089405128403
+      },
+      "predictions": {
+        "ttft_rank": -28.80662,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.7898335162587733
+      }
+    },
+    {
+      "trial_id": "constructed-41",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 20.24509,
+        "reference_pre_ms": 5.1980675000000005,
+        "past_ttft_median_ms": 47.846565
+      },
+      "gate_overlaps": {
+        "16": 0.663914417441007,
+        "32": 0.6778333479414158
+      },
+      "predictions": {
+        "ttft_rank": -20.24509,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.9497396735352807
+      }
+    },
+    {
+      "trial_id": "constructed-42",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 26.132576,
+        "reference_pre_ms": 5.193365,
+        "past_ttft_median_ms": 39.0757775
+      },
+      "gate_overlaps": {
+        "16": 0.6708347132504647,
+        "32": 0.6809130549197033
+      },
+      "predictions": {
+        "ttft_rank": -26.132576,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-43",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 28.818524,
+        "reference_pre_ms": 5.046476,
+        "past_ttft_median_ms": 27.469597999999998
+      },
+      "gate_overlaps": {
+        "16": 0.6448441461864637,
+        "32": 0.6779963943770323
+      },
+      "predictions": {
+        "ttft_rank": -28.818524,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-44",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 48.544774,
+        "reference_pre_ms": 8.1433855,
+        "past_ttft_median_ms": 27.469597999999998
+      },
+      "gate_overlaps": {
+        "16": 0.6447600798571549,
+        "32": 0.6779866416996585
+      },
+      "predictions": {
+        "ttft_rank": -48.544774,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.8789756818517471,
+        "joint_reference_permuted": 0.2082256466354533
+      }
+    },
+    {
+      "trial_id": "constructed-45",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 49.541053,
+        "reference_pre_ms": 8.1457225,
+        "past_ttft_median_ms": 27.47555
+      },
+      "gate_overlaps": {
+        "16": 0.6426158017227943,
+        "32": 0.669645942239597
+      },
+      "predictions": {
+        "ttft_rank": -49.541053,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.8789756818517471,
+        "joint_reference_permuted": 0.8789756818517471
+      }
+    },
+    {
+      "trial_id": "constructed-46",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 57.96748,
+        "reference_pre_ms": 8.034549,
+        "past_ttft_median_ms": 38.681649
+      },
+      "gate_overlaps": {
+        "16": 0.5678612842245442,
+        "32": 0.6699688969844108
+      },
+      "predictions": {
+        "ttft_rank": -57.96748,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.19352475961277768,
+        "joint_reference_permuted": 0.19352475961277768
+      }
+    },
+    {
+      "trial_id": "constructed-47",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 56.372546,
+        "reference_pre_ms": 8.080076,
+        "past_ttft_median_ms": 49.0429135
+      },
+      "gate_overlaps": {
+        "16": 0.6322462838069507,
+        "32": 0.6620777696220914
+      },
+      "predictions": {
+        "ttft_rank": -56.372546,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-48",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 21.487644,
+        "reference_pre_ms": 5.087485,
+        "past_ttft_median_ms": 52.9567995
+      },
+      "gate_overlaps": {
+        "16": 0.6732672202045096,
+        "32": 0.6663033019816083
+      },
+      "predictions": {
+        "ttft_rank": -21.487644,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.8669058783030559
+      }
+    },
+    {
+      "trial_id": "constructed-49",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 26.758496,
+        "reference_pre_ms": 5.06472,
+        "past_ttft_median_ms": 52.9567995
+      },
+      "gate_overlaps": {
+        "16": 0.6984834741266104,
+        "32": 0.6743471253840568
+      },
+      "predictions": {
+        "ttft_rank": -26.758496,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.7898335162587733
+      }
+    },
+    {
+      "trial_id": "constructed-50",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 17.335077,
+        "reference_pre_ms": 5.123463,
+        "past_ttft_median_ms": 41.565521000000004
+      },
+      "gate_overlaps": {
+        "16": 0.7058791244598301,
+        "32": 0.6746921095273046
+      },
+      "predictions": {
+        "ttft_rank": -17.335077,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.8669058783030559
+      }
+    },
+    {
+      "trial_id": "constructed-51",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 27.818485,
+        "reference_pre_ms": 5.058547,
+        "past_ttft_median_ms": 24.12307
+      },
+      "gate_overlaps": {
+        "16": 0.6938921540727105,
+        "32": 0.6794154585847425
+      },
+      "predictions": {
+        "ttft_rank": -27.818485,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.3356888304635331
+      }
+    },
+    {
+      "trial_id": "constructed-52",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 53.437558,
+        "reference_pre_ms": 8.077141,
+        "past_ttft_median_ms": 24.12307
+      },
+      "gate_overlaps": {
+        "16": 0.6749672862404741,
+        "32": 0.6789871061298132
+      },
+      "predictions": {
+        "ttft_rank": -53.437558,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-53",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 56.412154,
+        "reference_pre_ms": 8.096107,
+        "past_ttft_median_ms": 27.2884905
+      },
+      "gate_overlaps": {
+        "16": 0.7098013042813436,
+        "32": 0.6927834709013521
+      },
+      "predictions": {
+        "ttft_rank": -56.412154,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-54",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 45.176053,
+        "reference_pre_ms": 8.011243,
+        "past_ttft_median_ms": 40.6280215
+      },
+      "gate_overlaps": {
+        "16": 0.711712937958547,
+        "32": 0.691765193505256
+      },
+      "predictions": {
+        "ttft_rank": -45.176053,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.4940696541883012,
+        "joint_reference_permuted": 0.8789756818517471
+      }
+    },
+    {
+      "trial_id": "constructed-55",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 55.169465,
+        "reference_pre_ms": 8.076888499999999,
+        "past_ttft_median_ms": 49.3068055
+      },
+      "gate_overlaps": {
+        "16": 0.6967733163140267,
+        "32": 0.6858803270861242
+      },
+      "predictions": {
+        "ttft_rank": -55.169465,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-56",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 19.64243,
+        "reference_pre_ms": 5.142912,
+        "past_ttft_median_ms": 54.3035115
+      },
+      "gate_overlaps": {
+        "16": 0.694168806773408,
+        "32": 0.6879102846797522
+      },
+      "predictions": {
+        "ttft_rank": -19.64243,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.8669058783030559
+      }
+    },
+    {
+      "trial_id": "constructed-57",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 21.945373,
+        "reference_pre_ms": 5.134036,
+        "past_ttft_median_ms": 50.172759
+      },
+      "gate_overlaps": {
+        "16": 0.6713800749911842,
+        "32": 0.6874414142059055
+      },
+      "predictions": {
+        "ttft_rank": -21.945373,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.8669058783030559
+      }
+    },
+    {
+      "trial_id": "constructed-58",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 26.88566,
+        "reference_pre_ms": 5.04162,
+        "past_ttft_median_ms": 33.560713
+      },
+      "gate_overlaps": {
+        "16": 0.6806158267906464,
+        "32": 0.6956745555938673
+      },
+      "predictions": {
+        "ttft_rank": -26.88566,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.7898335162587733
+      }
+    },
+    {
+      "trial_id": "constructed-59",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 19.138334,
+        "reference_pre_ms": 5.125311,
+        "past_ttft_median_ms": 24.415516500000003
+      },
+      "gate_overlaps": {
+        "16": 0.6777973884700461,
+        "32": 0.6987927600434043
+      },
+      "predictions": {
+        "ttft_rank": -19.138334,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.8669058783030559
+      }
+    },
+    {
+      "trial_id": "constructed-60",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 45.48286,
+        "reference_pre_ms": 8.085267,
+        "past_ttft_median_ms": 20.7939015
+      },
+      "gate_overlaps": {
+        "16": 0.6311149124591466,
+        "32": 0.6970157728292843
+      },
+      "predictions": {
+        "ttft_rank": -45.48286,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.8789756818517471,
+        "joint_reference_permuted": 0.2082256466354533
+      }
+    },
+    {
+      "trial_id": "constructed-61",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 57.118159,
+        "reference_pre_ms": 8.049478,
+        "past_ttft_median_ms": 24.415516500000003
+      },
+      "gate_overlaps": {
+        "16": 0.6180498817600538,
+        "32": 0.6969770154117202
+      },
+      "predictions": {
+        "ttft_rank": -57.118159,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-62",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 46.702375,
+        "reference_pre_ms": 8.082306,
+        "past_ttft_median_ms": 36.18426
+      },
+      "gate_overlaps": {
+        "16": 0.5286614744525934,
+        "32": 0.6964008386287606
+      },
+      "predictions": {
+        "ttft_rank": -46.702375,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.8789756818517471,
+        "joint_reference_permuted": 0.8789756818517471
+      }
+    },
+    {
+      "trial_id": "constructed-63",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 56.163488,
+        "reference_pre_ms": 8.192305,
+        "past_ttft_median_ms": 46.0926175
+      },
+      "gate_overlaps": {
+        "16": 0.6061481953603436,
+        "32": 0.6970628169238796
+      },
+      "predictions": {
+        "ttft_rank": -56.163488,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-64",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 20.654604,
+        "reference_pre_ms": 5.111857,
+        "past_ttft_median_ms": 51.4329315
+      },
+      "gate_overlaps": {
+        "16": 0.6068280225303893,
+        "32": 0.6920117903389184
+      },
+      "predictions": {
+        "ttft_rank": -20.654604,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.8669058783030559
+      }
+    },
+    {
+      "trial_id": "constructed-65",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 18.536791,
+        "reference_pre_ms": 5.089783,
+        "past_ttft_median_ms": 51.4329315
+      },
+      "gate_overlaps": {
+        "16": 0.6042559393900808,
+        "32": 0.6829047882517575
+      },
+      "predictions": {
+        "ttft_rank": -18.536791,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.9497396735352807
+      }
+    },
+    {
+      "trial_id": "constructed-66",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 19.605034,
+        "reference_pre_ms": 5.0437235000000005,
+        "past_ttft_median_ms": 33.6784895
+      },
+      "gate_overlaps": {
+        "16": 0.5227634380943638,
+        "32": 0.667423109584953
+      },
+      "predictions": {
+        "ttft_rank": -19.605034,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.8669058783030559
+      }
+    },
+    {
+      "trial_id": "constructed-67",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 27.369099,
+        "reference_pre_ms": 5.054697,
+        "past_ttft_median_ms": 20.129818999999998
+      },
+      "gate_overlaps": {
+        "16": 0.5227847215421175,
+        "32": 0.667229057126061
+      },
+      "predictions": {
+        "ttft_rank": -27.369099,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-68",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 48.220378,
+        "reference_pre_ms": 8.108645,
+        "past_ttft_median_ms": 20.129818999999998
+      },
+      "gate_overlaps": {
+        "16": 0.522972072193822,
+        "32": 0.6848634564650977
+      },
+      "predictions": {
+        "ttft_rank": -48.220378,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.8789756818517471,
+        "joint_reference_permuted": 0.8789756818517471
+      }
+    },
+    {
+      "trial_id": "constructed-69",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 53.251751,
+        "reference_pre_ms": 8.1659385,
+        "past_ttft_median_ms": 23.487066499999997
+      },
+      "gate_overlaps": {
+        "16": 0.5884113482910573,
+        "32": 0.6836092837106948
+      },
+      "predictions": {
+        "ttft_rank": -53.251751,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-70",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 55.354338,
+        "reference_pre_ms": 8.164693,
+        "past_ttft_median_ms": 37.794738499999994
+      },
+      "gate_overlaps": {
+        "16": 0.6054883032124568,
+        "32": 0.6765246623482551
+      },
+      "predictions": {
+        "ttft_rank": -55.354338,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-71",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 47.910069,
+        "reference_pre_ms": 8.082632,
+        "past_ttft_median_ms": 50.7360645
+      },
+      "gate_overlaps": {
+        "16": 0.5444919413260415,
+        "32": 0.6730244715349922
+      },
+      "predictions": {
+        "ttft_rank": -47.910069,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.8789756818517471,
+        "joint_reference_permuted": 0.2082256466354533
+      }
+    },
+    {
+      "trial_id": "constructed-72",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 28.149718,
+        "reference_pre_ms": 5.136118,
+        "past_ttft_median_ms": 50.7360645
+      },
+      "gate_overlaps": {
+        "16": 0.6149846688990522,
+        "32": 0.6699004558752693
+      },
+      "predictions": {
+        "ttft_rank": -28.149718,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-73",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 20.465767,
+        "reference_pre_ms": 5.012195500000001,
+        "past_ttft_median_ms": 50.58091
+      },
+      "gate_overlaps": {
+        "16": 0.6702831619315028,
+        "32": 0.6708380748108322
+      },
+      "predictions": {
+        "ttft_rank": -20.465767,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.9497396735352807
+      }
+    },
+    {
+      "trial_id": "constructed-74",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 20.625569,
+        "reference_pre_ms": 5.180897,
+        "past_ttft_median_ms": 38.0298935
+      },
+      "gate_overlaps": {
+        "16": 0.6641622442024631,
+        "32": 0.6713357140391291
+      },
+      "predictions": {
+        "ttft_rank": -20.625569,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.9497396735352807
+      }
+    },
+    {
+      "trial_id": "constructed-75",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 29.600378,
+        "reference_pre_ms": 5.074042,
+        "past_ttft_median_ms": 24.3876435
+      },
+      "gate_overlaps": {
+        "16": 0.6083677541356809,
+        "32": 0.6486067229607637
+      },
+      "predictions": {
+        "ttft_rank": -29.600378,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-76",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 53.506392,
+        "reference_pre_ms": 8.194586,
+        "past_ttft_median_ms": 24.3876435
+      },
+      "gate_overlaps": {
+        "16": 0.6601376356199372,
+        "32": 0.6474722588103876
+      },
+      "predictions": {
+        "ttft_rank": -53.506392,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-77",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 54.998541,
+        "reference_pre_ms": 8.190061,
+        "past_ttft_median_ms": 25.1129735
+      },
+      "gate_overlaps": {
+        "16": 0.6255017129846208,
+        "32": 0.6232219543952313
+      },
+      "predictions": {
+        "ttft_rank": -54.998541,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-78",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 54.792636,
+        "reference_pre_ms": 8.063479,
+        "past_ttft_median_ms": 41.553385
+      },
+      "gate_overlaps": {
+        "16": 0.6309134894534221,
+        "32": 0.5859796391578338
+      },
+      "predictions": {
+        "ttft_rank": -54.792636,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-79",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 46.103419,
+        "reference_pre_ms": 8.122831,
+        "past_ttft_median_ms": 54.149513999999996
+      },
+      "gate_overlaps": {
+        "16": 0.5468120400232916,
+        "32": 0.5894312068416807
+      },
+      "predictions": {
+        "ttft_rank": -46.103419,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.8789756818517471,
+        "joint_reference_permuted": 0.8789756818517471
+      }
+    },
+    {
+      "trial_id": "constructed-80",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 28.31643,
+        "reference_pre_ms": 5.059184500000001,
+        "past_ttft_median_ms": 54.149513999999996
+      },
+      "gate_overlaps": {
+        "16": 0.6325922035340235,
+        "32": 0.622602619829957
+      },
+      "predictions": {
+        "ttft_rank": -28.31643,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.778187432297569
+      }
+    },
+    {
+      "trial_id": "constructed-81",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 25.501813,
+        "reference_pre_ms": 5.124645,
+        "past_ttft_median_ms": 50.4480275
+      },
+      "gate_overlaps": {
+        "16": 0.6790284080218069,
+        "32": 0.6451961896718289
+      },
+      "predictions": {
+        "ttft_rank": -25.501813,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-82",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 25.434765,
+        "reference_pre_ms": 5.1620305,
+        "past_ttft_median_ms": 37.2099245
+      },
+      "gate_overlaps": {
+        "16": 0.7251675127189323,
+        "32": 0.6477312766998518
+      },
+      "predictions": {
+        "ttft_rank": -25.434765,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-83",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 18.07124,
+        "reference_pre_ms": 5.018539,
+        "past_ttft_median_ms": 26.909121499999998
+      },
+      "gate_overlaps": {
+        "16": 0.7381065596174154,
+        "32": 0.677917910490855
+      },
+      "predictions": {
+        "ttft_rank": -18.07124,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.8669058783030559
+      }
+    },
+    {
+      "trial_id": "constructed-84",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 54.911503,
+        "reference_pre_ms": 8.0855255,
+        "past_ttft_median_ms": 25.468289
+      },
+      "gate_overlaps": {
+        "16": 0.7213691437726832,
+        "32": 0.6533348018105087
+      },
+      "predictions": {
+        "ttft_rank": -54.911503,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-85",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 46.834078,
+        "reference_pre_ms": 8.1292705,
+        "past_ttft_median_ms": 25.468289
+      },
+      "gate_overlaps": {
+        "16": 0.6796539816195141,
+        "32": 0.6504252338988148
+      },
+      "predictions": {
+        "ttft_rank": -46.834078,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.8789756818517471,
+        "joint_reference_permuted": 0.8789756818517471
+      }
+    },
+    {
+      "trial_id": "constructed-86",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 56.724674,
+        "reference_pre_ms": 8.0333015,
+        "past_ttft_median_ms": 36.1344215
+      },
+      "gate_overlaps": {
+        "16": 0.708206815370694,
+        "32": 0.674827979083724
+      },
+      "predictions": {
+        "ttft_rank": -56.724674,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.19352475961277768,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-87",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 45.399726,
+        "reference_pre_ms": 8.139443,
+        "past_ttft_median_ms": 50.8727905
+      },
+      "gate_overlaps": {
+        "16": 0.7028836376734224,
+        "32": 0.6529589513834673
+      },
+      "predictions": {
+        "ttft_rank": -45.399726,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.8789756818517471,
+        "joint_reference_permuted": 0.2082256466354533
+      }
+    },
+    {
+      "trial_id": "constructed-88",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 17.754326,
+        "reference_pre_ms": 5.004261,
+        "past_ttft_median_ms": 50.8727905
+      },
+      "gate_overlaps": {
+        "16": 0.6933066117794147,
+        "32": 0.6719880570536412
+      },
+      "predictions": {
+        "ttft_rank": -17.754326,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.8669058783030559
+      }
+    },
+    {
+      "trial_id": "constructed-89",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 21.265009,
+        "reference_pre_ms": 5.19127,
+        "past_ttft_median_ms": 46.116901999999996
+      },
+      "gate_overlaps": {
+        "16": 0.6595103237863075,
+        "32": 0.6683538751545085
+      },
+      "predictions": {
+        "ttft_rank": -21.265009,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.9497396735352807
+      }
+    },
+    {
+      "trial_id": "constructed-90",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 21.444433,
+        "reference_pre_ms": 5.118721,
+        "past_ttft_median_ms": 33.332367500000004
+      },
+      "gate_overlaps": {
+        "16": 0.6637412128126736,
+        "32": 0.6667290363075237
+      },
+      "predictions": {
+        "ttft_rank": -21.444433,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.9497396735352807
+      }
+    },
+    {
+      "trial_id": "constructed-91",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 19.42027,
+        "reference_pre_ms": 5.0522045,
+        "past_ttft_median_ms": 21.354720999999998
+      },
+      "gate_overlaps": {
+        "16": 0.6680483224968135,
+        "32": 0.6478240442551686
+      },
+      "predictions": {
+        "ttft_rank": -19.42027,
+        "ttft_learned": 0.8516995295567128,
+        "temporal_learned": 0.8516995295567128,
+        "joint_learned": 0.8669058783030559,
+        "joint_reference_permuted": 0.8669058783030559
+      }
+    },
+    {
+      "trial_id": "constructed-92",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 56.601317,
+        "reference_pre_ms": 8.025153,
+        "past_ttft_median_ms": 20.342639499999997
+      },
+      "gate_overlaps": {
+        "16": 0.6251687271948945,
+        "32": 0.6482824875650288
+      },
+      "predictions": {
+        "ttft_rank": -56.601317,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.19352475961277768,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-93",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 46.152006,
+        "reference_pre_ms": 8.073014,
+        "past_ttft_median_ms": 21.354720999999998
+      },
+      "gate_overlaps": {
+        "16": 0.6137945908875146,
+        "32": 0.6220828953810156
+      },
+      "predictions": {
+        "ttft_rank": -46.152006,
+        "ttft_learned": 0.865784060783981,
+        "temporal_learned": 0.865784060783981,
+        "joint_learned": 0.8789756818517471,
+        "joint_reference_permuted": 0.871465420515144
+      }
+    },
+    {
+      "trial_id": "constructed-94",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 54.694188,
+        "reference_pre_ms": 8.0783375,
+        "past_ttft_median_ms": 33.7982195
+      },
+      "gate_overlaps": {
+        "16": 0.6569226735332003,
+        "32": 0.6502279406742424
+      },
+      "predictions": {
+        "ttft_rank": -54.694188,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-95",
+      "namespace": "shared",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 55.013231,
+        "reference_pre_ms": 8.032301499999999,
+        "past_ttft_median_ms": 50.423097
+      },
+      "gate_overlaps": {
+        "16": 0.6574653028809254,
+        "32": 0.624763322121455
+      },
+      "predictions": {
+        "ttft_rank": -55.013231,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.19352475961277768,
+        "joint_reference_permuted": 0.19352475961277768
+      }
+    },
+    {
+      "trial_id": "constructed-96",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 27.061265,
+        "reference_pre_ms": 5.019359,
+        "past_ttft_median_ms": 54.853709499999994
+      },
+      "gate_overlaps": {
+        "16": 0.6143520651063711,
+        "32": 0.6265673168451317
+      },
+      "predictions": {
+        "ttft_rank": -27.061265,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.3356888304635331
+      }
+    },
+    {
+      "trial_id": "constructed-97",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 25.530339,
+        "reference_pre_ms": 5.052184,
+        "past_ttft_median_ms": 50.423097
+      },
+      "gate_overlaps": {
+        "16": 0.6174451456683412,
+        "32": 0.6524242878163538
+      },
+      "predictions": {
+        "ttft_rank": -25.530339,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.7898335162587733
+      }
+    },
+    {
+      "trial_id": "constructed-98",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 27.783783,
+        "reference_pre_ms": 5.114121,
+        "past_ttft_median_ms": 40.877726499999994
+      },
+      "gate_overlaps": {
+        "16": 0.6173633746781476,
+        "32": 0.6794352316015164
+      },
+      "predictions": {
+        "ttft_rank": -27.783783,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-99",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 25.498693,
+        "reference_pre_ms": 5.169265,
+        "past_ttft_median_ms": 27.422524
+      },
+      "gate_overlaps": {
+        "16": 0.610431593511809,
+        "32": 0.6952021283716974
+      },
+      "predictions": {
+        "ttft_rank": -25.498693,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-100",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 57.867296,
+        "reference_pre_ms": 8.076149,
+        "past_ttft_median_ms": 26.295802000000002
+      },
+      "gate_overlaps": {
+        "16": 0.6684018095879297,
+        "32": 0.698174674157213
+      },
+      "predictions": {
+        "ttft_rank": -57.867296,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-101",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 57.503798,
+        "reference_pre_ms": 8.010325,
+        "past_ttft_median_ms": 26.657061
+      },
+      "gate_overlaps": {
+        "16": 0.6575498730027604,
+        "32": 0.6723810172830227
+      },
+      "predictions": {
+        "ttft_rank": -57.503798,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.04805295821473486,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-102",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 56.451084,
+        "reference_pre_ms": 8.176861500000001,
+        "past_ttft_median_ms": 42.6437905
+      },
+      "gate_overlaps": {
+        "16": 0.6002753872082582,
+        "32": 0.6651264963119303
+      },
+      "predictions": {
+        "ttft_rank": -56.451084,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-103",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 57.293331,
+        "reference_pre_ms": 8.190585,
+        "past_ttft_median_ms": 56.977441
+      },
+      "gate_overlaps": {
+        "16": 0.6009733068849537,
+        "32": 0.663293143908473
+      },
+      "predictions": {
+        "ttft_rank": -57.293331,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-104",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 26.858131,
+        "reference_pre_ms": 5.146465,
+        "past_ttft_median_ms": 57.398564500000006
+      },
+      "gate_overlaps": {
+        "16": 0.5123516047217861,
+        "32": 0.632210128201953
+      },
+      "predictions": {
+        "ttft_rank": -26.858131,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.7898335162587733
+      }
+    },
+    {
+      "trial_id": "constructed-105",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 29.075452,
+        "reference_pre_ms": 5.132877,
+        "past_ttft_median_ms": 56.8722075
+      },
+      "gate_overlaps": {
+        "16": 0.586217332587607,
+        "32": 0.6338445937035755
+      },
+      "predictions": {
+        "ttft_rank": -29.075452,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.7898335162587733
+      }
+    },
+    {
+      "trial_id": "constructed-106",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 29.534197,
+        "reference_pre_ms": 5.135761,
+        "past_ttft_median_ms": 42.763268
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6512651138215044
+      },
+      "predictions": {
+        "ttft_rank": -29.534197,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-107",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 28.208552,
+        "reference_pre_ms": 5.011948,
+        "past_ttft_median_ms": 29.3048245
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6628118394589003
+      },
+      "predictions": {
+        "ttft_rank": -28.208552,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.3356888304635331
+      }
+    },
+    {
+      "trial_id": "constructed-108",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 57.102788,
+        "reference_pre_ms": 8.110766,
+        "past_ttft_median_ms": 28.642001999999998
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6636750514325399
+      },
+      "predictions": {
+        "ttft_rank": -57.102788,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-109",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 54.76611,
+        "reference_pre_ms": 8.009933,
+        "past_ttft_median_ms": 29.3048245
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6576670089591004
+      },
+      "predictions": {
+        "ttft_rank": -54.76611,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.04805295821473486,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-110",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 57.253684,
+        "reference_pre_ms": 8.074469,
+        "past_ttft_median_ms": 42.1501535
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6580737315881647
+      },
+      "predictions": {
+        "ttft_rank": -57.253684,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-111",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 56.674474,
+        "reference_pre_ms": 8.055824,
+        "past_ttft_median_ms": 55.934449
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6541185787983868
+      },
+      "predictions": {
+        "ttft_rank": -56.674474,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-112",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 27.817766,
+        "reference_pre_ms": 5.187804,
+        "past_ttft_median_ms": 56.888631
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6323526766400608
+      },
+      "predictions": {
+        "ttft_rank": -27.817766,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-113",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 26.127329,
+        "reference_pre_ms": 5.168862,
+        "past_ttft_median_ms": 55.720292
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6328568416678213
+      },
+      "predictions": {
+        "ttft_rank": -26.127329,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-114",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 29.176722,
+        "reference_pre_ms": 5.102034,
+        "past_ttft_median_ms": 42.24612
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6319731131136812
+      },
+      "predictions": {
+        "ttft_rank": -29.176722,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.7898335162587733
+      }
+    },
+    {
+      "trial_id": "constructed-115",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 25.952552,
+        "reference_pre_ms": 5.004948,
+        "past_ttft_median_ms": 28.497244000000002
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6275742694389579
+      },
+      "predictions": {
+        "ttft_rank": -25.952552,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-116",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 53.409412,
+        "reference_pre_ms": 8.106475,
+        "past_ttft_median_ms": 26.972547499999997
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6564377808038471
+      },
+      "predictions": {
+        "ttft_rank": -53.409412,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-117",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 56.51957,
+        "reference_pre_ms": 8.122668,
+        "past_ttft_median_ms": 27.6520255
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6589226413454006
+      },
+      "predictions": {
+        "ttft_rank": -56.51957,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-118",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 56.898399,
+        "reference_pre_ms": 8.120974,
+        "past_ttft_median_ms": 41.293067
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6240629549335757
+      },
+      "predictions": {
+        "ttft_rank": -56.898399,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-119",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 53.091114,
+        "reference_pre_ms": 8.1052585,
+        "past_ttft_median_ms": 54.964491
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.6238909224819293
+      },
+      "predictions": {
+        "ttft_rank": -53.091114,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.03794115241749379
+      }
+    },
+    {
+      "trial_id": "constructed-120",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 26.084725,
+        "reference_pre_ms": 5.028306,
+        "past_ttft_median_ms": 54.964491
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.5545040273182679
+      },
+      "predictions": {
+        "ttft_rank": -26.084725,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.7898335162587733
+      }
+    },
+    {
+      "trial_id": "constructed-121",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 28.835379,
+        "reference_pre_ms": 5.0404065,
+        "past_ttft_median_ms": 54.805341999999996
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": 0.61126882031653
+      },
+      "predictions": {
+        "ttft_rank": -28.835379,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-122",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": true,
+      "public": {
+        "ttft_ms": 25.210951,
+        "reference_pre_ms": 5.059463,
+        "past_ttft_median_ms": 40.9632465
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": null
+      },
+      "predictions": {
+        "ttft_rank": -25.210951,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-123",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": true,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 27.894315,
+        "reference_pre_ms": 5.01631,
+        "past_ttft_median_ms": 27.460051999999997
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": null
+      },
+      "predictions": {
+        "ttft_rank": -27.894315,
+        "ttft_learned": 0.13422187089245444,
+        "temporal_learned": 0.13422187089245444,
+        "joint_learned": 0.1197818445621248,
+        "joint_reference_permuted": 0.1197818445621248
+      }
+    },
+    {
+      "trial_id": "constructed-124",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 54.18929,
+        "reference_pre_ms": 8.1575205,
+        "past_ttft_median_ms": 26.98952
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": null
+      },
+      "predictions": {
+        "ttft_rank": -54.18929,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-125",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 55.730592,
+        "reference_pre_ms": 8.172601,
+        "past_ttft_median_ms": 28.364846999999997
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": null
+      },
+      "predictions": {
+        "ttft_rank": -55.730592,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-126",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 55.428969,
+        "reference_pre_ms": 8.041363,
+        "past_ttft_median_ms": 41.0418025
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": null
+      },
+      "predictions": {
+        "ttft_rank": -55.428969,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.19352475961277768,
+        "joint_reference_permuted": 0.20448741686609115
+      }
+    },
+    {
+      "trial_id": "constructed-127",
+      "namespace": "isolated",
+      "manipulation_ok": true,
+      "preselected": false,
+      "preselected_reference_permuted": false,
+      "public": {
+        "ttft_ms": 55.467232,
+        "reference_pre_ms": 8.076987500000001,
+        "past_ttft_median_ms": 54.8091295
+      },
+      "gate_overlaps": {
+        "16": null,
+        "32": null
+      },
+      "predictions": {
+        "ttft_rank": -55.467232,
+        "ttft_learned": 0.14827394668263816,
+        "temporal_learned": 0.14827394668263816,
+        "joint_learned": 0.20448741686609115,
+        "joint_reference_permuted": 0.19352475961277768
+      }
+    }
+  ],
+  "limitations": [
+    "Feasibility only; no InputSnatch replication or tuned baseline.",
+    "No causal or leakage confirmation from AUC point estimates.",
+    "Small selected groups may be uninformative; no uncertainty study yet.",
+    "Shadow KDE rule is not an implementation of PrefixWall flags.",
+    "Capture contract consistency does not authenticate server/seed provenance.",
+    "All completed outcomes retained; manipulation failures block a clean claim."
+  ],
+  "input_sha256": "5c7737a5b520082cd220995b41f419222788c983ebd9eac50ede40c7f19c1fae"
+}
