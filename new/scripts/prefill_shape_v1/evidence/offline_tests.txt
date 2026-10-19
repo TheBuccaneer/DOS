@@ -1,0 +1,34 @@
+test_changed_workload_or_seed_rejected (test_shape.DesignTests.test_changed_workload_or_seed_rejected) ... ok
+test_diagnostic_is_exactly_one_budget_2048_triplet (test_shape.DesignTests.test_diagnostic_is_exactly_one_budget_2048_triplet) ... ok
+test_launcher_dry_run_does_not_require_runtime_or_create_log (test_shape.DesignTests.test_launcher_dry_run_does_not_require_runtime_or_create_log) ... ok
+test_launcher_has_identical_nuisance_settings_and_disabled_cache (test_shape.DesignTests.test_launcher_has_identical_nuisance_settings_and_disabled_cache) ... ok
+test_main_block_requires_explicit_opt_in_before_runtime_access (test_shape.DesignTests.test_main_block_requires_explicit_opt_in_before_runtime_access) ... ok
+test_main_has_ten_independent_triplets_per_budget_with_paired_workloads (test_shape.DesignTests.test_main_has_ten_independent_triplets_per_budget_with_paired_workloads) ... ok
+test_main_requires_its_own_explicit_timer_freeze (test_shape.DesignTests.test_main_requires_its_own_explicit_timer_freeze) ... ok
+test_all_conditions_capture_full_cohort_and_reconstruct_primary (test_shape.EpisodeTests.test_all_conditions_capture_full_cohort_and_reconstruct_primary) ... ok
+test_counter_reset_is_not_interpreted_as_zero_load (test_shape.EpisodeTests.test_counter_reset_is_not_interpreted_as_zero_load) ... ok
+test_declared_burst_and_distributed_deadlines_are_exact (test_shape.EpisodeTests.test_declared_burst_and_distributed_deadlines_are_exact) ... ok
+test_independent_copy_needs_no_campaign_file (test_shape.EpisodeTests.test_independent_copy_needs_no_campaign_file) ... ok
+test_iteration_over_budget_is_rejected_even_with_balanced_context_sum (test_shape.EpisodeTests.test_iteration_over_budget_is_rejected_even_with_balanced_context_sum) ... ok
+test_output_never_overwrites_existing_episode (test_shape.EpisodeTests.test_output_never_overwrites_existing_episode) ... ok
+test_partial_episode_is_reported_alongside_valid_episode (test_shape.EpisodeTests.test_partial_episode_is_reported_alongside_valid_episode) ... ok
+test_raw_stream_timer_and_metric_tampering_are_rejected (test_shape.EpisodeTests.test_raw_stream_timer_and_metric_tampering_are_rejected) ... ok
+test_block_preflight_failure_lists_every_not_started_episode (test_shape.FailureTests.test_block_preflight_failure_lists_every_not_started_episode) ... ok
+test_budget_512_uses_same_workload_and_respects_actual_iteration_budget (test_shape.FailureTests.test_budget_512_uses_same_workload_and_respects_actual_iteration_budget) ... ok
+test_cancelled_episode_is_saved_and_cancellation_propagates (test_shape.FailureTests.test_cancelled_episode_is_saved_and_cancellation_propagates) ... ok
+test_early_victim_completion_does_not_prevent_timer_or_extra_requests (test_shape.FailureTests.test_early_victim_completion_does_not_prevent_timer_or_extra_requests) ... ok
+test_effective_budget_mismatch_is_rejected (test_shape.FailureTests.test_effective_budget_mismatch_is_rejected) ... ok
+test_log_rotation_is_retained_as_an_invalid_episode (test_shape.FailureTests.test_log_rotation_is_retained_as_an_invalid_episode) ... ok
+test_metric_gap_and_failed_scrape_invalidate_coverage (test_shape.FailureTests.test_metric_gap_and_failed_scrape_invalidate_coverage) ... ok
+test_missing_done_keeps_episode_but_invalidates_cohort_endpoint (test_shape.FailureTests.test_missing_done_keeps_episode_but_invalidates_cohort_endpoint) ... ok
+test_timeout_keeps_partial_sse_and_error_status (test_shape.FailureTests.test_timeout_keeps_partial_sse_and_error_status) ... ok
+test_wrong_server_stops_before_any_victim_request (test_shape.FailureTests.test_wrong_server_stops_before_any_victim_request) ... ok
+test_early_wakeup_never_fires_timer_before_absolute_deadline (test_shape.TimerTests.test_early_wakeup_never_fires_timer_before_absolute_deadline) ... ok
+test_only_explicit_loopback_urls_allowed (test_shape.TimerTests.test_only_explicit_loopback_urls_allowed) ... ok
+test_disk_failure_prevents_successful_flush (test_shape.TransportTests.test_disk_failure_prevents_successful_flush) ... ok
+test_shared_pool_keeps_per_request_timeouts_and_closes_once (test_shape.TransportTests.test_shared_pool_keeps_per_request_timeouts_and_closes_once) ... ok
+
+----------------------------------------------------------------------
+Ran 29 tests in 16.015s
+
+OK

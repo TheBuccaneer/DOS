@@ -1,3 +1,4 @@
 .gitattributes text eol=lf
 *.sh text eol=lf
 *.py text eol=lf
+NordSec_OracleFree_Vollpaket_2026-10-19.zip filter=lfs diff=lfs merge=lfs -text

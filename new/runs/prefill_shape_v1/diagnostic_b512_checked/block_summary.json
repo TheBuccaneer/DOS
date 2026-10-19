@@ -1,0 +1,135 @@
+{
+  "mode": "diagnostic",
+  "budget": 512,
+  "block": 0,
+  "episodes": [
+    {
+      "episode_id": "shape-11186831441349fa8715b2615e0b1d07-b512-k00-control",
+      "path": "shape-11186831441349fa8715b2615e0b1d07-b512-k00-control.jsonl",
+      "assessment": {
+        "schema": "prefill-shape-assessment-v1",
+        "mode": "diagnostic",
+        "origin": "serving",
+        "primary_ms": null,
+        "victim_token64_receipts_ns": {
+          "V0": null,
+          "V1": null,
+          "V2": null,
+          "V3": null
+        },
+        "measurement_valid": false,
+        "issues": [
+          "server configuration: resolved configuration differs: device_config.device_type",
+          "episode errors present",
+          "V0: 'wire_payload'",
+          "V1: 'wire_payload'",
+          "V2: 'wire_payload'",
+          "V3: 'wire_payload'",
+          "missing timer trigger",
+          "missing before/after metrics"
+        ],
+        "all_victims_decoding_at_trigger": false,
+        "eligible_for_planned_comparison": false,
+        "extra_dispatch_span_ms": null,
+        "extra_dispatch_gaps_ms": [],
+        "victim_dispatch_span_ms": null,
+        "victims_decoding_at_each_extra": [],
+        "trigger_lateness_ms": null,
+        "metrics_coverage": {},
+        "scheduler": {},
+        "scientific_result_claimed": false
+      }
+    },
+    {
+      "episode_id": "shape-11186831441349fa8715b2615e0b1d07-b512-k00-distributed",
+      "path": "shape-11186831441349fa8715b2615e0b1d07-b512-k00-distributed.jsonl",
+      "assessment": {
+        "schema": "prefill-shape-assessment-v1",
+        "mode": "diagnostic",
+        "origin": "serving",
+        "primary_ms": null,
+        "victim_token64_receipts_ns": {
+          "V0": null,
+          "V1": null,
+          "V2": null,
+          "V3": null
+        },
+        "measurement_valid": false,
+        "issues": [
+          "server configuration: resolved configuration differs: device_config.device_type",
+          "episode errors present",
+          "V0: 'wire_payload'",
+          "V1: 'wire_payload'",
+          "V2: 'wire_payload'",
+          "V3: 'wire_payload'",
+          "E0: 'wire_payload'",
+          "E1: 'wire_payload'",
+          "E2: 'wire_payload'",
+          "E3: 'wire_payload'",
+          "missing timer trigger",
+          "missing before/after metrics"
+        ],
+        "all_victims_decoding_at_trigger": false,
+        "eligible_for_planned_comparison": false,
+        "extra_dispatch_span_ms": null,
+        "extra_dispatch_gaps_ms": [],
+        "victim_dispatch_span_ms": null,
+        "victims_decoding_at_each_extra": [],
+        "trigger_lateness_ms": null,
+        "metrics_coverage": {},
+        "scheduler": {},
+        "scientific_result_claimed": false
+      }
+    },
+    {
+      "episode_id": "shape-11186831441349fa8715b2615e0b1d07-b512-k00-burst",
+      "path": "shape-11186831441349fa8715b2615e0b1d07-b512-k00-burst.jsonl",
+      "assessment": {
+        "schema": "prefill-shape-assessment-v1",
+        "mode": "diagnostic",
+        "origin": "serving",
+        "primary_ms": null,
+        "victim_token64_receipts_ns": {
+          "V0": null,
+          "V1": null,
+          "V2": null,
+          "V3": null
+        },
+        "measurement_valid": false,
+        "issues": [
+          "server configuration: resolved configuration differs: device_config.device_type",
+          "episode errors present",
+          "V0: 'wire_payload'",
+          "V1: 'wire_payload'",
+          "V2: 'wire_payload'",
+          "V3: 'wire_payload'",
+          "E0: 'wire_payload'",
+          "E1: 'wire_payload'",
+          "E2: 'wire_payload'",
+          "E3: 'wire_payload'",
+          "missing timer trigger",
+          "missing before/after metrics"
+        ],
+        "all_victims_decoding_at_trigger": false,
+        "eligible_for_planned_comparison": false,
+        "extra_dispatch_span_ms": null,
+        "extra_dispatch_gaps_ms": [],
+        "victim_dispatch_span_ms": null,
+        "victims_decoding_at_each_extra": [],
+        "trigger_lateness_ms": null,
+        "metrics_coverage": {},
+        "scheduler": {},
+        "scientific_result_claimed": false
+      }
+    }
+  ],
+  "error": null,
+  "plan_sha256": "528ca97a539096ef30e267b7c77e8c44fac16d0e8789367d28ab76f42e5062ff",
+  "planned_episode_ids": [
+    "shape-11186831441349fa8715b2615e0b1d07-b512-k00-control",
+    "shape-11186831441349fa8715b2615e0b1d07-b512-k00-distributed",
+    "shape-11186831441349fa8715b2615e0b1d07-b512-k00-burst"
+  ],
+  "not_completed": [],
+  "scientific_result_claimed": false
+}

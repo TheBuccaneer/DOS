@@ -1,0 +1,174 @@
+{
+  "mode": "diagnostic",
+  "budget": 2048,
+  "block": 0,
+  "episodes": [
+    {
+      "episode_id": "shape-98611a6d80bb496d981bdb59adcddcf4-b2048-k00-burst",
+      "path": "shape-98611a6d80bb496d981bdb59adcddcf4-b2048-k00-burst.jsonl",
+      "assessment": {
+        "schema": "prefill-shape-assessment-v1",
+        "mode": "diagnostic",
+        "origin": "serving",
+        "primary_ms": null,
+        "victim_token64_receipts_ns": {
+          "V0": null,
+          "V1": null,
+          "V2": null,
+          "V3": null
+        },
+        "measurement_valid": false,
+        "issues": [
+          "V0: raw prompt/token copy mismatch",
+          "V1: raw prompt/token copy mismatch",
+          "V2: raw prompt/token copy mismatch",
+          "V3: raw prompt/token copy mismatch",
+          "E0: raw prompt/token copy mismatch",
+          "E1: raw prompt/token copy mismatch",
+          "E2: raw prompt/token copy mismatch",
+          "E3: raw prompt/token copy mismatch"
+        ],
+        "all_victims_decoding_at_trigger": false,
+        "eligible_for_planned_comparison": false,
+        "extra_dispatch_span_ms": 4.198292,
+        "extra_dispatch_gaps_ms": [
+          0.287807,
+          0.263396,
+          3.647089
+        ],
+        "victim_dispatch_span_ms": 1.003045,
+        "victims_decoding_at_each_extra": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "trigger_lateness_ms": 0.451817,
+        "metrics_coverage": {
+          "samples": 68,
+          "max_gap_ms": 57.716703,
+          "continuous": true
+        },
+        "scheduler": {
+          "iterations": 67,
+          "max_scheduled_tokens": 2048,
+          "budget_binding_observed": true,
+          "prefill_decode_overlap_iterations": 6,
+          "gpu_kernel_time_measured": false,
+          "request_attribution": "aggregate_only"
+        },
+        "scientific_result_claimed": false
+      }
+    },
+    {
+      "episode_id": "shape-98611a6d80bb496d981bdb59adcddcf4-b2048-k00-distributed",
+      "path": "shape-98611a6d80bb496d981bdb59adcddcf4-b2048-k00-distributed.jsonl",
+      "assessment": {
+        "schema": "prefill-shape-assessment-v1",
+        "mode": "diagnostic",
+        "origin": "serving",
+        "primary_ms": null,
+        "victim_token64_receipts_ns": {
+          "V0": null,
+          "V1": null,
+          "V2": null,
+          "V3": null
+        },
+        "measurement_valid": false,
+        "issues": [
+          "V0: raw prompt/token copy mismatch",
+          "V1: raw prompt/token copy mismatch",
+          "V2: raw prompt/token copy mismatch",
+          "V3: raw prompt/token copy mismatch",
+          "E0: raw prompt/token copy mismatch",
+          "E1: raw prompt/token copy mismatch",
+          "E2: raw prompt/token copy mismatch",
+          "E3: raw prompt/token copy mismatch"
+        ],
+        "all_victims_decoding_at_trigger": false,
+        "eligible_for_planned_comparison": false,
+        "extra_dispatch_span_ms": 299.944107,
+        "extra_dispatch_gaps_ms": [
+          100.193334,
+          99.681011,
+          100.069762
+        ],
+        "victim_dispatch_span_ms": 0.673657,
+        "victims_decoding_at_each_extra": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "trigger_lateness_ms": 0.114798,
+        "metrics_coverage": {
+          "samples": 68,
+          "max_gap_ms": 58.340947,
+          "continuous": true
+        },
+        "scheduler": {
+          "iterations": 67,
+          "max_scheduled_tokens": 2048,
+          "budget_binding_observed": true,
+          "prefill_decode_overlap_iterations": 7,
+          "gpu_kernel_time_measured": false,
+          "request_attribution": "aggregate_only"
+        },
+        "scientific_result_claimed": false
+      }
+    },
+    {
+      "episode_id": "shape-98611a6d80bb496d981bdb59adcddcf4-b2048-k00-control",
+      "path": "shape-98611a6d80bb496d981bdb59adcddcf4-b2048-k00-control.jsonl",
+      "assessment": {
+        "schema": "prefill-shape-assessment-v1",
+        "mode": "diagnostic",
+        "origin": "serving",
+        "primary_ms": null,
+        "victim_token64_receipts_ns": {
+          "V0": null,
+          "V1": null,
+          "V2": null,
+          "V3": null
+        },
+        "measurement_valid": false,
+        "issues": [
+          "V0: raw prompt/token copy mismatch",
+          "V1: raw prompt/token copy mismatch",
+          "V2: raw prompt/token copy mismatch",
+          "V3: raw prompt/token copy mismatch"
+        ],
+        "all_victims_decoding_at_trigger": false,
+        "eligible_for_planned_comparison": false,
+        "extra_dispatch_span_ms": null,
+        "extra_dispatch_gaps_ms": [],
+        "victim_dispatch_span_ms": 0.685167,
+        "victims_decoding_at_each_extra": [],
+        "trigger_lateness_ms": 1.033739,
+        "metrics_coverage": {
+          "samples": 36,
+          "max_gap_ms": 58.095942,
+          "continuous": true
+        },
+        "scheduler": {
+          "iterations": 67,
+          "max_scheduled_tokens": 514,
+          "budget_binding_observed": false,
+          "prefill_decode_overlap_iterations": 1,
+          "gpu_kernel_time_measured": false,
+          "request_attribution": "aggregate_only"
+        },
+        "scientific_result_claimed": false
+      }
+    }
+  ],
+  "error": null,
+  "plan_sha256": "d04841be5caf7aafa36090c7d464d65244ad9de1112f9c432ba5ebac86d9b092",
+  "planned_episode_ids": [
+    "shape-98611a6d80bb496d981bdb59adcddcf4-b2048-k00-burst",
+    "shape-98611a6d80bb496d981bdb59adcddcf4-b2048-k00-distributed",
+    "shape-98611a6d80bb496d981bdb59adcddcf4-b2048-k00-control"
+  ],
+  "not_completed": [],
+  "scientific_result_claimed": false
+}

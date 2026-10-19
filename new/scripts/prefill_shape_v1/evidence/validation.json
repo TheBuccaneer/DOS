@@ -1,0 +1,24 @@
+{
+  "validation_kind": "offline_only",
+  "python": "3.14.4",
+  "test_command": "python3 -B -m unittest discover -s new/scripts/prefill_shape_v1/tests -v",
+  "tests": 29,
+  "failures": 0,
+  "errors": 0,
+  "test_duration_seconds": 16.015,
+  "historical_executor_sha256": "981aba99aff820ea8fea3bef6df0e1e8bfb127df059695d4736d7702ef300b75",
+  "prepared_plan_sha256": "d04841be5caf7aafa36090c7d464d65244ad9de1112f9c432ba5ebac86d9b092",
+  "prepared_mode": "diagnostic",
+  "prepared_budget": 2048,
+  "prepared_episodes": 3,
+  "prepared_completion_requests": 20,
+  "condition_order": [
+    "burst",
+    "distributed",
+    "control"
+  ],
+  "serving_requests_sent": 0,
+  "gpu_runs": 0,
+  "server_starts": 0,
+  "scientific_result_claimed": false
+}
